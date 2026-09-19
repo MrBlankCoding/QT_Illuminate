@@ -22,7 +22,6 @@ Item {
         DragHandler {
             target: null
             onActiveChanged: {
-                logger.info("TabBar", "DEBUG windowDrag active=" + active)
                 if (active) root.Window.window.startSystemMove()
             }
         }
@@ -35,19 +34,6 @@ Item {
                 if (!win) return
                 win.visibility === Window.Maximized ? win.showNormal() : win.showMaximized()
             }
-        }
-    }
-
-    Timer {
-        interval: 800
-        running: true
-        onTriggered: {
-            const tlGlobal = trafficLightSpacer.mapToGlobal(0, 0)
-            const tlBottom = trafficLightSpacer.mapToGlobal(trafficLightSpacer.width, trafficLightSpacer.height)
-            const tabGlobal = tabList.mapToGlobal(0, 0)
-            const tabBottom = tabList.mapToGlobal(tabList.width, tabList.height)
-            logger.info("TabBar", "DEBUG trafficLightSpacer global rect=" + tlGlobal.x + "," + tlGlobal.y + " to " + tlBottom.x + "," + tlBottom.y)
-            logger.info("TabBar", "DEBUG tabList global rect=" + tabGlobal.x + "," + tabGlobal.y + " to " + tabBottom.x + "," + tabBottom.y + " count=" + tabList.count + " tabWidth=" + tabList.tabWidth)
         }
     }
 
@@ -159,10 +145,10 @@ Item {
             DragRegion { anchors.fill: parent }
         }
 
-        // window & linux window controls
+        // window controls for custom-decorated platforms
         WindowControls {
             id: winControls
-            visible: Qt.platform.os !== "osx"
+            visible: Theme.customDecoration
             Layout.preferredWidth:  visible ? implicitWidth : 0
             Layout.fillHeight: true
         }

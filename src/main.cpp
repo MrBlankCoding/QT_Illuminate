@@ -12,16 +12,19 @@
 
 int main(int argc, char *argv[])
 {
-    // logging
-    BrowserLogger::instance().installAsQtHandler();
-    BrowserLogger::instance().info("Main", "QT_Illuminate starting up");
-
     // webengine start before everyting
     QtWebEngineQuick::initialize();
 
     QGuiApplication app(argc, argv);
     app.setApplicationName("QT_Illuminate");
     app.setOrganizationName("QT_Illuminate");
+
+    #if defined(Q_OS_LINUX)
+        app.setDesktopFileName(QStringLiteral("qt-illuminate.desktop"));
+    #endif
+
+    BrowserLogger::instance().installAsQtHandler();
+    BrowserLogger::instance().info("Main", "QT_Illuminate starting up");
 
     BrowserLogger::instance().info("Main", QString("Qt %1 — WebEngine ready").arg(qVersion()));
 

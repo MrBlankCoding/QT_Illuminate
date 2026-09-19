@@ -13,8 +13,8 @@ Window {
     minimumHeight: 420
     title: (browser.activeTitle || "New Tab") + " — QT_Illuminate"
     color: Theme.bg
-    // hide mac title bar
-    flags: Qt.platform.os === "osx"
+    // native frame on macOS/Wayland, custom one elsewhere
+    flags: Theme.nativeDecoration
     ? Qt.Window
     : Qt.Window | Qt.FramelessWindowHint
 
@@ -277,7 +277,7 @@ Window {
                 Item {
                     id: resizeGrips
                     anchors.fill: parent
-                    visible: Qt.platform.os !== "osx"
+                    visible: Theme.customDecoration
                     enabled: visible
 
                     MouseArea { // left

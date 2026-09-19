@@ -9,6 +9,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
+include(GNUInstallDirs)
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickEffects QuickControls2 WebEngineQuick)
 
 # ── C++ sources ───────────────────────────────────────────────────────────────
@@ -59,11 +61,16 @@ target_link_libraries(QT_Illuminate PRIVATE
 )
 
 set_source_files_properties(ui/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set(QT_ILLUMINATE_QML_OUT_DIR "")
+if(NOT APPLE)
+    set(QT_ILLUMINATE_QML_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/qml")
+endif()
 
 qt_add_qml_module(QT_Illuminate
     URI             QT_Illuminate.ui
     VERSION         1.0
     RESOURCE_PREFIX /
+    OUTPUT_DIRECTORY "${QT_ILLUMINATE_QML_OUT_DIR}"
     QML_FILES
         ui/BrowserWindow.qml
         ui/KeyboardShortcuts.qml
@@ -101,3 +108,23 @@ set_target_properties(QT_Illuminate PROPERTIES
     MACOSX_BUNDLE TRUE
     MACOSX_BUNDLE_BUNDLE_NAME "QT_Illuminate"
 )
+
+# ── Linux install (desktop integration) ──────────────────────────────────────
+#    cmake --install build           # -> /usr/local
+#    cmake --install build -DCMAKE_INSTALL_PREFIX=/usr
+#
+# Ships the binary, its on-disk QML module (kept next to the executable, same
+# layout as the build dir), a .desktop entry, and the hicolor app icon.
+if(NOT APPLE)
+    install(TARGETS QT_Illuminate RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/qml/"
+            DESTINATION "${CMAKE_INSTALL_BINDIR}/qml")
+    install(FILES packaging/qt-illuminate.desktop
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+    install(FILES packaging/icons/qt-illuminate.svg
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
+    # makes /usr/local/share/icons/hicolor a valid icon theme so
+    # gtk-update-icon-cache can build a cache for it
+    install(FILES packaging/hicolor/index.theme
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor")
+endif()

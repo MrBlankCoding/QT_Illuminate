@@ -33,8 +33,12 @@ QtObject {
     readonly property int   pillRadius:    20
     readonly property int   progressH:     3
 
+    // platform
+    readonly property bool nativeDecoration: Qt.platform.os === "osx" || Qt.platform.name === "wayland"
+    readonly property bool customDecoration: !nativeDecoration
+
     // font
-    readonly property string fontFamily:  Qt.platform.os === "osx" ? Qt.application.font.family : "Segoe UI, sans-serif"
+    readonly property string fontFamily:  Qt.application.font.family
     readonly property int    fontSizeS:   11
     readonly property int    fontSizeM:   13
 

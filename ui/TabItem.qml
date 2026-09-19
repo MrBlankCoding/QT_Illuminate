@@ -32,7 +32,6 @@ Item {
         property real committedX: 0
 
         onActiveChanged: {
-            logger.info("TabItem", "DEBUG tabDrag active=" + active + " index=" + index)
             committedX = 0
             if (!active) dragTranslate.x = 0
         }
