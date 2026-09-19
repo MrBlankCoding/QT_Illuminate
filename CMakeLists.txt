@@ -11,7 +11,14 @@ set(CMAKE_AUTOMOC ON)
 
 include(GNUInstallDirs)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickEffects QuickControls2 WebEngineQuick)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 WebEngineQuick)
+find_package(Qt6 QUIET COMPONENTS QuickEffects)
+if(Qt6QuickEffects_FOUND)
+    set(QUICK_EFFECTS_LIB Qt6::QuickEffects)
+else()
+    find_package(Qt6QuickEffectsPrivate REQUIRED)
+    set(QUICK_EFFECTS_LIB Qt6::QuickEffectsPrivate)
+endif()
 
 # ── C++ sources ───────────────────────────────────────────────────────────────
 qt_add_executable(QT_Illuminate
@@ -55,7 +62,7 @@ target_link_libraries(QT_Illuminate PRIVATE
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick
-    Qt6::QuickEffects
+    ${QUICK_EFFECTS_LIB}
     Qt6::QuickControls2
     Qt6::WebEngineQuick
 )
@@ -109,13 +116,18 @@ set_target_properties(QT_Illuminate PROPERTIES
     MACOSX_BUNDLE_BUNDLE_NAME "QT_Illuminate"
 )
 
-# ── Linux install (desktop integration) ──────────────────────────────────────
-#    cmake --install build           # -> /usr/local
-#    cmake --install build -DCMAKE_INSTALL_PREFIX=/usr
-#
-# Ships the binary, its on-disk QML module (kept next to the executable, same
-# layout as the build dir), a .desktop entry, and the hicolor app icon.
-if(NOT APPLE)
+# windows
+if(WIN32)
+    set_target_properties(QT_Illuminate PROPERTIES
+        WIN32_EXECUTABLE TRUE
+    )
+    target_sources(QT_Illuminate PRIVATE
+        packaging/windows/app.rc
+    )
+endif()
+
+
+if(UNIX AND NOT APPLE)
     install(TARGETS QT_Illuminate RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/qml/"
             DESTINATION "${CMAKE_INSTALL_BINDIR}/qml")
@@ -123,8 +135,6 @@ if(NOT APPLE)
             DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
     install(FILES packaging/icons/qt-illuminate.svg
             DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
-    # makes /usr/local/share/icons/hicolor a valid icon theme so
-    # gtk-update-icon-cache can build a cache for it
     install(FILES packaging/hicolor/index.theme
             DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor")
 endif()

@@ -15,14 +15,23 @@ set -euo pipefail
 
 IS_MAC=0
 IS_LINUX=0
+IS_WINDOWS=0
 case "$(uname -s)" in
     Darwin*) IS_MAC=1    ;;
     Linux)   IS_LINUX=1  ;;
+    MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;;
     *)
         echo "✗ Unsupported platform: $(uname -s)"
         exit 1
         ;;
 esac
+if (( IS_WINDOWS )); then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    SCRIPT_WIN="$(cygpath -w "$SCRIPT_DIR/build.ps1" 2>/dev/null || echo "$SCRIPT_DIR/build.ps1")"
+    echo "→ Windows detected — delegating to build.ps1"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT_WIN" "$@"
+    exit $?
+fi
 
 cpu_cores() {
     if (( IS_MAC )); then
