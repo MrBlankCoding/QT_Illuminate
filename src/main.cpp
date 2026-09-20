@@ -1,7 +1,6 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
-#include <QQuickWindow>
 #include <QQuickWebEngineProfile>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
@@ -12,7 +11,6 @@
 #include "core/ProfileManager.h"
 #include "utils/BrowserLogger.h"
 #include "utils/LogBridge.h"
-#include "utils/WindowRounding.h"
 #include "utils/WindowHelper.h"
 
 int main(int argc, char *argv[])
@@ -70,9 +68,6 @@ int main(int argc, char *argv[])
         }
     );
 
-    // tab strip magic number
-    constexpr qreal kTabBarHeight = 42.0;
-
     const QUrl root("qrc:/QT_Illuminate/ui/ui/ProfilePicker.qml");
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreated,
@@ -83,13 +78,6 @@ int main(int argc, char *argv[])
                 QCoreApplication::exit(1);
                 return;
             }
-#if defined(Q_OS_MACOS)
-            if (auto *window = qobject_cast<QQuickWindow *>(obj)) {
-                WindowRounding::applyMacTitleBarStyle(window, kTabBarHeight);
-            }
-#else
-            Q_UNUSED(obj);
-#endif
         },
         Qt::QueuedConnection
     );
