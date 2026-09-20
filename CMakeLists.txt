@@ -8,6 +8,7 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 
@@ -100,20 +101,23 @@ qt_add_qml_module(QT_Illuminate
     RESOURCE_PREFIX /
     OUTPUT_DIRECTORY "${QT_ILLUMINATE_QML_OUT_DIR}"
     QML_FILES
-         ui/ProfilePicker.qml
-         ui/BrowserWindow.qml
-         ui/KeyboardShortcuts.qml
-        ui/FindBar.qml
-        ui/ZoomIndicator.qml
-        ui/DownloadsPanel.qml
-        ui/TabBar.qml
-        ui/TabItem.qml
-        ui/Toolbar.qml
-        ui/Theme.qml
-        ui/LucideIcon.qml
-        ui/NewTabPage.qml
-        ui/ExtensionsPage.qml
-        ui/InstalledExtensionsPage.qml
+         ui/pages/ProfilePicker.qml
+         ui/pages/BrowserWindow.qml
+         ui/components/KeyboardShortcuts.qml
+         ui/components/FindBar.qml
+         ui/components/ZoomIndicator.qml
+         ui/components/DownloadsPanel.qml
+         ui/components/TabBar.qml
+         ui/components/TabItem.qml
+         ui/components/Toolbar.qml
+         ui/Theme.qml
+         ui/components/LucideIcon.qml
+         ui/pages/NewTabPage.qml
+         ui/pages/ExtensionsPage.qml
+         ui/pages/InstalledExtensionsPage.qml
+         ui/components/SuggestionBox.qml
+         ui/components/ProfileTile.qml
+         ui/components/PillButton.qml
     RESOURCES
         ui/icons/alert-triangle.svg
         ui/icons/globe.svg

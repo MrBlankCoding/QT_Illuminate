@@ -17,6 +17,17 @@ Item {
     property bool   canGoBack:    false
     property bool   canGoForward: false
 
+    // emitted when user picks a profile or opens selector
+    signal switchToProfile(var profile)
+    signal openProfileSelector()
+
+    // avatar color helper (mirrors ProfilePicker.avatarColorFor)
+    function avatarColorFor(profile) {
+        return profile && profile.color && profile.color.length > 0
+            ? profile.color
+            : (typeof Theme !== "undefined" && Theme.accent) || "#3b82f6"
+    }
+
     // recheck bookmarks on change
     readonly property bool isBookmarked: bookmarks.count >= 0 && root.currentUrl !== "" && bookmarks.isBookmarked(root.currentUrl)
 
@@ -40,20 +51,19 @@ Item {
         bookmarks.toggleBookmark(root.currentTitle, root.currentUrl, root.currentIconUrl)
     }
 
-    // --- search suggestions model & helpers (owned by root so suggestionsBox can use it) ---
+    // --- search suggestions model & helpers ---
     ListModel { id: suggestionModel }
-    property int highlighted: -1
 
     function clearSuggestions() {
         suggestionModel.clear()
-        highlighted = -1
+        suggestionsBox.highlighted = -1
     }
 
     function applySuggestions(list) {
         suggestionModel.clear()
         for (let i = 0; i < list.length; i++)
             suggestionModel.append(list[i])
-        highlighted = -1
+        suggestionsBox.highlighted = -1
     }
 
     function acceptSuggestion(i) {
@@ -124,48 +134,53 @@ Item {
             anchors.rightMargin: 12
             spacing: 8
 
-            // back
-            LucideIcon {
-                size: 16
-                source: "qrc:/QT_Illuminate/ui/ui/icons/chevron-left.svg"
-                color: backHover.hovered ? Theme.text : Theme.textMuted
-                opacity: root.canGoBack ? 1 : 0.35
-                Layout.alignment: Qt.AlignVCenter
+            // nav pill
+            Rectangle {
+                id: navPill
+                Layout.preferredHeight: 32
+                Layout.preferredWidth: navRow.implicitWidth + 24
+                radius: Theme.pillRadius
+                color: "transparent"
+                border.color: Theme.border
+                border.width: 1
 
-                HoverHandler { id: backHover; enabled: root.canGoBack }
-                TapHandler { enabled: root.canGoBack; onTapped: browser.goBack() }
-            }
+                Row {
+                    id: navRow
+                    anchors.centerIn: parent
+                    spacing: 6
 
-            // forward
-            LucideIcon {
-                size: 16
-                source: "qrc:/QT_Illuminate/ui/ui/icons/chevron-right.svg"
-                color: forwardHover.hovered ? Theme.text : Theme.textMuted
-                opacity: root.canGoForward ? 1 : 0.35
-                Layout.alignment: Qt.AlignVCenter
+                    LucideIcon {
+                        size: 18
+                        source: "qrc:/QT_Illuminate/ui/ui/icons/chevron-left.svg"
+                        color: Theme.textMuted
+                        opacity: root.canGoBack ? 1 : 0.35
+                        TapHandler { enabled: root.canGoBack; onTapped: browser.goBack() }
+                    }
 
-                HoverHandler { id: forwardHover; enabled: root.canGoForward }
-                TapHandler { enabled: root.canGoForward; onTapped: browser.goForward() }
-            }
+                    LucideIcon {
+                        size: 18
+                        source: "qrc:/QT_Illuminate/ui/ui/icons/chevron-right.svg"
+                        color: Theme.textMuted
+                        opacity: root.canGoForward ? 1 : 0.35
+                        TapHandler { enabled: root.canGoForward; onTapped: browser.goForward() }
+                    }
 
-            // refresh
-            LucideIcon {
-                size: 15
-                source: root.isLoading
-                       ? "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
-                       : "qrc:/QT_Illuminate/ui/ui/icons/rotate-cw.svg"
-                color: reloadHover.hovered ? Theme.text : Theme.textMuted
-                Layout.alignment: Qt.AlignVCenter
-
-                HoverHandler { id: reloadHover }
-                TapHandler { onTapped: browser.reload() }
+                    LucideIcon {
+                        size: 15
+                        source: root.isLoading
+                               ? "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
+                               : "qrc:/QT_Illuminate/ui/ui/icons/rotate-cw.svg"
+                        color: Theme.textMuted
+                        TapHandler { onTapped: browser.reload() }
+                    }
+                }
             }
 
             // adress bar itself
             Rectangle {
                 id: pill
                 Layout.fillWidth: true
-                height: 34
+                Layout.preferredHeight: 34
                 radius: Theme.pillRadius
                 color: addressInput.activeFocus ? Theme.bg : Theme.surfaceHigh
 
@@ -222,7 +237,7 @@ Item {
                         verticalAlignment: TextInput.AlignVCenter
                         onTextChanged: {
                             if (activeFocus) {
-                                root.highlighted = -1
+                                suggestionsBox.highlighted = -1
                                 suggestTimer.restart()
                             }
                         }
@@ -239,15 +254,15 @@ Item {
 
                         Keys.onDownPressed: {
                             if (suggestionModel.count > 0)
-                                root.highlighted = Math.min(root.highlighted + 1, suggestionModel.count - 1)
+                                suggestionsBox.highlighted = Math.min(suggestionsBox.highlighted + 1, suggestionModel.count - 1)
                         }
                         Keys.onUpPressed: {
                             if (suggestionModel.count > 0)
-                                root.highlighted = Math.max(root.highlighted - 1, -1)
+                                suggestionsBox.highlighted = Math.max(suggestionsBox.highlighted - 1, -1)
                         }
                         Keys.onReturnPressed: {
-                            if (root.highlighted >= 0) {
-                                root.acceptSuggestion(root.highlighted)
+                            if (suggestionsBox.highlighted >= 0) {
+                                root.acceptSuggestion(suggestionsBox.highlighted)
                             } else if (text.trim() !== "") {
                                 root.clearSuggestions()
                                 focus = false
@@ -405,6 +420,66 @@ Item {
                 }
             }
 
+            // profile switcher button (avatar circle)
+            Item {
+                id: profileButton
+                Layout.preferredWidth: 30
+                Layout.preferredHeight: 30
+                Layout.alignment: Qt.AlignVCenter
+
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: 2
+                    radius: 15
+                    color: root.avatarColorFor(profileManager.activeProfile)
+                    border.color: profileHover.hovered ? Theme.text : "transparent"
+                    border.width: profileHover.hovered ? 1 : 0
+                    Behavior on border.width { NumberAnimation { duration: Theme.durationFast } }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: (profileManager.activeProfile && profileManager.activeProfile.name)
+                          ? profileManager.activeProfile.name.charAt(0).toUpperCase()
+                          : "⊕"
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                    font.family: Theme.fontFamily
+                    color: "white"
+                }
+
+                HoverHandler { id: profileHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: profileMenu.popup() }
+
+                Menu {
+                    id: profileMenu
+                    popupType: Popup.Native
+
+                    Repeater {
+                        model: profileManager.profiles
+
+                        MenuItem {
+                            width: 200
+                            text: {
+                                const nm = modelData.name || "Unnamed"
+                                return modelData === profileManager.activeProfile
+                                    ? nm + "  ✓"
+                                    : nm
+                                }
+                            enabled: modelData !== profileManager.activeProfile
+                            onClicked: root.switchToProfile(modelData)
+                        }
+                    }
+
+                    MenuSeparator {}
+
+                    MenuItem {
+                        text: "Select Profile…"
+                        onTriggered: root.openProfileSelector()
+                    }
+                }
+            }
+
             // app menu
             LucideIcon {
                 id: menuButton
@@ -471,26 +546,6 @@ Item {
                         onTriggered: browser.navigate("illuminate://installed-extensions")
                     }
 
-                    MenuItem {
-                        text: "Installed Extensions"
-                        onTriggered: browser.navigate("illuminate://installed-extensions")
-                    }
-
-                    MenuSeparator {}
-
-                    MenuItem {
-                        text: "Theme: System" + (browser.themeMode === "system" ? " ✓" : "")
-                        onTriggered: browser.themeMode = "system"
-                    }
-                    MenuItem {
-                        text: "Theme: Dark" + (browser.themeMode === "dark" ? " ✓" : "")
-                        onTriggered: browser.themeMode = "dark"
-                    }
-                    MenuItem {
-                        text: "Theme: Light" + (browser.themeMode === "light" ? " ✓" : "")
-                        onTriggered: browser.themeMode = "light"
-                    }
-
                     MenuSeparator {}
 
                     MenuItem {
@@ -502,75 +557,15 @@ Item {
         }
     }
 
-    // search suggestions dropdown (child of root Item, positioned relative to address pill)
-    // Uses mapFromItem to translate pill's bottom position into root coordinates
-    Rectangle {
+    // search suggestions dropdown (child of root Item, positioned below toolbar)
+    SuggestionBox {
         id: suggestionsBox
+        anchors.top: toolbarBg.bottom
         anchors.left: toolbarBg.left
         anchors.right: toolbarBg.right
-        anchors.top: toolbarBg.bottom
-        anchors.topMargin: -Theme.toolbarHeight
-        height: suggestionModel.count > 0 ? (suggestionsColumn.implicitHeight + 8) : 0
-        visible: suggestionModel.count > 0 && addressInput.activeFocus
-        z: 200
-        radius: 8
-        color: Theme.surface
-        border.color: Theme.border
-        border.width: 1
-        opacity: visible ? 1 : 0
-        Behavior on height { NumberAnimation { duration: Theme.durationFast } }
-        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-
-        Column {
-            id: suggestionsColumn
-            width: parent.width
-            anchors.top: parent.top
-            anchors.horizontalCenter: parent.horizontalCenter
-
-            Repeater {
-                model: suggestionModel
-
-                delegate: Rectangle {
-                    width: suggestionsColumn.width
-                    height: 32
-                    radius: 6
-                    color: index === root.highlighted ? Theme.surfaceHigh : "transparent"
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        spacing: 8
-
-                        LucideIcon {
-                            size: 14
-                            source: model.isBookmark
-                                    ? "qrc:/QT_Illuminate/ui/ui/icons/star-filled.svg"
-                                    : "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
-                            color: model.isBookmark ? Theme.accent : Theme.textMuted
-                            Layout.alignment: Qt.AlignVCenter
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: model.text
-                            color: Theme.text
-                            elide: Text.ElideRight
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeS
-                            Layout.alignment: Qt.AlignVCenter
-                        }
-                    }
-
-                    HoverHandler {
-                        onHoveredChanged: if (hovered) root.highlighted = index
-                    }
-                    TapHandler {
-                        onTapped: root.acceptSuggestion(index)
-                    }
-                }
-            }
-        }
+        model: suggestionModel
+        addressFocused: addressInput.activeFocus
+        onSuggestionClicked: root.acceptSuggestion(index)
     }
 
     // extension action popup
@@ -578,12 +573,16 @@ Item {
         id: extensionPopup
         width: 360
         height: 520
-        x: root.width - width - 20
-        y: Theme.toolbarHeight + 4
+        x: 0
+        y: 0
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         padding: 0
+        onOpened: {
+            y = Theme.tabBarHeight + root.height
+            x = (root.width - width) / 2
+        }
         onClosed: extensionPopupView.url = "about:blank"
 
         background: Rectangle {

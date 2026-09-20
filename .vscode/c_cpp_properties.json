@@ -1,0 +1,43 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/src/**",
+                "${workspaceFolder}/src/core/**",
+                "${workspaceFolder}/build/QT_Illuminate_autogen/include/**",
+                "${workspaceFolder}/**"
+            ],
+            "defines": [
+                "QT_CORE_LIB",
+                "QT_GUI_LIB",
+                "QT_NETWORK_LIB",
+                "QT_OPENGL_LIB",
+                "QT_POSITIONING_LIB",
+                "QT_QMLINTEGRATION_LIB",
+                "QT_QML_LIB",
+                "QT_QUICKCONTROLS2_LIB",
+                "QT_QUICKEFFECTS_LIB",
+                "QT_QUICK_LIB",
+                "QT_WEBCHANNELQUICK_LIB",
+                "QT_WEBCHANNEL_LIB",
+                "QT_WEBENGINECORE_LIB",
+                "QT_WEBENGINEQUICK_LIB"
+            ],
+            "compilerPath": "/usr/bin/c++",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "macos-clang-arm64",
+            "compilerArgs": [
+                "-std=gnu++17",
+                "-arch",
+                "arm64"
+            ],
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+            "macFrameworkPath": [
+                "/opt/homebrew/lib"
+            ]
+        }
+    ],
+    "version": 4
+}

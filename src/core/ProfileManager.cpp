@@ -50,11 +50,11 @@ void ProfileManager::setActiveProfile(Profile* profile)
     emit activeProfileChanged();
 }
 
-Profile* ProfileManager::createProfile(const QString &name)
+Profile* ProfileManager::createProfile(const QString &name, const QString &color)
 {
     QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     QString profilePath = profilesDirectory() + QDir::separator() + id;
-    Profile *profile = new Profile(id, name, profilePath, this);
+    Profile *profile = new Profile(id, name, profilePath, color, this);
     m_profiles.append(profile);
     m_profileMap.insert(id, profile);
     saveProfiles();
@@ -112,9 +112,10 @@ void ProfileManager::loadProfiles()
             QString id = obj[QStringLiteral("id")].toString();
             QString name = obj[QStringLiteral("name")].toString();
             QString path = obj[QStringLiteral("path")].toString();
+            QString color = obj[QStringLiteral("color")].toString();
 
             if (!id.isEmpty() && !name.isEmpty() && !path.isEmpty()) {
-                Profile *profile = new Profile(id, name, path, this);
+                Profile *profile = new Profile(id, name, path, color, this);
                 m_profiles.append(profile);
                 m_profileMap.insert(id, profile);
             } else {
@@ -131,6 +132,7 @@ void ProfileManager::saveProfiles()
         QJsonObject obj;
         obj[QStringLiteral("id")] = profile->id();
         obj[QStringLiteral("name")] = profile->name();
+        obj[QStringLiteral("color")] = profile->color();
         obj[QStringLiteral("path")] = profile->path();
         profileArray.append(obj);
     }

@@ -3,10 +3,12 @@
 #include <QDir>
 #include <QDebug>
 
-Profile::Profile(const QString &id, const QString &name, const QString &path, QObject *parent)
+Profile::Profile(const QString &id, const QString &name, const QString &path,
+                 const QString &color, QObject *parent)
     : QObject(parent)
     , m_id(id)
     , m_name(name)
+    , m_color(color)
     , m_path(path)
     , m_settings(nullptr)
     , m_webEngineProfile(nullptr)
@@ -39,6 +41,20 @@ void Profile::setName(const QString &name)
 QString Profile::path() const
 {
     return m_path;
+}
+
+QString Profile::color() const
+{
+    return m_color;
+}
+
+void Profile::setColor(const QString &color)
+{
+    if (m_color == color)
+        return;
+
+    m_color = color;
+    emit colorChanged();
 }
 
 QSettings* Profile::settings() const

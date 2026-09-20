@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
         }
     );
 
-    const QUrl root("qrc:/QT_Illuminate/ui/ui/ProfilePicker.qml");
+    const QUrl root("qrc:/QT_Illuminate/ui/ui/pages/ProfilePicker.qml");
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreated,
         &app,    [&](QObject *obj, const QUrl &url) {

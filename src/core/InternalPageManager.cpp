@@ -44,11 +44,11 @@ QString InternalPageManager::qmlSource(const QString &url)
 {
     const QString t = url.trimmed().toLower();
     if (t == QLatin1String("newtab://newtab"))
-        return QStringLiteral("qrc:/QT_Illuminate/ui/ui/NewTabPage.qml");
+        return QStringLiteral("qrc:/QT_Illuminate/ui/ui/pages/NewTabPage.qml");
     if (t == QLatin1String("illuminate://extensions"))
-        return QStringLiteral("qrc:/QT_Illuminate/ui/ui/ExtensionsPage.qml");
+        return QStringLiteral("qrc:/QT_Illuminate/ui/ui/pages/ExtensionsPage.qml");
     if (t == QLatin1String("illuminate://installed-extensions"))
-        return QStringLiteral("qrc:/QT_Illuminate/ui/ui/InstalledExtensionsPage.qml");
+        return QStringLiteral("qrc:/QT_Illuminate/ui/ui/pages/InstalledExtensionsPage.qml");
 
     return {};
 }

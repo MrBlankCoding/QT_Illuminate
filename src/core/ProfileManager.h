@@ -21,7 +21,7 @@ public:
     Profile* activeProfile() const;
     void setActiveProfile(Profile* profile);
 
-    Q_INVOKABLE Profile* createProfile(const QString &name);
+    Q_INVOKABLE Profile* createProfile(const QString &name, const QString &color = QString());
     Q_INVOKABLE void deleteProfile(const QString &id);
     Q_INVOKABLE Profile* getProfile(const QString &id) const;
 

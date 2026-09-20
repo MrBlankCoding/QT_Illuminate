@@ -17,12 +17,26 @@ Window {
         ? Qt.Window | Qt.FramelessWindowHint
         : Qt.Window
 
+    function switchProfile(profile) {
+        if (!profile) return
+        profileManager.activeProfile = profile
+        var comp = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/BrowserWindow.qml")
+        var win = comp.createObject(null)
+        win.showMaximized()
+        root.close()
+    }
+
+    function openProfileSelector() {
+        var comp = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/ProfilePicker.qml")
+        var win = comp.createObject(null)
+        win.show()
+        root.close()
+    }
+
     Component.onCompleted: {
         logger.info("BrowserWindow", "Window ready, platform=" + Qt.platform.os)
         if (typeof windowHelper !== "undefined" && typeof windowHelper.applyTitleBarStyle === "function")
             windowHelper.applyTitleBarStyle(root, Theme.tabBarHeight)
-        // fill screen
-        root.showMaximized()
     }
 
     Column {
@@ -52,6 +66,8 @@ Window {
             downloadsPanel: downloadsPanel
 
             onNavigate: function(input) { browser.navigate(input) }
+            onSwitchToProfile: root.switchProfile(profile)
+            onOpenProfileSelector: root.openProfileSelector()
         }
 
         // content area
