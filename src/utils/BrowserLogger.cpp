@@ -86,10 +86,7 @@ void BrowserLogger::log(Level level, const QString &category, const QString &mes
     if (m_file.isOpen()) {
         rotateIfNeeded();
         m_stream << line << '\n';
-        if (level >= Warning || ++m_unflushedCount >= kFlushEvery) {
-            m_stream.flush();
-            m_unflushedCount = 0;
-        }
+        m_stream.flush();
     }
 
     // mirror to console

@@ -4,6 +4,7 @@
 #include <QUrl>
 #include <QVariantMap>
 #include <QVector>
+#include <QWebEngineProfile>
 
 // QUrl and QVariantMap need to be included
 // MOC needs to resolve at compile time.
@@ -33,7 +34,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     // tab CRUD
-    BrowserTab *addTab(const QUrl &url = QUrl());
+    BrowserTab *addTab(const QUrl &url, QWebEngineProfile *profile);
     void        removeTab(int index);
     BrowserTab *tabAt(int index) const;
 

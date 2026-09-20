@@ -3,7 +3,9 @@
 #include <QObject>
 #include <QUrl>
 #include <QString>
+#include <QWebEngineProfile>
 #include "TabModel.h"
+#include "Profile.h"
 
 class BrowserController : public QObject
 {
@@ -16,9 +18,12 @@ class BrowserController : public QObject
     Q_PROPERTY(QString   activeTitle    READ activeTitle    NOTIFY activeStateChanged)
     Q_PROPERTY(bool      activeLoading  READ activeLoading  NOTIFY activeStateChanged)
     Q_PROPERTY(int       activeProgress READ activeProgress NOTIFY activeStateChanged)
+    Q_PROPERTY(QString   newTabBackground READ newTabBackground WRITE setNewTabBackground NOTIFY newTabBackgroundChanged)
+    Q_PROPERTY(QString   themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
+    Q_PROPERTY(QString   adaptiveAccent READ adaptiveAccent NOTIFY adaptiveAccentChanged)
 
 public:
-    explicit BrowserController(QObject *parent = nullptr);
+    explicit BrowserController(Profile *profile, QObject *parent = nullptr);
 
     TabModel *tabModel()      const;
     int       activeIndex()   const;
@@ -26,6 +31,11 @@ public:
     QString   activeTitle()   const;
     bool      activeLoading() const;
     int       activeProgress()const;
+    QString   newTabBackground() const;
+    void      setNewTabBackground(const QString &path);
+    QString   themeMode() const;
+    void      setThemeMode(const QString &mode);
+    QString   adaptiveAccent() const;
 
     // user actions
     Q_INVOKABLE void newTab(const QString &url = {});
@@ -49,13 +59,20 @@ public:
 signals:
     void activeIndexChanged();
     void activeStateChanged();
+    void newTabBackgroundChanged();
+    void themeModeChanged();
+    void adaptiveAccentChanged();
     void loadRequested(int tabIndex, const QUrl &url);
     void navigationRequested(const QString &action);   // "back"|"forward"|"reload"|"devtools"
 
 private:
     void rewireActiveTab();
+    void updateAdaptiveAccent();
 
     TabModel *m_model;
+    Profile *m_profile;
+    QWebEngineProfile *m_webEngineProfile;
     // deleted and recreated every tab change
     QObject  *m_activeTabCtx = nullptr;
+    QString   m_adaptiveAccent;
 };

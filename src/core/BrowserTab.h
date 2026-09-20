@@ -4,6 +4,8 @@
 #include <QUrl>
 #include <QString>
 
+#include <QWebEngineProfile>
+
 // represents a tab.
 // tab? 
 // whats a tab
@@ -14,7 +16,7 @@ class BrowserTab : public QObject
     Q_OBJECT
 
 public:
-    explicit BrowserTab(QObject *parent = nullptr);
+    explicit BrowserTab(QWebEngineProfile *profile, QObject *parent = nullptr);
 
     QUrl    url()      const;
     QString title()    const;
@@ -29,6 +31,8 @@ public:
     void setIconUrl(const QString &iconUrl);
     void setProgress(int progress);
     void setLoading(bool loading);
+
+    QWebEngineProfile* webEngineProfile() const;
 
     // navigate time!
     // pendingUrl + emits loadRequested.
@@ -49,4 +53,5 @@ private:
     int     m_progress = 0;
     bool    m_loading  = false;
     QUrl    m_pendingUrl;
+    QWebEngineProfile *m_webEngineProfile;
 };

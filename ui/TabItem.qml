@@ -213,7 +213,7 @@ Item {
         // bg-colour fill
         Rectangle {
             anchors.fill: parent
-            color: Theme.surface
+            color: Theme.tabStripBg
         }
 
         Rectangle {
@@ -237,7 +237,7 @@ Item {
 
         Rectangle {
             anchors.fill: parent
-            color: Theme.surface
+            color: Theme.tabStripBg
         }
         Rectangle {
             anchors.right: parent.right

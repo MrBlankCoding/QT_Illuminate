@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtWebEngine
 import QT_Illuminate.ui
 
 // adress bar pill and loading bar
@@ -39,13 +40,83 @@ Item {
         bookmarks.toggleBookmark(root.currentTitle, root.currentUrl, root.currentIconUrl)
     }
 
+    // --- search suggestions model & helpers (owned by root so suggestionsBox can use it) ---
+    ListModel { id: suggestionModel }
+    property int highlighted: -1
+
+    function clearSuggestions() {
+        suggestionModel.clear()
+        highlighted = -1
+    }
+
+    function applySuggestions(list) {
+        suggestionModel.clear()
+        for (let i = 0; i < list.length; i++)
+            suggestionModel.append(list[i])
+        highlighted = -1
+    }
+
+    function acceptSuggestion(i) {
+        if (i < 0 || i >= suggestionModel.count) return
+        const item = suggestionModel.get(i)
+        clearSuggestions()
+        addressInput.focus = false
+        root.navigate(item.isBookmark ? item.url : item.text)
+    }
+
+    Timer {
+        id: suggestTimer
+        interval: 150
+        repeat:   false
+        onTriggered: root.fetchSuggestions(addressInput.text.trim())
+    }
+
+    function fetchSuggestions(query) {
+        if (query === "" || query === "newtab://newtab") {
+            clearSuggestions()
+            return
+        }
+
+        const q = query.toLowerCase()
+        const local = []
+        for (let i = 0; i < bookmarks.count && local.length < 4; i++) {
+            const bm = bookmarks.get(i)
+            if (bm.title.toLowerCase().includes(q) || bm.url.toLowerCase().includes(q))
+                local.push({ text: bm.title, url: bm.url, isBookmark: true })
+        }
+
+        if (local.length > 0)
+            applySuggestions(local)
+
+        const xhr = new XMLHttpRequest()
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState !== XMLHttpRequest.DONE) return
+            if (xhr.status !== 200) return
+            if (addressInput.text.trim() !== query) return
+            try {
+                const data = JSON.parse(xhr.responseText)
+                const remote = data[1] || []
+                const merged = local.slice()
+                for (let i = 0; i < remote.length && merged.length < 8; i++)
+                    merged.push({ text: remote[i], url: "", isBookmark: false })
+                applySuggestions(merged)
+            } catch (e) {
+                if (local.length === 0)
+                    clearSuggestions()
+            }
+        }
+        xhr.open("GET", "https://suggestqueries.google.com/complete/search?client=firefox&q=" + encodeURIComponent(query))
+        xhr.send()
+    }
+
     // background
     Rectangle {
         id: toolbarBg
         anchors.top: parent.top
         width: parent.width
         height: Theme.toolbarHeight
-        color: Theme.surface
+        color: Theme.toolbarBg
+        z: 100
 
         RowLayout {
             anchors.fill: parent
@@ -149,18 +220,48 @@ Item {
                         selectByMouse:  true
                         clip: true
                         verticalAlignment: TextInput.AlignVCenter
-                        onActiveFocusChanged: {
-                            if (activeFocus)
-                                Qt.callLater(selectAll)
-                        }
-
-                        // Update display when the active tab navigates.
                         onTextChanged: {
-                            // Only sync from outside when not focused.
+                            if (activeFocus) {
+                                root.highlighted = -1
+                                suggestTimer.restart()
+                            }
                         }
 
-                        Keys.onReturnPressed: root.navigate(text)
-                        Keys.onEscapePressed: { text = root.currentUrl; focus = false }
+                        onActiveFocusChanged: {
+                            if (activeFocus) {
+                                Qt.callLater(selectAll)
+                                if (text.trim() !== "" && text !== "newtab://newtab")
+                                    suggestTimer.restart()
+                            } else {
+                                root.clearSuggestions()
+                            }
+                        }
+
+                        Keys.onDownPressed: {
+                            if (suggestionModel.count > 0)
+                                root.highlighted = Math.min(root.highlighted + 1, suggestionModel.count - 1)
+                        }
+                        Keys.onUpPressed: {
+                            if (suggestionModel.count > 0)
+                                root.highlighted = Math.max(root.highlighted - 1, -1)
+                        }
+                        Keys.onReturnPressed: {
+                            if (root.highlighted >= 0) {
+                                root.acceptSuggestion(root.highlighted)
+                            } else if (text.trim() !== "") {
+                                root.clearSuggestions()
+                                focus = false
+                                root.navigate(text.trim())
+                            }
+                        }
+                        Keys.onEscapePressed: {
+                            if (suggestionModel.count > 0) {
+                                root.clearSuggestions()
+                            } else {
+                                text = root.currentUrl
+                                focus = false
+                            }
+                        }
 
                         // empty 
                         Text {
@@ -185,6 +286,95 @@ Item {
 
                         HoverHandler { id: starHover }
                         TapHandler { onTapped: root.toggleBookmark() }
+                    }
+                }
+            }
+
+            // extensions list icons — only pinned & enabled show here
+            Repeater {
+                model: extensionService
+
+                delegate: Item {
+                    width: model.enabled && model.pinned ? 28 : 0
+                    height: 28
+                    Layout.alignment: Qt.AlignVCenter
+                    visible: model.enabled && model.pinned
+                    clip: true
+
+                    Behavior on width { NumberAnimation { duration: Theme.durationFast } }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 6
+                        color: extHover.hovered ? Theme.surfaceHigh : "transparent"
+                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    }
+
+                    Image {
+                        id: extImg
+                        anchors.centerIn: parent
+                        width: 16
+                        height: 16
+                        source: {
+                            const iconPath = extensionService.getInstalledIconPath(model.id)
+                            return iconPath !== "" ? "file://" + iconPath : ""
+                        }
+                        visible: status === Image.Ready
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
+                    }
+
+                    LucideIcon {
+                        anchors.centerIn: parent
+                        size: 14
+                        source: "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
+                        color: extHover.hovered ? Theme.accent : Theme.textMuted
+                        visible: !extImg.visible
+                    }
+
+                    HoverHandler { id: extHover }
+
+                    // left click — open popup or navigate
+                    TapHandler {
+                        acceptedButtons: Qt.LeftButton
+                        onTapped: {
+                            const popupUrl = extensionService.getPopupUrl(model.id)
+                            if (popupUrl !== "") {
+                                if (extensionPopupView.url.toString() === popupUrl) {
+                                    extensionPopupView.reload()
+                                } else {
+                                    extensionPopupView.url = popupUrl
+                                }
+                                extensionPopup.open()
+                            } else {
+                                browser.navigate("illuminate://installed-extensions")
+                            }
+                        }
+                    }
+
+                    // right click — pin/unpin context menu
+                    TapHandler {
+                        acceptedButtons: Qt.RightButton
+                        onTapped: extCtxMenu.popup()
+                    }
+
+                    Menu {
+                        id: extCtxMenu
+                        popupType: Popup.Native
+
+                        MenuItem {
+                            text: model.pinned ? "Unpin Extension" : "Pin Extension"
+                            onTriggered: extensionService.togglePin(model.id)
+                        }
+                        MenuSeparator {}
+                        MenuItem {
+                            text: model.enabled ? "Disable" : "Enable"
+                            onTriggered: extensionService.toggleExtension(model.id)
+                        }
+                        MenuItem {
+                            text: "Manage Extensions"
+                            onTriggered: browser.navigate("illuminate://installed-extensions")
+                        }
                     }
                 }
             }
@@ -272,6 +462,35 @@ Item {
                         onTriggered: root.downloadsPanel && root.downloadsPanel.toggle()
                     }
 
+                    MenuItem {
+                        text: "Extensions"
+                        onTriggered: browser.navigate("illuminate://extensions")
+                    }
+                    MenuItem {
+                        text: "Installed Extensions"
+                        onTriggered: browser.navigate("illuminate://installed-extensions")
+                    }
+
+                    MenuItem {
+                        text: "Installed Extensions"
+                        onTriggered: browser.navigate("illuminate://installed-extensions")
+                    }
+
+                    MenuSeparator {}
+
+                    MenuItem {
+                        text: "Theme: System" + (browser.themeMode === "system" ? " ✓" : "")
+                        onTriggered: browser.themeMode = "system"
+                    }
+                    MenuItem {
+                        text: "Theme: Dark" + (browser.themeMode === "dark" ? " ✓" : "")
+                        onTriggered: browser.themeMode = "dark"
+                    }
+                    MenuItem {
+                        text: "Theme: Light" + (browser.themeMode === "light" ? " ✓" : "")
+                        onTriggered: browser.themeMode = "light"
+                    }
+
                     MenuSeparator {}
 
                     MenuItem {
@@ -279,6 +498,108 @@ Item {
                         onTriggered: browser.toggleDevTools()
                     }
                 }
+            }
+        }
+    }
+
+    // search suggestions dropdown (child of root Item, positioned relative to address pill)
+    // Uses mapFromItem to translate pill's bottom position into root coordinates
+    Rectangle {
+        id: suggestionsBox
+        anchors.left: toolbarBg.left
+        anchors.right: toolbarBg.right
+        anchors.top: toolbarBg.bottom
+        anchors.topMargin: -Theme.toolbarHeight
+        height: suggestionModel.count > 0 ? (suggestionsColumn.implicitHeight + 8) : 0
+        visible: suggestionModel.count > 0 && addressInput.activeFocus
+        z: 200
+        radius: 8
+        color: Theme.surface
+        border.color: Theme.border
+        border.width: 1
+        opacity: visible ? 1 : 0
+        Behavior on height { NumberAnimation { duration: Theme.durationFast } }
+        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+
+        Column {
+            id: suggestionsColumn
+            width: parent.width
+            anchors.top: parent.top
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            Repeater {
+                model: suggestionModel
+
+                delegate: Rectangle {
+                    width: suggestionsColumn.width
+                    height: 32
+                    radius: 6
+                    color: index === root.highlighted ? Theme.surfaceHigh : "transparent"
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 12
+                        spacing: 8
+
+                        LucideIcon {
+                            size: 14
+                            source: model.isBookmark
+                                    ? "qrc:/QT_Illuminate/ui/ui/icons/star-filled.svg"
+                                    : "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
+                            color: model.isBookmark ? Theme.accent : Theme.textMuted
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: model.text
+                            color: Theme.text
+                            elide: Text.ElideRight
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeS
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+                    }
+
+                    HoverHandler {
+                        onHoveredChanged: if (hovered) root.highlighted = index
+                    }
+                    TapHandler {
+                        onTapped: root.acceptSuggestion(index)
+                    }
+                }
+            }
+        }
+    }
+
+    // extension action popup
+    Popup {
+        id: extensionPopup
+        width: 360
+        height: 520
+        x: root.width - width - 20
+        y: Theme.toolbarHeight + 4
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        padding: 0
+        onClosed: extensionPopupView.url = "about:blank"
+
+        background: Rectangle {
+            color: Theme.surface
+            border.color: Theme.border
+            border.width: 1
+            radius: 10
+            clip: true
+        }
+
+        contentItem: Item {
+            anchors.fill: parent
+            WebEngineView {
+                id: extensionPopupView
+                anchors.fill: parent
+                backgroundColor: Theme.surface
             }
         }
     }

@@ -1,6 +1,12 @@
 #include "BrowserTab.h"
 
-BrowserTab::BrowserTab(QObject *parent) : QObject(parent) {}
+BrowserTab::BrowserTab(QWebEngineProfile *profile, QObject *parent) : QObject(parent), m_webEngineProfile(profile) {}
+
+QWebEngineProfile* BrowserTab::webEngineProfile() const
+{
+    return m_webEngineProfile;
+}
+
 
 QUrl    BrowserTab::url()        const { return m_url; }
 QString BrowserTab::title()      const { return m_title; }

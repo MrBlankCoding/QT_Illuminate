@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QT_Illuminate.ui
 
 
@@ -10,32 +11,36 @@ import QT_Illuminate.ui
 Item {
     id: root
 
-    // ── greeting
-    function greeting() {
-        const h = new Date().getHours()
-        if (h < 12) return "Good morning"
-        if (h < 18) return "Good afternoon"
-        return "Good evening"
-    }
-    function formattedDate() {
-        return new Date().toLocaleDateString(Qt.locale(), "dddd, MMMM d")
-    }
-
-    // refresh every minute
-    Timer {
-        interval: 60000
-        running:  true
-        repeat:   true
-        onTriggered: {
-            greetingText.text = root.greeting()
-            dateText.text     = root.formattedDate()
-        }
+    FileDialog {
+        id: bgFileDialog
+        title: "Choose Background Image"
+        nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.bmp *.svg)"]
+        onAccepted: browser.newTabBackground = selectedFile.toString()
     }
 
     // background
     Rectangle {
         anchors.fill: parent
         color: Theme.bg
+
+        Image {
+            id: customBgImage
+            anchors.fill: parent
+            source: browser.newTabBackground
+            fillMode: Image.PreserveAspectCrop
+            visible: status === Image.Ready
+            asynchronous: true
+            cache: true
+        }
+
+        // dim overlay when custom image active for readability
+        Rectangle {
+            anchors.fill: parent
+            color: "#000000"
+            opacity: 0.4
+            visible: customBgImage.visible
+        }
+
         TapHandler {
             onTapped: root.forceActiveFocus()
         }
@@ -49,271 +54,21 @@ Item {
     }
 
     // content
-    // i miss swift
     Column {
         id: contentCol
         anchors.centerIn: parent
         width:   Math.min(parent.width * 0.72, 680)
-        spacing: 36
+        spacing: 32
 
-        // greeting
-        Column {
-            width:   parent.width
-            spacing: 6
-
-            Text {
-                id: greetingText
-                anchors.horizontalCenter: parent.horizontalCenter
-                text:           root.greeting()
-                color:          Theme.text
-                font.family:    Theme.fontFamily
-                font.pixelSize: 36
-                font.weight:    Font.Light
-            }
-
-            Text {
-                id: dateText
-                anchors.horizontalCenter: parent.horizontalCenter
-                text:           root.formattedDate()
-                color:          Theme.textMuted
-                font.family:    Theme.fontFamily
-                font.pixelSize: Theme.fontSizeM
-            }
-        }
-
-        // search bar
-        Item {
-            id: searchArea
-            width:  parent.width
-            height: 48
-            z: 50
-
-            // local bookmarks and remote
-            // when history is added, include history items too
-            ListModel { id: suggestionModel }
-            property int highlighted: -1
-
-            function clearSuggestions() {
-                applySuggestions([])
-            }
-
-            function applySuggestions(list) {
-                suggestionModel.clear()
-                for (let i = 0; i < list.length; i++)
-                    suggestionModel.append(list[i])
-                highlighted = -1
-            }
-
-            function acceptSuggestion(i) {
-                if (i < 0 || i >= suggestionModel.count) return
-                const item = suggestionModel.get(i)
-                searchArea.clearSuggestions()
-                browser.navigate(item.isBookmark ? item.url : item.text)
-            }
-
-            Timer {
-                id: suggestTimer
-                interval: 150
-                repeat:   false
-                onTriggered: searchArea.fetchSuggestions(searchInput.text.trim())
-            }
-
-            function fetchSuggestions(query) {
-                if (query === "") {
-                    clearSuggestions()
-                    return
-                }
-
-                const q = query.toLowerCase()
-                const local = []
-                for (let i = 0; i < bookmarks.count && local.length < 4; i++) {
-                    const bm = bookmarks.get(i)
-                    if (bm.title.toLowerCase().includes(q) || bm.url.toLowerCase().includes(q))
-                        local.push({ text: bm.title, url: bm.url, isBookmark: true })
-                }
-                
-                // show local matches
-                // bookmarks 
-                if (local.length > 0)
-                    applySuggestions(local)
-
-                const xhr = new XMLHttpRequest()
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState !== XMLHttpRequest.DONE) return
-                    if (xhr.status !== 200) return
-                    // drop when query is changed
-                    if (searchInput.text.trim() !== query) return
-                    try {
-                        const data = JSON.parse(xhr.responseText)
-                        const remote = data[1] || []
-                        const merged = local.slice()
-                        for (let i = 0; i < remote.length && merged.length < 8; i++)
-                            merged.push({ text: remote[i], url: "", isBookmark: false })
-                        applySuggestions(merged)
-                    } catch (e) {
-                        if (local.length === 0)
-                            clearSuggestions()
-                    }
-                }
-                xhr.open("GET", "https://suggestqueries.google.com/complete/search?client=firefox&q=" + encodeURIComponent(query))
-                xhr.send()
-            }
-
-            Rectangle {
-                id: searchPill
-                anchors.fill: parent
-                radius: Theme.pillRadius
-                color:  searchInput.activeFocus ? Theme.surface : Theme.surfaceHigh
-
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-
-                // focus 
-                Rectangle {
-                    anchors.fill:  parent
-                    radius:        parent.radius
-                    color:         "transparent"
-                    border.color:  Theme.accent
-                    border.width:  searchInput.activeFocus ? 1.5 : 0
-                    Behavior on border.width { NumberAnimation { duration: Theme.durationFast } }
-                }
-
-                RowLayout {
-                    anchors.fill:         parent
-                    anchors.leftMargin:   18
-                    anchors.rightMargin:  18
-                    spacing: 10
-
-                    LucideIcon {
-                        size:   16
-                        source: "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
-                        color:  searchInput.activeFocus ? Theme.accent : Theme.textMuted
-                        Layout.alignment: Qt.AlignVCenter
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                    }
-
-                    TextInput {
-                        id: searchInput
-                        Layout.fillWidth: true
-                        color:            Theme.text
-                        font.family:      Theme.fontFamily
-                        font.pixelSize:   Theme.fontSizeM
-                        selectByMouse:    true
-                        clip:             true
-                        verticalAlignment: TextInput.AlignVCenter
-
-                        Text {
-                            anchors.fill:      parent
-                            verticalAlignment: Text.AlignVCenter
-                            text:    "Search or enter address"
-                            color:   Theme.textMuted
-                            font:    searchInput.font
-                            visible: searchInput.text === "" && !searchInput.activeFocus
-                        }
-
-                        onTextChanged: {
-                            searchArea.highlighted = -1
-                            suggestTimer.restart()
-                        }
-
-                        Keys.onDownPressed: {
-                            if (suggestionModel.count > 0)
-                                searchArea.highlighted = Math.min(searchArea.highlighted + 1, suggestionModel.count - 1)
-                        }
-                        Keys.onUpPressed: {
-                            if (suggestionModel.count > 0)
-                                searchArea.highlighted = Math.max(searchArea.highlighted - 1, -1)
-                        }
-                        Keys.onReturnPressed: {
-                            if (searchArea.highlighted >= 0) {
-                                searchArea.acceptSuggestion(searchArea.highlighted)
-                            } else if (text.trim() !== "") {
-                                searchArea.clearSuggestions()
-                                browser.navigate(text.trim())
-                            }
-                        }
-                        Keys.onEscapePressed: {
-                            if (suggestionModel.count > 0) {
-                                searchArea.clearSuggestions()
-                            } else {
-                                text  = ""
-                                focus = false
-                            }
-                        }
-                    }
-                }
-            }
-
-            // suggestions
-            Rectangle {
-                id: suggestionsBox
-                anchors.top:  searchPill.bottom
-                anchors.left: searchPill.left
-                anchors.right: searchPill.right
-                anchors.topMargin: 6
-                radius: Theme.pillRadius
-                color:  Theme.surface
-                border.color: Theme.border
-                border.width: 1
-                visible: suggestionModel.count > 0 && searchInput.activeFocus
-                height: suggestionsColumn.implicitHeight + 8
-                Behavior on height { NumberAnimation { duration: Theme.durationFast } }
-
-                Column {
-                    id: suggestionsColumn
-                    width: parent.width
-                    anchors.verticalCenter: parent.verticalCenter
-
-                    Repeater {
-                        model: suggestionModel
-
-                        delegate: Rectangle {
-                            width:  suggestionsColumn.width
-                            height: 34
-                            radius: 6
-                            color:  index === searchArea.highlighted ? Theme.surfaceHigh : "transparent"
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin:  14
-                                anchors.rightMargin: 14
-                                spacing: 8
-
-                                LucideIcon {
-                                    size:   14
-                                    source: model.isBookmark
-                                            ? "qrc:/QT_Illuminate/ui/ui/icons/star-filled.svg"
-                                            : "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
-                                    color:  Theme.textMuted
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-
-                                Text {
-                                    Layout.fillWidth: true
-                                    text:           model.text
-                                    color:          Theme.text
-                                    elide:          Text.ElideRight
-                                    font.family:    Theme.fontFamily
-                                    font.pixelSize: Theme.fontSizeS
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-                            }
-
-                            HoverHandler {
-                                onHoveredChanged: if (hovered) searchArea.highlighted = index
-                            }
-                            TapHandler {
-                                onTapped: searchArea.acceptSuggestion(index)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // auto focus
-            onVisibleChanged: {
-                if (visible)
-                    searchInput.forceActiveFocus()
-            }
+        // brand title
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text:           "illuminate"
+            color:          Theme.text
+            font.family:    Theme.fontFamily
+            font.pixelSize: 42
+            font.weight:    Font.DemiBold
+            opacity:        0.95
         }
 
         // bookmarks
@@ -461,6 +216,64 @@ Item {
                         onTapped: tileMenu.popup()
                     }
                 }
+            }
+        }
+    }
+
+    // customize background button
+    Rectangle {
+        id: customizeBtn
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        anchors.margins: 20
+        width: 36
+        height: 36
+        radius: 18
+        color: customBtnHover.hovered ? Theme.surfaceHigh : Theme.surface
+        border.color: customBtnHover.hovered ? Theme.border : "transparent"
+        border.width: 1
+
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+        LucideIcon {
+            anchors.centerIn: parent
+            size: 18
+            source: "qrc:/QT_Illuminate/ui/ui/icons/image.svg"
+            color: customBtnHover.hovered ? Theme.text : Theme.textMuted
+            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        }
+
+        HoverHandler { id: customBtnHover }
+
+        TapHandler {
+            onTapped: bgMenu.popup()
+        }
+
+        Menu {
+            id: bgMenu
+            popupType: Popup.Native
+
+            MenuItem {
+                text: "Change Background..."
+                onTriggered: bgFileDialog.open()
+            }
+            MenuItem {
+                text: "Remove Background"
+                visible: browser.newTabBackground !== ""
+                onTriggered: browser.newTabBackground = ""
+            }
+            MenuSeparator {}
+            MenuItem {
+                text: "Theme: System" + (browser.themeMode === "system" ? " ✓" : "")
+                onTriggered: browser.themeMode = "system"
+            }
+            MenuItem {
+                text: "Theme: Dark" + (browser.themeMode === "dark" ? " ✓" : "")
+                onTriggered: browser.themeMode = "dark"
+            }
+            MenuItem {
+                text: "Theme: Light" + (browser.themeMode === "light" ? " ✓" : "")
+                onTriggered: browser.themeMode = "light"
             }
         }
     }

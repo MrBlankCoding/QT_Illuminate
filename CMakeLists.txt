@@ -36,16 +36,33 @@ qt_add_executable(QT_Illuminate
     src/core/BookmarkModel.h
     src/core/BookmarkModel.cpp
 
+    src/core/ExtensionService.h
+    src/core/ExtensionService.cpp
+
+    src/core/InternalPageManager.h
+    src/core/InternalPageManager.cpp
+
+    src/core/Profile.h
+    src/core/Profile.cpp
+
+    src/core/ProfileManager.h
+    src/core/ProfileManager.cpp
+
     src/utils/UrlResolver.h
     src/utils/UrlResolver.cpp
 
     src/utils/BrowserLogger.h
     src/utils/BrowserLogger.cpp
 
+    src/utils/ColorExtractor.h
+    src/utils/ColorExtractor.cpp
+
     src/utils/LogBridge.h
 
-    src/utils/WindowRounding.h
-)
+     src/utils/WindowRounding.h
+     src/utils/WindowHelper.h
+     src/utils/WindowHelper.cpp
+ )
 
 if(APPLE)
     target_sources(QT_Illuminate PRIVATE src/utils/WindowRounding_mac.mm)
@@ -79,8 +96,9 @@ qt_add_qml_module(QT_Illuminate
     RESOURCE_PREFIX /
     OUTPUT_DIRECTORY "${QT_ILLUMINATE_QML_OUT_DIR}"
     QML_FILES
-        ui/BrowserWindow.qml
-        ui/KeyboardShortcuts.qml
+         ui/ProfilePicker.qml
+         ui/BrowserWindow.qml
+         ui/KeyboardShortcuts.qml
         ui/FindBar.qml
         ui/ZoomIndicator.qml
         ui/DownloadsPanel.qml
@@ -90,8 +108,8 @@ qt_add_qml_module(QT_Illuminate
         ui/Theme.qml
         ui/LucideIcon.qml
         ui/NewTabPage.qml
-        ui/WindowControls.qml
-        ui/SysButton.qml
+        ui/ExtensionsPage.qml
+        ui/InstalledExtensionsPage.qml
     RESOURCES
         ui/icons/alert-triangle.svg
         ui/icons/globe.svg
@@ -108,24 +126,15 @@ qt_add_qml_module(QT_Illuminate
         ui/icons/folder.svg
         ui/icons/star.svg
         ui/icons/star-filled.svg
-)
+        ui/icons/image.svg
+        ui/icons/pin.svg
+    )
 
 # macos
 set_target_properties(QT_Illuminate PROPERTIES
     MACOSX_BUNDLE TRUE
     MACOSX_BUNDLE_BUNDLE_NAME "QT_Illuminate"
 )
-
-# windows
-if(WIN32)
-    set_target_properties(QT_Illuminate PROPERTIES
-        WIN32_EXECUTABLE TRUE
-    )
-    target_sources(QT_Illuminate PRIVATE
-        packaging/windows/app.rc
-    )
-endif()
-
 
 if(UNIX AND NOT APPLE)
     install(TARGETS QT_Illuminate RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

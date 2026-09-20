@@ -38,12 +38,12 @@ QHash<int, QByteArray> TabModel::roleNames() const
     };
 }
 
-BrowserTab *TabModel::addTab(const QUrl &url)
+BrowserTab *TabModel::addTab(const QUrl &url, QWebEngineProfile *profile)
 {
     const int row = m_tabs.size();
     beginInsertRows({}, row, row);
 
-    auto *tab = new BrowserTab(this);
+    auto *tab = new BrowserTab(profile, this);
 
     auto refresh = [this, tab]() { refreshTab(tab); };
     connect(tab, &BrowserTab::titleChanged,    this, refresh);

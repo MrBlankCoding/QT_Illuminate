@@ -6,7 +6,7 @@
 #   ./build.sh --run        # build + launch detached (no logs)
 #   ./build.sh --dev        # build Debug + run with live logs in terminal
 #   ./build.sh --clean      # wipe build dir and reconfigure
-#   ./build.sh --install    # build + install to /usr/local (desktop entry)
+#
 #
 
 set -euo pipefail
@@ -15,23 +15,14 @@ set -euo pipefail
 
 IS_MAC=0
 IS_LINUX=0
-IS_WINDOWS=0
 case "$(uname -s)" in
     Darwin*) IS_MAC=1    ;;
     Linux)   IS_LINUX=1  ;;
-    MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;;
     *)
         echo "✗ Unsupported platform: $(uname -s)"
         exit 1
         ;;
 esac
-if (( IS_WINDOWS )); then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    SCRIPT_WIN="$(cygpath -w "$SCRIPT_DIR/build.ps1" 2>/dev/null || echo "$SCRIPT_DIR/build.ps1")"
-    echo "→ Windows detected — delegating to build.ps1"
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT_WIN" "$@"
-    exit $?
-fi
 
 cpu_cores() {
     if (( IS_MAC )); then
@@ -68,7 +59,6 @@ find_qt() {
     local best=""
     local candidate
     if (( IS_MAC )); then
-        # Qt online-installer layout: ~/Qt/6.x.y/macos, /opt/Qt/6.x.y/macos, …
         local search_roots=(
             "$HOME/Qt"
             "/opt/Qt"
@@ -122,16 +112,14 @@ fi
 DO_CLEAN=0
 DO_RUN=0
 DO_DEV=0
-DO_INSTALL=0
 for arg in "$@"; do
     case "$arg" in
         --clean)   DO_CLEAN=1   ;;
         --run)     DO_RUN=1     ;;
         --dev)     DO_DEV=1     ;;
-        --install) DO_INSTALL=1 ;;
         *)
             echo "Unknown argument: $arg"
-            echo "Usage: $0 [--clean] [--run | --dev] [--install]"
+            echo "Usage: $0 [--clean] [--run | --dev]"
             exit 1
             ;;
     esac
@@ -187,65 +175,21 @@ if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then
 fi
 
 # remove previous build
-NEEDS_FULL_DEPLOY=0
-if (( IS_MAC )) && { (( DO_CLEAN )) || [[ ! -d "$APP_BUNDLE/Contents/Frameworks" ]]; }; then
-    NEEDS_FULL_DEPLOY=1
-    rm -rf "$APP_BUNDLE"
-fi
+rm -rf "$APP_BUNDLE" 2>/dev/null || true
 
 echo "→ Building…"
 cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --parallel "$(cpu_cores)"
 
-# mac OS only
-
 if (( IS_MAC )); then
-    if (( NEEDS_FULL_DEPLOY )); then
-        MACDEPLOYQT="${QT_PREFIX}/bin/macdeployqt"
-        if [[ ! -x "$MACDEPLOYQT" ]]; then
-            MACDEPLOYQT="$(command -v macdeployqt || true)"
-        fi
-
-        if [[ -n "${MACDEPLOYQT:-}" ]] && [[ -d "$APP_BUNDLE" ]]; then
-            echo "→ Deploying Qt frameworks (full re-deploy of QtWebEngine takes a minute or two)…"
-            "$MACDEPLOYQT" "$APP_BUNDLE" -qmldir="$SCRIPT_DIR/ui" \
-                && echo "  Qt deployment OK." \
-                || echo "  ⚠ macdeployqt reported errors; bundle may be incomplete."
-        fi
-    else
-        echo "→ Skipping macdeployqt (warm build, Qt frameworks already in bundle)."
+    if [[ -d "$APP_BUNDLE/Contents/Frameworks" ]] || [[ -d "$APP_BUNDLE/Contents/PlugIns" ]]; then
+        echo "→ Removing previously deployed Qt frameworks (dev bundle runs against dev Qt)…"
+        rm -rf "$APP_BUNDLE"
+        cmake --build "$BUILD_DIR" --target QT_Illuminate --config "$BUILD_TYPE" \
+              --parallel "$(cpu_cores)"
     fi
 fi
 
 if [[ -f "$APP_BINARY" ]]; then
-    if (( IS_MAC )); then
-        install_name_tool -delete_rpath /opt/homebrew/lib "$APP_BINARY" 2>/dev/null || true
-        if ! otool -l "$APP_BINARY" 2>/dev/null | grep -A1 "LC_RPATH" | grep -q "@executable_path/../Frameworks"; then
-            install_name_tool -add_rpath @executable_path/../Frameworks "$APP_BINARY" 2>/dev/null || true
-        fi
-        if (( NEEDS_FULL_DEPLOY )); then
-            python3 "$SCRIPT_DIR/deploy-fixup.py" "$APP_BUNDLE" "$APP_BINARY" || \
-                echo "  ⚠ deploy-fixup.py failed; bundle may still reference Homebrew Qt."
-            codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null || true
-            if ! codesign --verify --deep --strict "$APP_BUNDLE" 2>/dev/null; then
-                codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null || true
-            fi
-        else
-            python3 "$SCRIPT_DIR/deploy-fixup.py" "$APP_BUNDLE" "$APP_BINARY" --main-only || \
-                echo "  ⚠ deploy-fixup.py failed; binary may still reference Homebrew Qt."
-            codesign --force --sign - "$APP_BUNDLE" 2>/dev/null || true
-            if ! codesign --verify --deep --strict "$APP_BUNDLE" 2>/dev/null; then
-                echo "  → Healing stale signatures in Frameworks/PlugIns…"
-                codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null || true
-            fi
-        fi
-        if codesign --verify --deep --strict "$APP_BUNDLE" 2>/dev/null; then
-            echo "  ✓ Bundle signature verified."
-        else
-            echo "  ⚠ Bundle signature does not fully verify:"
-            codesign --verify --deep --strict "$APP_BUNDLE" 2>&1 || true
-        fi
-    fi
-
     echo "✓ Build succeeded."
     if (( IS_MAC )); then
         echo "  App bundle: $APP_BUNDLE"
@@ -255,26 +199,6 @@ if [[ -f "$APP_BINARY" ]]; then
 else
     echo "✗ Build finished but binary not found at expected path: $APP_BINARY"
     exit 1
-fi
-
-# ── install ──────────────────────────────────────────────────────────────────
-
-if (( DO_INSTALL )); then
-    if (( IS_MAC )); then
-        echo "→ macOS has no desktop-file install; copying bundle to /Applications…"
-        /bin/cp -R "$APP_BUNDLE" /Applications/ 2>/dev/null \
-            || echo "  ⚠ Could not copy to /Applications (need sudo?). Bundle: $APP_BUNDLE"
-    else
-        echo "→ Installing to ${CMAKE_INSTALL_PREFIX:-/usr/local}…"
-        if cmake --install "$BUILD_DIR"; then
-            echo "  ✓ Installed. Add to your launcher:"
-            echo "      sudo update-desktop-database ${XDG_DATA_DIRS:-/usr/local/share}/applications"
-            echo "      sudo gtk-update-icon-cache -f ${XDG_DATA_DIRS:-/usr/local/share}/icons/hicolor"
-        else
-            echo "  ⚠ Install failed — re-run with: sudo $0 --install"
-            exit 1
-        fi
-    fi
 fi
 
 # ── run (detached) ───────────────────────────────────────────────────────────

@@ -2,13 +2,18 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include <QQuickWebEngineProfile>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
 #include "core/BookmarkModel.h"
 #include "core/BrowserController.h"
+#include "core/ExtensionService.h"
+#include "core/InternalPageManager.h"
+#include "core/ProfileManager.h"
 #include "utils/BrowserLogger.h"
 #include "utils/LogBridge.h"
 #include "utils/WindowRounding.h"
+#include "utils/WindowHelper.h"
 
 int main(int argc, char *argv[])
 {
@@ -24,13 +29,22 @@ int main(int argc, char *argv[])
     #endif
 
     BrowserLogger::instance().installAsQtHandler();
+    qmlRegisterType<Profile>("QT_Illuminate.Core", 1, 0, "Profile");
+
+    ProfileManager profileManager;
+
     BrowserLogger::instance().info("Main", "QT_Illuminate starting up");
 
     BrowserLogger::instance().info("Main", QString("Qt %1 — WebEngine ready").arg(qVersion()));
 
-    BrowserController controller;
+    // Create BrowserController with a dummy profile for initial setup
+    BrowserController controller(profileManager.activeProfile());
     LogBridge         logBridge;
     BookmarkModel     bookmarkModel;
+    ExtensionService  extensionService;
+
+    // Load enabled extensions into WebEngine
+    extensionService.installToWebEngine();
 
     QQmlApplicationEngine engine;
 
@@ -41,6 +55,12 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("tabModel", controller.tabModel());
     engine.rootContext()->setContextProperty("logger",   &logBridge);
     engine.rootContext()->setContextProperty("bookmarks", &bookmarkModel);
+    engine.rootContext()->setContextProperty("extensionService", &extensionService);
+    engine.rootContext()->setContextProperty("internalPages", &InternalPageManager::instance());
+    engine.rootContext()->setContextProperty("profileManager", &profileManager);
+
+    WindowHelper windowHelper;
+    engine.rootContext()->setContextProperty("windowHelper", &windowHelper);
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::warnings,
@@ -53,10 +73,10 @@ int main(int argc, char *argv[])
     // tab strip magic number
     constexpr qreal kTabBarHeight = 42.0;
 
-    const QUrl root("qrc:/QT_Illuminate/ui/ui/BrowserWindow.qml");
+    const QUrl root("qrc:/QT_Illuminate/ui/ui/ProfilePicker.qml");
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreated,
-        &app,    [root](QObject *obj, const QUrl &url) {
+        &app,    [&](QObject *obj, const QUrl &url) {
             if (url != root) return;
             if (!obj) {
                 BrowserLogger::instance().error("Main", "Root QML object failed to create — exiting");

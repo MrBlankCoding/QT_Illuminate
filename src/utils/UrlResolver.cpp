@@ -1,4 +1,5 @@
 #include "UrlResolver.h"
+#include "../core/InternalPageManager.h"
 #include <QRegularExpression>
 
 namespace UrlResolver {
@@ -28,6 +29,12 @@ QUrl resolve(const QString &input)
 {
     const QString t = input.trimmed();
     if (t.isEmpty()) return {};
+
+    // Check internal pages
+    const QUrl internalUrl = InternalPageManager::resolve(t);
+    if (!internalUrl.isEmpty())
+        return internalUrl;
+
     if (t.contains("://"))   return QUrl::fromUserInput(t);
     if (looksLikeHost(t))    return QUrl::fromUserInput("https://" + t);
     const QString enc = QString::fromUtf8(QUrl::toPercentEncoding(t));

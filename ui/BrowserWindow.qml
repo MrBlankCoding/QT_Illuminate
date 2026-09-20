@@ -13,13 +13,12 @@ Window {
     minimumHeight: 420
     title: (browser.activeTitle || "New Tab") + " — QT_Illuminate"
     color: Theme.bg
-    // native frame on macOS/Wayland, custom one elsewhere
-    flags: Theme.nativeDecoration
-    ? Qt.Window
-    : Qt.Window | Qt.FramelessWindowHint
+    flags: Qt.Window
 
     Component.onCompleted: {
         logger.info("BrowserWindow", "Window ready, platform=" + Qt.platform.os)
+        if (typeof windowHelper !== "undefined" && typeof windowHelper.applyMacTitleBarStyle === "function")
+            windowHelper.applyMacTitleBarStyle(root, Theme.tabBarHeight)
         // fill screen
         root.showMaximized()
     }
@@ -37,6 +36,7 @@ Window {
         Toolbar {
             id: toolbar
             width: parent.width
+            z: 100
 
             currentUrl:   browser.activeUrl === "newtab://newtab" ? "" : browser.activeUrl
             currentTitle: browser.activeTitle
@@ -92,7 +92,7 @@ Window {
                     anchors.fill: parent
                     visible: index === tabModel.activeIndex
 
-                    readonly property bool isNewTab: model.url.toString() === "newtab://newtab"
+                    readonly property bool isInternalPage: internalPages.isInternal(model.url.toString())
                     property bool devToolsOpen: false
                     property alias webView: webLoader.item
 
@@ -103,25 +103,27 @@ Window {
                         when: tabSlot.visible
                     }
 
-                        NewTabPage {
-                            anchors.fill: parent
-                            visible: tabSlot.isNewTab
+                    Loader {
+                        anchors.fill: parent
+                        active: tabSlot.isInternalPage
+                        visible: tabSlot.isInternalPage
+                        source: tabSlot.isInternalPage ? internalPages.qmlSource(model.url.toString()) : ""
+                    }
+
+                    Loader {
+                        id: webLoader
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        height: tabSlot.devToolsOpen ? parent.height * 0.65 : parent.height
+                        active: !tabSlot.isInternalPage
+                        visible: !tabSlot.isInternalPage
+
+                        onLoaded: {
+                            const u = model.url
+                            if (u && u.toString() !== "" && !tabSlot.isInternalPage)
+                                item.url = u
                         }
-
-                        Loader {
-                            id: webLoader
-                            anchors.top: parent.top
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            height: tabSlot.devToolsOpen ? parent.height * 0.65 : parent.height
-                            active: !tabSlot.isNewTab
-                            visible: !tabSlot.isNewTab
-
-                            onLoaded: {
-                                const u = model.url
-                                if (u && u.toString() !== "" && u.toString() !== "newtab://newtab")
-                                    item.url = u
-                            }
 
                             sourceComponent: Component {
                                 WebEngineView {
@@ -277,7 +279,7 @@ Window {
                 Item {
                     id: resizeGrips
                     anchors.fill: parent
-                    visible: Theme.customDecoration
+                    visible: false
                     enabled: visible
 
                     MouseArea { // left

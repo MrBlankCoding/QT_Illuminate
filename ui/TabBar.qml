@@ -7,14 +7,13 @@ Item {
     id: root
     height: Theme.tabBarHeight
     readonly property real availableForTabs: Math.max(0,
-        width - trafficLightSpacer.width - newTabButton.width
-             - (winControls.visible ? winControls.width : 0))
+        width - trafficLightSpacer.width - newTabButton.width)
 
     // background fill color
     Rectangle {
         id: bg
         anchors.fill: parent
-        color: Theme.surface
+        color: Theme.tabStripBg
     }
 
     // window drag
@@ -143,14 +142,6 @@ Item {
             Layout.fillHeight: true
 
             DragRegion { anchors.fill: parent }
-        }
-
-        // window controls for custom-decorated platforms
-        WindowControls {
-            id: winControls
-            visible: Theme.customDecoration
-            Layout.preferredWidth:  visible ? implicitWidth : 0
-            Layout.fillHeight: true
         }
     }
 }

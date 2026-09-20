@@ -1,12 +1,17 @@
 #include "BrowserController.h"
 #include "BrowserTab.h"
 #include "../utils/UrlResolver.h"
+#include "../utils/ColorExtractor.h"
 
 #include <QCoreApplication>
+#include <QSettings>
+#include <QWebEngineSettings>
 
-BrowserController::BrowserController(QObject *parent)
+BrowserController::BrowserController(Profile *profile, QObject *parent)
     : QObject(parent)
     , m_model(new TabModel(this))
+    , m_profile(profile)
+    , m_webEngineProfile(profile->webEngineProfile())
 {
     connect(m_model, &TabModel::activeIndexChanged, this, [this]() {
         emit activeIndexChanged();
@@ -14,6 +19,7 @@ BrowserController::BrowserController(QObject *parent)
         rewireActiveTab();
     });
 
+    updateAdaptiveAccent();
     newTab();
 }
 
@@ -60,6 +66,59 @@ int BrowserController::activeProgress() const
     return 0;
 }
 
+QString BrowserController::newTabBackground() const
+{
+    QSettings settings;
+    return settings.value(QStringLiteral("newTabBackground"), QString()).toString();
+}
+
+void BrowserController::setNewTabBackground(const QString &path)
+{
+    QSettings settings;
+    if (settings.value(QStringLiteral("newTabBackground")).toString() != path) {
+        settings.setValue(QStringLiteral("newTabBackground"), path);
+        emit newTabBackgroundChanged();
+        updateAdaptiveAccent();
+    }
+}
+
+QString BrowserController::adaptiveAccent() const
+{
+    return m_adaptiveAccent;
+}
+
+void BrowserController::updateAdaptiveAccent()
+{
+    const QString bgPath = newTabBackground();
+    QString newAccent;
+    if (!bgPath.isEmpty()) {
+        QColor extracted = ColorExtractor::extractDominantColor(bgPath);
+        if (extracted.isValid()) {
+            newAccent = extracted.name(QColor::HexRgb);
+        }
+    }
+
+    if (m_adaptiveAccent != newAccent) {
+        m_adaptiveAccent = newAccent;
+        emit adaptiveAccentChanged();
+    }
+}
+
+QString BrowserController::themeMode() const
+{
+    QSettings settings;
+    return settings.value(QStringLiteral("themeMode"), QStringLiteral("system")).toString();
+}
+
+void BrowserController::setThemeMode(const QString &mode)
+{
+    QSettings settings;
+    if (settings.value(QStringLiteral("themeMode"), QStringLiteral("system")).toString() != mode) {
+        settings.setValue(QStringLiteral("themeMode"), mode);
+        emit themeModeChanged();
+    }
+}
+
 // tab managment
 
 void BrowserController::newTab(const QString &urlStr)
@@ -69,7 +128,7 @@ void BrowserController::newTab(const QString &urlStr)
                    : UrlResolver::resolve(urlStr);
 
     const int newIndex = m_model->rowCount();
-    m_model->addTab(url);
+    m_model->addTab(url, m_webEngineProfile);
     m_model->setActiveIndex(newIndex);
     rewireActiveTab();
 }
