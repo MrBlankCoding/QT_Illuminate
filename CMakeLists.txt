@@ -69,6 +69,10 @@ if(APPLE)
     target_link_libraries(QT_Illuminate PRIVATE "-framework Cocoa")
 endif()
 
+if(WIN32)
+    target_link_libraries(QT_Illuminate PRIVATE dwmapi)
+endif()
+
 target_include_directories(QT_Illuminate PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core

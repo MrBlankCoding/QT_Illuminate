@@ -9,5 +9,5 @@ class WindowHelper : public QObject
 public:
     using QObject::QObject;
 
-    Q_INVOKABLE void applyMacTitleBarStyle(QQuickWindow *window, qreal barHeight);
+    Q_INVOKABLE void applyTitleBarStyle(QQuickWindow *window, qreal barHeight);
 };

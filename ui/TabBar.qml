@@ -7,7 +7,8 @@ Item {
     id: root
     height: Theme.tabBarHeight
     readonly property real availableForTabs: Math.max(0,
-        width - trafficLightSpacer.width - newTabButton.width)
+        width - trafficLightSpacer.width - newTabButton.width
+             - (Qt.platform.os === "windows" ? Theme.sysControlW : 0))
 
     // background fill color
     Rectangle {
@@ -133,6 +134,13 @@ Item {
                 HoverHandler { id: plusHover }
                 TapHandler   { onTapped: browser.newTab() }
             }
+        }
+
+        // system controls spacer (Windows native buttons)
+        Item {
+            Layout.preferredWidth: Theme.sysControlW
+            Layout.fillHeight: true
+            visible: Qt.platform.os === "windows"
         }
 
         // drag area

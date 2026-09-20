@@ -13,12 +13,14 @@ Window {
     minimumHeight: 420
     title: (browser.activeTitle || "New Tab") + " — QT_Illuminate"
     color: Theme.bg
-    flags: Qt.Window
+    flags: Qt.platform.os === "windows"
+        ? Qt.Window | Qt.FramelessWindowHint
+        : Qt.Window
 
     Component.onCompleted: {
         logger.info("BrowserWindow", "Window ready, platform=" + Qt.platform.os)
-        if (typeof windowHelper !== "undefined" && typeof windowHelper.applyMacTitleBarStyle === "function")
-            windowHelper.applyMacTitleBarStyle(root, Theme.tabBarHeight)
+        if (typeof windowHelper !== "undefined" && typeof windowHelper.applyTitleBarStyle === "function")
+            windowHelper.applyTitleBarStyle(root, Theme.tabBarHeight)
         // fill screen
         root.showMaximized()
     }
