@@ -1,41 +1,45 @@
 #include "ExtensionService.h"
+#include "ExtensionSchemeHandler.h"
 #include "../utils/BrowserLogger.h"
+#include "ExtensionServiceInternals.h"
 
 #include <QDir>
 #include <QFile>
-#include <QFileInfo>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QNetworkRequest>
-#include <QProcess>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUrl>
-#include <QTemporaryFile>
 
 #include <QQuickWebEngineProfile>
 #include <QWebEngineExtensionManager>
 
+#include <memory>
+
+static bool isUsable(const std::optional<QWebEngineExtensionInfo> &info)
+{
+    return info && info->isLoaded() && !info->id().isEmpty();
+}
+
 ExtensionService::ExtensionService(QObject *parent)
-    : QAbstractListModel(parent)
-    , m_nam(new QNetworkAccessManager(this))
+    : QAbstractListModel(parent), m_nam(new QNetworkAccessManager(this))
 {
     const QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
     m_baseDir = dataDir + QStringLiteral("/extensions");
     QDir().mkpath(m_baseDir);
 
+    // left overs from interupted install
+    QDir(stagingRoot()).removeRecursively();
+
     loadFromDisk();
-    BrowserLogger::instance().info("ExtensionService",
-        QString("Initialized with baseDir=%1, extensions count=%2").arg(m_baseDir, QString::number(m_extensions.size())));
+    BrowserLogger::instance().info("ExtensionService", QStringLiteral("Initialized with baseDir=%1, extensions count=%2")
+                                                           .arg(m_baseDir, QString::number(m_extensions.size())));
 }
 
 int ExtensionService::rowCount(const QModelIndex &parent) const
 {
-    if (parent.isValid()) return 0;
-    return m_extensions.size();
+    if (parent.isValid())
+        return 0;
+    return int(m_extensions.size());
 }
 
 QVariant ExtensionService::data(const QModelIndex &index, int role) const
@@ -44,469 +48,480 @@ QVariant ExtensionService::data(const QModelIndex &index, int role) const
         return {};
 
     const ExtensionItem &item = m_extensions.at(index.row());
-    switch (role) {
-    case IdRole:          return item.id;
-    case NameRole:        return item.name;
-    case VersionRole:     return item.version;
-    case DescriptionRole: return item.description;
-    case PathRole:        return item.path;
-    case IconPathRole:    return item.iconPath;
-    case PopupPathRole:   return item.popupPath;
-    case EnabledRole:     return item.enabled;
-    case PinnedRole:      return item.pinned;
-    default:              return {};
+    switch (role)
+    {
+    case IdRole:
+        return item.id;
+    case NameRole:
+        return item.name;
+    case VersionRole:
+        return item.version;
+    case DescriptionRole:
+        return item.description;
+    case PathRole:
+        return item.path;
+    case IconPathRole:
+        return item.iconPath;
+    case PopupPathRole:
+        return item.popupPath;
+    case EnabledRole:
+        return item.enabled;
+    case PinnedRole:
+        return item.pinned;
+    case AuthorRole:
+        return item.author;
+    case HomepageRole:
+        return item.homepageUrl;
+    case PermissionsRole:
+        return item.permissions;
+    case HostPermissionsRole:
+        return item.hostPermissions;
+    case UserScriptsRole:
+        return item.hasUserScripts;
+    case SizeRole:
+        return item.sizeBytes;
+    case UserScriptsEnabledRole:
+        return item.userScriptsEnabled;
+    default:
+        return {};
     }
 }
 
 QHash<int, QByteArray> ExtensionService::roleNames() const
 {
     return {
-        { IdRole,          "id" },
-        { NameRole,        "name" },
-        { VersionRole,     "version" },
-        { DescriptionRole, "description" },
-        { PathRole,        "path" },
-        { IconPathRole,    "iconPath" },
-        { PopupPathRole,   "popupPath" },
-        { EnabledRole,     "enabled" },
-        { PinnedRole,      "pinned" }
-    };
+        {IdRole, "id"},
+        {NameRole, "name"},
+        {VersionRole, "version"},
+        {DescriptionRole, "description"},
+        {PathRole, "path"},
+        {IconPathRole, "iconPath"},
+        {PopupPathRole, "popupPath"},
+        {EnabledRole, "enabled"},
+        {PinnedRole, "pinned"},
+        {AuthorRole, "author"},
+        {HomepageRole, "homepageUrl"},
+        {PermissionsRole, "permissions"},
+        {HostPermissionsRole, "hostPermissions"},
+        {UserScriptsRole, "hasUserScripts"},
+        {SizeRole, "sizeBytes"},
+        {UserScriptsEnabledRole, "userScriptsEnabled"}};
+}
+
+QQuickWebEngineProfile *ExtensionService::profile() const
+{
+    return QQuickWebEngineProfile::defaultProfile();
+}
+
+QWebEngineExtensionManager *ExtensionService::extensionManager() const
+{
+    auto *p = profile();
+    return p ? p->extensionManager() : nullptr;
+}
+
+QWebEngineExtensionManager *ExtensionService::ensureManager()
+{
+    auto *mgr = extensionManager();
+    if (!mgr)
+        return nullptr;
+
+    if (m_connectedManager != mgr)
+    {
+        if (m_connectedManager)
+            disconnect(m_connectedManager.data(), nullptr, this, nullptr);
+        m_connectedManager = mgr;
+
+        connect(mgr, &QWebEngineExtensionManager::loadFinished,
+                this, &ExtensionService::onLoadFinished);
+        connect(mgr, &QWebEngineExtensionManager::unloadFinished,
+                this, &ExtensionService::onUnloadFinished);
+        connect(mgr, &QWebEngineExtensionManager::installFinished, this,
+                [](const QWebEngineExtensionInfo &ext)
+                {
+                    BrowserLogger::instance().info("ExtensionService", QStringLiteral("installFinished: name=%1 id=%2 installed=%3 error=%4")
+                                                                           .arg(ext.name(), ext.id(), QString::number(ext.isInstalled()), ext.error()));
+                });
+
+        BrowserLogger::instance().info("ExtensionService", QStringLiteral("Connected to extension manager, installPath=%1").arg(mgr->installPath()));
+    }
+    return mgr;
+}
+
+int ExtensionService::indexOfId(const QString &id) const
+{
+    for (int i = 0; i < m_extensions.size(); ++i)
+    {
+        if (m_extensions.at(i).id == id)
+            return i;
+    }
+    return -1;
+}
+
+int ExtensionService::indexOfPath(const QString &path) const
+{
+    const QString wanted = ext::normalizedPath(path);
+    if (wanted.isEmpty())
+        return -1;
+    for (int i = 0; i < m_extensions.size(); ++i)
+    {
+        if (ext::normalizedPath(m_extensions.at(i).path) == wanted)
+            return i;
+    }
+    return -1;
+}
+
+std::optional<QWebEngineExtensionInfo> ExtensionService::findEngineInfo(const ExtensionItem &item) const
+{
+    const auto *mgr = extensionManager();
+    if (!mgr)
+        return std::nullopt;
+
+    const QString wanted = ext::normalizedPath(item.path);
+    const auto exts = mgr->extensions();
+    for (const auto &ext : exts)
+    {
+        if (ext::normalizedPath(ext.path()) == wanted)
+            return ext;
+    }
+    return std::nullopt;
 }
 
 bool ExtensionService::isInstalled(const QString &id) const
 {
-    for (const auto &item : m_extensions) {
-        if (item.id == id) return true;
-    }
-    return false;
-}
-
-QString ExtensionService::getPopupUrl(const QString &id) const
-{
-    const ExtensionItem *foundItem = nullptr;
-    for (const auto &item : m_extensions) {
-        if (item.id == id && item.enabled) {
-            foundItem = &item;
-            break;
-        }
-    }
-    if (!foundItem) return {};
-
-    auto *profile = QQuickWebEngineProfile::defaultProfile();
-    if (profile && profile->extensionManager()) {
-        auto *mgr = profile->extensionManager();
-        for (const auto &ext : mgr->extensions()) {
-            if (ext.path() == foundItem->path || ext.name() == foundItem->name) {
-                if (ext.actionPopupUrl().isValid() && !ext.actionPopupUrl().isEmpty()) {
-                    BrowserLogger::instance().info("ExtensionService", QString("getPopupUrl %1 -> %2").arg(id, ext.actionPopupUrl().toString()));
-                    return ext.actionPopupUrl().toString();
-                }
-                if (!ext.id().isEmpty() && !foundItem->popupPath.isEmpty()) {
-                    QString rel = QDir(foundItem->path).relativeFilePath(foundItem->popupPath);
-                    QString res = QStringLiteral("chrome-extension://%1/%2").arg(ext.id(), rel);
-                    BrowserLogger::instance().info("ExtensionService", QString("getPopupUrl %1 -> %2").arg(id, res));
-                    return res;
-                }
-            }
-        }
-    }
-
-    if (!foundItem->popupPath.isEmpty()) {
-        return QUrl::fromLocalFile(foundItem->popupPath).toString();
-    }
-    return {};
+    return indexOfId(id) >= 0;
 }
 
 QString ExtensionService::getInstalledIconPath(const QString &id) const
 {
-    for (const auto &item : m_extensions) {
-        if (item.id == id && !item.iconPath.isEmpty()) {
-            return item.iconPath;
-        }
+    const int row = indexOfId(id);
+    return row >= 0 ? m_extensions.at(row).iconPath : QString();
+}
+
+QString ExtensionService::rewriteExtensionUrl(const QString &url)
+{
+    const QString name = QStringLiteral("chrome-extension:");
+    if (!url.startsWith(name, Qt::CaseInsensitive))
+        return url;
+    return QStringLiteral("illum-ext:") + url.mid(name.size());
+}
+
+QString ExtensionService::buildPageUrl(const ExtensionItem &item, const QString &relativePath) const
+{
+    if (!item.enabled)
+        return {};
+
+    const auto info = findEngineInfo(item);
+    if (!isUsable(info))
+    {
+        BrowserLogger::instance().info("ExtensionService", QStringLiteral("'%1' is not loaded+enabled yet; no URL available")
+                                                               .arg(item.name));
+        return {};
     }
+
+    return QStringLiteral("illum-ext://%1/%2").arg(info->id(), ext::cleanRel(relativePath));
+}
+
+QString ExtensionService::getPopupUrl(const QString &id) const
+{
+    const int row = indexOfId(id);
+    if (row < 0)
+        return {};
+
+    const ExtensionItem &item = m_extensions.at(row);
+    if (!item.enabled)
+        return {};
+
+    const auto info = findEngineInfo(item);
+    if (!isUsable(info))
+    {
+        BrowserLogger::instance().info("ExtensionService", QStringLiteral("getPopupUrl('%1'): extension not ready (loaded=%2 enabled=%3)")
+                                                               .arg(item.name,
+                                                                    QString::number(info && info->isLoaded()),
+                                                                    QString::number(info && info->isEnabled())));
+        return {};
+    }
+
+    const QUrl popup = info->actionPopupUrl();
+    if (popup.isValid() && !popup.isEmpty())
+        return rewriteExtensionUrl(popup.toString());
+
+    if (!item.popupPath.isEmpty())
+        return buildPageUrl(item, QDir(item.path).relativeFilePath(item.popupPath));
+
     return {};
 }
 
+// toggle, pin, uninstall
 void ExtensionService::togglePin(const QString &id)
 {
-    for (int i = 0; i < m_extensions.size(); ++i) {
-        if (m_extensions[i].id == id) {
-            m_extensions[i].pinned = !m_extensions[i].pinned;
-            emit dataChanged(index(i), index(i), { PinnedRole });
-            saveToDisk();
-            break;
-        }
-    }
+    const int row = indexOfId(id);
+    if (row < 0)
+        return;
+
+    m_extensions[row].pinned = !m_extensions[row].pinned;
+    emit dataChanged(index(row), index(row), {PinnedRole});
+    saveToDisk();
+}
+
+void ExtensionService::setUserScriptsEnabled(const QString &id, bool enabled)
+{
+    const int row = indexOfId(id);
+    if (row < 0)
+        return;
+
+    m_extensions[row].userScriptsEnabled = enabled;
+    emit dataChanged(index(row), index(row), {UserScriptsEnabledRole});
+    saveToDisk();
+    BrowserLogger::instance().info("ExtensionService",
+                                    QStringLiteral("userScriptsEnabled set to %1 for %2").arg(enabled ? "true" : "false").arg(id));
 }
 
 void ExtensionService::toggleExtension(const QString &id)
 {
-    for (int i = 0; i < m_extensions.size(); ++i) {
-        if (m_extensions[i].id == id) {
-            m_extensions[i].enabled = !m_extensions[i].enabled;
-            emit dataChanged(index(i), index(i), { EnabledRole });
-            saveToDisk();
+    const int row = indexOfId(id);
+    if (row < 0)
+        return;
 
-            auto *profile = QQuickWebEngineProfile::defaultProfile();
-            if (profile && profile->extensionManager()) {
-                auto *mgr = profile->extensionManager();
-                for (const auto &ext : mgr->extensions()) {
-                    if (ext.path() == m_extensions[i].path || ext.name() == m_extensions[i].name) {
-                        mgr->setExtensionEnabled(ext, m_extensions[i].enabled);
-                        break;
-                    }
-                }
-            }
-            break;
-        }
+    m_extensions[row].enabled = !m_extensions[row].enabled;
+    emit dataChanged(index(row), index(row), {EnabledRole});
+    saveToDisk();
+
+    auto *mgr = ensureManager();
+    if (!mgr)
+        return;
+
+    const ExtensionItem &item = m_extensions.at(row);
+    if (const auto info = findEngineInfo(item))
+    {
+        syncItemWithEngine(row, *info);
+    }
+    else if (item.enabled && QFile::exists(item.path + QStringLiteral("/manifest.json")))
+    {
+        // not loaded into session yet
+        mgr->loadExtension(item.path);
     }
 }
 
 void ExtensionService::uninstallExtension(const QString &id)
 {
-    int foundIdx = -1;
-    for (int i = 0; i < m_extensions.size(); ++i) {
-        if (m_extensions[i].id == id) {
-            foundIdx = i;
-            break;
+    const int row = indexOfId(id);
+    if (row < 0)
+        return;
+
+    const ExtensionItem item = m_extensions.at(row);
+    const QString rootDir = rootDirFor(id);
+
+    // added with load extension
+    bool deferDelete = false;
+    if (const auto info = findEngineInfo(item))
+    {
+        if (auto *mgr = ensureManager())
+        {
+            const QString key = ext::normalizedPath(info->path());
+            m_pendingDeletions.insert(key, rootDir);
+            mgr->unloadExtension(*info);
+            QTimer::singleShot(5000, this, [this, key]()
+                               { deletePending(key); });
+            deferDelete = true;
         }
     }
-    if (foundIdx < 0) return;
 
-    const ExtensionItem item = m_extensions.at(foundIdx);
-
-    auto *profile = QQuickWebEngineProfile::defaultProfile();
-    if (profile && profile->extensionManager()) {
-        auto *mgr = profile->extensionManager();
-        for (const auto &ext : mgr->extensions()) {
-            if (ext.path() == item.path || ext.name() == item.name) {
-                mgr->uninstallExtension(ext);
-                break;
-            }
-        }
-    }
-
-    // Remove folder on disk
-    QDir(item.path).removeRecursively();
-
-    beginRemoveRows(QModelIndex(), foundIdx, foundIdx);
-    m_extensions.removeAt(foundIdx);
+    beginRemoveRows(QModelIndex(), row, row);
+    m_extensions.removeAt(row);
     endRemoveRows();
+
+    if (!deferDelete)
+        removeExtensionDir(rootDir);
+
     emit countChanged();
-    emit extensionUninstalled(id);
     saveToDisk();
 }
 
+// address by engine ID
+void ExtensionService::installSchemeHandler()
+{
+    if (m_schemeHandler)
+        return;
+
+    auto *p = profile();
+    if (!p)
+        return;
+
+    m_schemeHandler = new ExtensionSchemeHandler(
+        [this](const QString &host)
+        { return directoryForEngineId(host); },
+        this);
+    p->installUrlSchemeHandler(QByteArrayLiteral("illum-ext"), m_schemeHandler);
+    BrowserLogger::instance().info("ExtensionService", QStringLiteral("Installed illum-ext:// scheme handler"));
+}
+
+QString ExtensionService::directoryForEngineId(const QString &engineId) const
+{
+    if (engineId.isEmpty())
+        return {};
+
+    const auto *mgr = extensionManager();
+    if (!mgr)
+        return {};
+
+    // bypass the atomicity of the engine snapshot by scanning for a loaded
+    // extension whose engine id matches the requested host.
+    const auto exts = mgr->extensions();
+    for (const auto &ext : exts)
+    {
+        if (ext.id() == engineId)
+            return ext.path();
+    }
+    return {};
+}
+
+void ExtensionService::onUnloadFinished(const QWebEngineExtensionInfo &ext)
+{
+    BrowserLogger::instance().info("ExtensionService", QStringLiteral("unloadFinished: name=%1 id=%2 loaded=%3")
+                                                           .arg(ext.name(), ext.id(), QString::number(ext.isLoaded())));
+    deletePending(ext::normalizedPath(ext.path()));
+}
+
+void ExtensionService::deletePending(const QString &normalizedPath)
+{
+    const QString dir = m_pendingDeletions.take(normalizedPath);
+    if (!dir.isEmpty())
+        removeExtensionDir(dir);
+}
+
+// load extensions into profile
 void ExtensionService::installToWebEngine()
 {
-    auto *profile = QQuickWebEngineProfile::defaultProfile();
-    if (!profile) return;
-    auto *mgr = profile->extensionManager();
-    if (!mgr) return;
-
-    if (!m_signalsConnected) {
-        m_signalsConnected = true;
-        connect(mgr, &QWebEngineExtensionManager::installFinished, this, [this, mgr](const QWebEngineExtensionInfo &ext) {
-            BrowserLogger::instance().info("ExtensionService",
-                QString("installFinished: name=%1 id=%2 installed=%3 loaded=%4 popup=%5 error=%6")
-                    .arg(ext.name(), ext.id(), QString::number(ext.isInstalled()),
-                         QString::number(ext.isLoaded()), ext.actionPopupUrl().toString(), ext.error()));
-            if (ext.isInstalled() || ext.isLoaded()) {
-                for (const auto &item : m_extensions) {
-                    if (item.enabled && (ext.path() == item.path || ext.name() == item.name))
-                        break;
-                }
-            }
-        });
-        connect(mgr, &QWebEngineExtensionManager::loadFinished, this, [this, mgr](const QWebEngineExtensionInfo &ext) {
-            BrowserLogger::instance().info("ExtensionService",
-                QString("loadFinished: name=%1 id=%2 installed=%3 loaded=%4 popup=%5 error=%6")
-                    .arg(ext.name(), ext.id(), QString::number(ext.isInstalled()),
-                         QString::number(ext.isLoaded()), ext.actionPopupUrl().toString(), ext.error()));
-            if (ext.isLoaded()) {
-                for (const auto &item : m_extensions) {
-                    if (item.enabled && (ext.path() == item.path || ext.name() == item.name))
-                        break;
-                }
-            }
-        });
+    auto *p = profile();
+    if (!p)
+    {
+        BrowserLogger::instance().warning("ExtensionService", QStringLiteral("No WebEngine profile available"));
+        return;
+    }
+    if (p->isOffTheRecord())
+    {
+        BrowserLogger::instance().warning("ExtensionService", QStringLiteral("Extensions cannot be loaded into an off-the-record profile"));
+        return;
     }
 
-    BrowserLogger::instance().info("ExtensionService", QString("ExtensionManager installPath=%1").arg(mgr->installPath()));
-    QDir().mkpath(mgr->installPath());
+    auto *mgr = ensureManager();
+    if (!mgr)
+    {
+        BrowserLogger::instance().warning("ExtensionService", QStringLiteral("Profile has no extension manager (Qt WebEngine >= 6.10 required)"));
+        return;
+    }
 
-    // Enable existing extensions that were persisted by WebEngine profile
-    for (const auto &ext : mgr->extensions()) {
-        for (const auto &item : m_extensions) {
-            if (item.enabled && (ext.path() == item.path || ext.name() == item.name)) {
-                if (!ext.isEnabled()) {
-                    mgr->setExtensionEnabled(ext, true);
-                }
+    // serve through out scheme handler so chrome.runtime / chrome.i18n work in extension pages
+    installSchemeHandler();
+
+    const auto engineExts = mgr->extensions();
+
+    for (int i = 0; i < m_extensions.size(); ++i)
+    {
+        const QString itemPath = m_extensions.at(i).path;
+        const bool wantEnabled = m_extensions.at(i).enabled;
+
+        if (!QFile::exists(itemPath + QStringLiteral("/manifest.json")))
+        {
+            BrowserLogger::instance().warning("ExtensionService", QStringLiteral("manifest.json missing for %1").arg(itemPath));
+            continue;
+        }
+
+        const QString wanted = ext::normalizedPath(itemPath);
+        std::optional<QWebEngineExtensionInfo> match;
+        for (const auto &ext : engineExts)
+        {
+            if (ext::normalizedPath(ext.path()) == wanted)
+            {
+                match = ext;
                 break;
             }
         }
-    }
 
-    // Install any extension not yet known to manager
-    for (const auto &item : m_extensions) {
-        if (!item.enabled || !QDir(item.path).exists()) continue;
-
-        bool found = false;
-        for (const auto &ext : mgr->extensions()) {
-            if (ext.path() == item.path || ext.name() == item.name) {
-                found = true;
-                break;
-            }
+        if (match)
+        {
+            // already known to manager
+            syncItemWithEngine(i, *match);
         }
-        if (!found) {
-            BrowserLogger::instance().info("ExtensionService", QString("Loading extension %1 from %2").arg(item.name, item.path));
-            mgr->loadExtension(item.path);
+        else if (wantEnabled)
+        {
+            BrowserLogger::instance().info("ExtensionService", QStringLiteral("Loading extension from %1").arg(itemPath));
+            mgr->loadExtension(itemPath); // -> onLoadFinished() enables it
         }
     }
 }
 
-void ExtensionService::installFromZipUrl(const QString &id, const QString &name, const QString &url)
+void ExtensionService::onLoadFinished(const QWebEngineExtensionInfo &ext)
 {
-    if (m_downloading) return;
+    BrowserLogger::instance().info("ExtensionService", QStringLiteral("loadFinished: name=%1 id=%2 loaded=%3 enabled=%4 popup=%5 error=%6")
+                                                           .arg(ext.name(), ext.id(), QString::number(ext.isLoaded()),
+                                                                QString::number(ext.isEnabled()), ext.actionPopupUrl().toString(), ext.error()));
 
-    m_downloading = true;
-    m_downloadStatus = QStringLiteral("Downloading ") + name + QStringLiteral("…");
-    emit downloadingChanged();
-    emit downloadStatusChanged();
+    const int row = indexOfPath(ext.path());
+    if (row < 0)
+        return; 
 
-    QNetworkRequest req{QUrl(url)};
-    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-    req.setRawHeader("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
-
-    QNetworkReply *reply = m_nam->get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, id, name]() {
-        reply->deleteLater();
-        if (reply->error() != QNetworkReply::NoError) {
-            m_downloading = false;
-            m_downloadStatus = QStringLiteral("Download failed: ") + reply->errorString();
-            emit downloadingChanged();
-            emit downloadStatusChanged();
+    // defer the sync
+    const QString path = ext::normalizedPath(ext.path());
+    QTimer::singleShot(200, this, [this, path]()
+                       {
+        const int r = indexOfPath(path);
+        if (r < 0)
             return;
-        }
-
-        const QByteArray data = reply->readAll();
-        m_downloadStatus = QStringLiteral("Extracting ") + name + QStringLiteral("…");
-        emit downloadStatusChanged();
-
-        const QString targetDir = m_baseDir + QStringLiteral("/") + id;
-        QDir(targetDir).removeRecursively();
-        QDir().mkpath(targetDir);
-
-        if (!extractZip(data, targetDir)) {
-            m_downloading = false;
-            m_downloadStatus = QStringLiteral("Failed to extract extension archive");
-            emit downloadingChanged();
-            emit downloadStatusChanged();
-            return;
-        }
-
-        // Detect if manifest is in a subdirectory (e.g. uBlock0.chromium/manifest.json)
-        QString manifestDir = targetDir;
-        if (!QFile::exists(manifestDir + QStringLiteral("/manifest.json"))) {
-            QDir d(targetDir);
-            const QStringList subdirs = d.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-            for (const QString &sub : subdirs) {
-                if (QFile::exists(targetDir + QStringLiteral("/") + sub + QStringLiteral("/manifest.json"))) {
-                    manifestDir = targetDir + QStringLiteral("/") + sub;
-                    break;
-                }
-            }
-        }
-
-        QString extName = name;
-        QString version = QStringLiteral("1.0");
-        QString description;
-        QString iconPath;
-        QString popupPath;
-        parseManifest(manifestDir, extName, version, description, iconPath, popupPath);
-
-        // Remove old entry if existed
-        for (int i = 0; i < m_extensions.size(); ++i) {
-            if (m_extensions[i].id == id) {
-                beginRemoveRows(QModelIndex(), i, i);
-                m_extensions.removeAt(i);
-                endRemoveRows();
-                break;
-            }
-        }
-
-        ExtensionItem item;
-        item.id = id;
-        item.name = extName;
-        item.version = version;
-        item.description = description;
-        item.path = manifestDir;
-        item.iconPath = iconPath;
-        item.popupPath = popupPath;
-        item.enabled = true;
-
-        beginInsertRows(QModelIndex(), m_extensions.size(), m_extensions.size());
-        m_extensions.append(item);
-        endInsertRows();
-        emit countChanged();
-        saveToDisk();
-
-        auto *profile = QQuickWebEngineProfile::defaultProfile();
-        if (profile && profile->extensionManager()) {
-            profile->extensionManager()->loadExtension(manifestDir);
-        }
-
-        m_downloading = false;
-        m_downloadStatus = QStringLiteral("Installed ") + extName;
-        emit downloadingChanged();
-        emit downloadStatusChanged();
-        emit extensionInstalled(id);
-    });
+        const auto info = findEngineInfo(m_extensions.at(r));
+        if (info)
+            syncItemWithEngine(r, *info); });
 }
 
-bool ExtensionService::extractZip(const QByteArray &zipData, const QString &destDir)
+// qt loads extensions disabled
+void ExtensionService::syncItemWithEngine(int row, const QWebEngineExtensionInfo &info)
 {
-    QTemporaryFile tmpFile;
-    if (!tmpFile.open()) return false;
-    tmpFile.write(zipData);
-    tmpFile.flush();
-    const QString tmpPath = tmpFile.fileName();
+    if (row < 0 || row >= m_extensions.size())
+        return;
 
-#if defined(Q_OS_WIN)
-    QProcess proc;
-    proc.start(QStringLiteral("tar"), {QStringLiteral("-xf"), tmpPath, QStringLiteral("-C"), destDir});
-    return proc.waitForFinished(30000) && proc.exitCode() == 0;
-#else
-    QProcess proc;
-    proc.start(QStringLiteral("unzip"), {QStringLiteral("-q"), QStringLiteral("-o"), tmpPath, QStringLiteral("-d"), destDir});
-    return proc.waitForFinished(30000) && proc.exitCode() == 0;
-#endif
+    ExtensionItem &item = m_extensions[row];
+
+    auto *mgr = extensionManager();
+
+    // failed to load
+    // could show to the user
+    if (!info.isLoaded())
+    {
+        const QString error = info.error();
+        if (!error.isEmpty())
+        {
+            BrowserLogger::instance().warning("ExtensionService", QStringLiteral("Failed to load %1: %2").arg(item.name, error));
+            setDownloadStatus(QStringLiteral("Failed to load %1: %2").arg(item.name, error));
+        }
+        return;
+    }
+
+    // Qt WebEngine 6.11.2: setExtensionEnabled() SIGSEGVs on BOTH the enable and
+    // disable paths, even deferred (singleShot(0)) with a freshly re-fetched
+    // QWebEngineExtensionInfo. Crash lands inside Chromium's
+    // ScreenCaptureKitFullscreenModule. Extensions therefore stay
+    // loaded-but-disabled forever on this Qt; the app-level toggle remains
+    // authoritative only for our UI. Replace with the native QWebEngineScript
+    // userscript engine (no extension API involved).
+    return;
 }
 
-bool ExtensionService::parseManifest(const QString &dirPath, QString &name, QString &version, QString &description, QString &iconPath, QString &popupPath)
+void ExtensionService::confirmEnabled(const QString &id, int attemptsLeft)
 {
-    QFile f(dirPath + QStringLiteral("/manifest.json"));
-    if (!f.open(QIODevice::ReadOnly)) return false;
+    const int row = indexOfId(id);
+    if (row < 0)
+        return;
 
-    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
-    if (!doc.isObject()) return false;
+    const auto info = findEngineInfo(m_extensions.at(row));
+    if (isUsable(info))
+        return;
 
-    const QJsonObject obj = doc.object();
-
-    auto resolveMsg = [&](const QString &str) -> QString {
-        if (!str.startsWith(QLatin1String("__MSG_")) || !str.endsWith(QLatin1String("__")))
-            return str;
-        const QString key = str.mid(6, str.length() - 8);
-        QString locale = obj.value(QStringLiteral("default_locale")).toString();
-        if (locale.isEmpty()) locale = QStringLiteral("en");
-        QFile mf(dirPath + QStringLiteral("/_locales/") + locale + QStringLiteral("/messages.json"));
-        if (mf.open(QIODevice::ReadOnly)) {
-            const QJsonObject mObj = QJsonDocument::fromJson(mf.readAll()).object();
-            if (mObj.contains(key)) {
-                return mObj.value(key).toObject().value(QStringLiteral("message")).toString();
-            }
-        }
-        return str;
-    };
-
-    if (obj.contains(QStringLiteral("name"))) {
-        name = resolveMsg(obj.value(QStringLiteral("name")).toString());
-    }
-    if (obj.contains(QStringLiteral("version"))) {
-        version = obj.value(QStringLiteral("version")).toString();
-    }
-    if (obj.contains(QStringLiteral("description"))) {
-        description = resolveMsg(obj.value(QStringLiteral("description")).toString());
+    if (attemptsLeft <= 0)
+    {
+        BrowserLogger::instance().warning("ExtensionService", QStringLiteral("Extension '%1' did not become enabled in time").arg(id));
+        return;
     }
 
-    // Parse action / browser_action for popup and icon
-    QJsonObject actionObj;
-    if (obj.contains(QStringLiteral("action")) && obj.value(QStringLiteral("action")).isObject()) {
-        actionObj = obj.value(QStringLiteral("action")).toObject();
-    } else if (obj.contains(QStringLiteral("browser_action")) && obj.value(QStringLiteral("browser_action")).isObject()) {
-        actionObj = obj.value(QStringLiteral("browser_action")).toObject();
-    }
-
-    if (!actionObj.isEmpty()) {
-        if (actionObj.contains(QStringLiteral("default_popup"))) {
-            QString p = actionObj.value(QStringLiteral("default_popup")).toString();
-            if (!p.isEmpty()) popupPath = dirPath + QStringLiteral("/") + p;
-        }
-        if (actionObj.contains(QStringLiteral("default_icon"))) {
-            QJsonValue iconVal = actionObj.value(QStringLiteral("default_icon"));
-            if (iconVal.isObject()) {
-                QJsonObject iconMap = iconVal.toObject();
-                QString ic = iconMap.value(QStringLiteral("32")).toString();
-                if (ic.isEmpty()) ic = iconMap.value(QStringLiteral("16")).toString();
-                if (ic.isEmpty()) ic = iconMap.value(QStringLiteral("48")).toString();
-                if (ic.isEmpty() && !iconMap.isEmpty()) ic = iconMap.begin().value().toString();
-                if (!ic.isEmpty()) iconPath = dirPath + QStringLiteral("/") + ic;
-            } else if (iconVal.isString()) {
-                iconPath = dirPath + QStringLiteral("/") + iconVal.toString();
-            }
-        }
-    }
-
-    // Fallback to top-level "icons"
-    if (iconPath.isEmpty() && obj.contains(QStringLiteral("icons")) && obj.value(QStringLiteral("icons")).isObject()) {
-        QJsonObject icons = obj.value(QStringLiteral("icons")).toObject();
-        QString ic = icons.value(QStringLiteral("32")).toString();
-        if (ic.isEmpty()) ic = icons.value(QStringLiteral("48")).toString();
-        if (ic.isEmpty()) ic = icons.value(QStringLiteral("128")).toString();
-        if (ic.isEmpty()) ic = icons.value(QStringLiteral("16")).toString();
-        if (!ic.isEmpty()) iconPath = dirPath + QStringLiteral("/") + ic;
-    }
-
-    return true;
-}
-
-void ExtensionService::loadFromDisk()
-{
-    QFile f(m_baseDir + QStringLiteral("/extensions.json"));
-    if (!f.open(QIODevice::ReadOnly)) return;
-
-    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
-    if (!doc.isArray()) return;
-
-    m_extensions.clear();
-    const QJsonArray arr = doc.array();
-    for (const QJsonValue &v : arr) {
-        if (!v.isObject()) continue;
-        const QJsonObject o = v.toObject();
-        ExtensionItem item;
-        item.id = o.value(QStringLiteral("id")).toString();
-        item.name = o.value(QStringLiteral("name")).toString();
-        item.version = o.value(QStringLiteral("version")).toString();
-        item.description = o.value(QStringLiteral("description")).toString();
-        item.path = o.value(QStringLiteral("path")).toString();
-        item.iconPath = o.value(QStringLiteral("iconPath")).toString();
-        item.popupPath = o.value(QStringLiteral("popupPath")).toString();
-        item.enabled = o.value(QStringLiteral("enabled")).toBool(true);
-        item.pinned  = o.value(QStringLiteral("pinned")).toBool(true);
-        if (QDir(item.path).exists()) {
-            m_extensions.append(item);
-        }
-    }
-}
-
-void ExtensionService::saveToDisk()
-{
-    QJsonArray arr;
-    for (const auto &item : m_extensions) {
-        QJsonObject o;
-        o[QStringLiteral("id")] = item.id;
-        o[QStringLiteral("name")] = item.name;
-        o[QStringLiteral("version")] = item.version;
-        o[QStringLiteral("description")] = item.description;
-        o[QStringLiteral("path")] = item.path;
-        o[QStringLiteral("iconPath")] = item.iconPath;
-        o[QStringLiteral("popupPath")] = item.popupPath;
-        o[QStringLiteral("enabled")] = item.enabled;
-        o[QStringLiteral("pinned")]  = item.pinned;
-        arr.append(o);
-    }
-    QFile f(m_baseDir + QStringLiteral("/extensions.json"));
-    if (f.open(QIODevice::WriteOnly)) {
-        f.write(QJsonDocument(arr).toJson());
-    }
+    QTimer::singleShot(50, this, [this, id, attemptsLeft]()
+                       { confirmEnabled(id, attemptsLeft - 1); });
 }

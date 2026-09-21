@@ -23,7 +23,8 @@ BrowserLogger::~BrowserLogger()
 {
     log(Info, "Logger", "──── Session ended ────");
     QMutexLocker lock(&m_mutex);
-    if (m_file.isOpen()) {
+    if (m_file.isOpen())
+    {
         m_stream.flush();
         m_file.close();
     }
@@ -32,14 +33,15 @@ BrowserLogger::~BrowserLogger()
 void BrowserLogger::openLogFile()
 {
     const QString logDir = QStandardPaths::writableLocation(
-                               QStandardPaths::AppLocalDataLocation)
-                           + QStringLiteral("/logs");
+                               QStandardPaths::AppLocalDataLocation) +
+                           QStringLiteral("/logs");
 
     QDir().mkpath(logDir);
     m_logPath = logDir + QStringLiteral("/browser.log");
 
     m_file.setFileName(m_logPath);
-    if (!m_file.open(QIODevice::Append | QIODevice::Text)) {
+    if (!m_file.open(QIODevice::Append | QIODevice::Text))
+    {
         fprintf(stderr, "[BrowserLogger] Failed to open log file: %s\n",
                 qPrintable(m_logPath));
     }
@@ -60,7 +62,8 @@ void BrowserLogger::rotateIfNeeded()
     QFile::rename(m_logPath, rotated);
 
     m_file.setFileName(m_logPath);
-    if (!m_file.open(QIODevice::Append | QIODevice::Text)) {
+    if (!m_file.open(QIODevice::Append | QIODevice::Text))
+    {
         fprintf(stderr, "[BrowserLogger] Failed to open rotated log file: %s\n",
                 qPrintable(m_logPath));
     }
@@ -69,7 +72,7 @@ void BrowserLogger::rotateIfNeeded()
 
 void BrowserLogger::log(Level level, const QString &category, const QString &message)
 {
-    static const char *levelStr[] = { "DEBUG", "INFO ", "WARN ", "ERROR" };
+    static const char *levelStr[] = {"DEBUG", "INFO ", "WARN ", "ERROR"};
 
     const QString timestamp = QDateTime::currentDateTime()
                                   .toString(QStringLiteral("yyyy-MM-dd hh:mm:ss.zzz"));
@@ -77,21 +80,21 @@ void BrowserLogger::log(Level level, const QString &category, const QString &mes
     const QString line = QStringLiteral("[%1] [%2] [%3] %4")
                              .arg(timestamp)
                              .arg(QLatin1String(levelStr[qBound(0, static_cast<int>(level), 3)]))
-                             .arg(category, -16)   // left-align category in 16 chars
+                             .arg(category, -16) // left-align category in 16 chars
                              .arg(message);
 
     QMutexLocker lock(&m_mutex);
 
     // write to file
-    if (m_file.isOpen()) {
+    if (m_file.isOpen())
+    {
         rotateIfNeeded();
         m_stream << line << '\n';
         m_stream.flush();
     }
 
     // mirror to console
-    if (level >= Warning)
-        fprintf(stderr, "%s\n", qPrintable(line));
+    fprintf(stderr, "%s\n", qPrintable(line));
 }
 
 QString BrowserLogger::logFilePath() const
@@ -115,17 +118,28 @@ void BrowserLogger::qtMessageHandler(QtMsgType type,
                             : QStringLiteral("Qt");
 
     Level level = Info;
-    switch (type) {
-    case QtDebugMsg:    level = Debug;   break;
-    case QtInfoMsg:     level = Info;    break;
-    case QtWarningMsg:  level = Warning; break;
-    case QtCriticalMsg: level = Error;   break;
-    case QtFatalMsg:    level = Error;   break;
+    switch (type)
+    {
+    case QtDebugMsg:
+        level = Debug;
+        break;
+    case QtInfoMsg:
+        level = Info;
+        break;
+    case QtWarningMsg:
+        level = Warning;
+        break;
+    case QtCriticalMsg:
+        level = Error;
+        break;
+    case QtFatalMsg:
+        level = Error;
+        break;
     }
 
     BrowserLogger::instance().log(level, category, msg);
 
-    // abort! 
+    // abort!
     // am i on a submarine?
     if (type == QtFatalMsg)
         std::abort();

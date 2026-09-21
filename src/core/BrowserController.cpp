@@ -5,19 +5,18 @@
 
 #include <QCoreApplication>
 #include <QSettings>
+#include <QDir>
 #include <QWebEngineSettings>
+#include <algorithm>
 
-BrowserController::BrowserController(Profile *profile, QObject *parent)
-    : QObject(parent)
-    , m_model(new TabModel(this))
-    , m_profile(profile)
-    , m_webEngineProfile(profile->webEngineProfile())
+BrowserController::BrowserController(Profile *profile, ExtensionService *extensionService, QObject *parent)
+    : QObject(parent), m_profile(profile), m_webEngineProfile(profile->webEngineProfile()), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_extensionService(extensionService), m_model(new TabModel(m_extensionService, this))
 {
-    connect(m_model, &TabModel::activeIndexChanged, this, [this]() {
+    connect(m_model, &TabModel::activeIndexChanged, this, [this]()
+            {
         emit activeIndexChanged();
         emit activeStateChanged();
-        rewireActiveTab();
-    });
+        rewireActiveTab(); });
 
     updateAdaptiveAccent();
     newTab();
@@ -30,23 +29,29 @@ void BrowserController::rewireActiveTab()
     m_activeTabCtx = nullptr;
 
     BrowserTab *tab = m_model->tabAt(m_model->activeIndex());
-    if (!tab) return;
+    if (!tab)
+        return;
 
     m_activeTabCtx = new QObject(this);
-    connect(tab, &BrowserTab::urlChanged,      m_activeTabCtx, [this]{ emit activeStateChanged(); });
-    connect(tab, &BrowserTab::titleChanged,    m_activeTabCtx, [this]{ emit activeStateChanged(); });
-    connect(tab, &BrowserTab::loadingChanged,  m_activeTabCtx, [this]{ emit activeStateChanged(); });
-    connect(tab, &BrowserTab::progressChanged, m_activeTabCtx, [this]{ emit activeStateChanged(); });
+    connect(tab, &BrowserTab::urlChanged, m_activeTabCtx, [this]
+            { emit activeStateChanged(); });
+    connect(tab, &BrowserTab::titleChanged, m_activeTabCtx, [this]
+            { emit activeStateChanged(); });
+    connect(tab, &BrowserTab::loadingChanged, m_activeTabCtx, [this]
+            { emit activeStateChanged(); });
+    connect(tab, &BrowserTab::progressChanged, m_activeTabCtx, [this]
+            { emit activeStateChanged(); });
 }
 
 // Property getter
 
-TabModel *BrowserController::tabModel()    const { return m_model; }
-int       BrowserController::activeIndex() const { return m_model->activeIndex(); }
+TabModel *BrowserController::tabModel() const { return m_model; }
+int BrowserController::activeIndex() const { return m_model->activeIndex(); }
 
 QString BrowserController::activeUrl() const
 {
-    if (auto *t = m_model->tabAt(m_model->activeIndex())) return t->url().toString();
+    if (auto *t = m_model->tabAt(m_model->activeIndex()))
+        return t->url().toString();
     return {};
 }
 QString BrowserController::activeTitle() const
@@ -57,26 +62,27 @@ QString BrowserController::activeTitle() const
 }
 bool BrowserController::activeLoading() const
 {
-    if (auto *t = m_model->tabAt(m_model->activeIndex())) return t->loading();
+    if (auto *t = m_model->tabAt(m_model->activeIndex()))
+        return t->loading();
     return false;
 }
 int BrowserController::activeProgress() const
 {
-    if (auto *t = m_model->tabAt(m_model->activeIndex())) return t->progress();
+    if (auto *t = m_model->tabAt(m_model->activeIndex()))
+        return t->progress();
     return 0;
 }
 
 QString BrowserController::newTabBackground() const
 {
-    QSettings settings;
-    return settings.value(QStringLiteral("newTabBackground"), QString()).toString();
+    return m_settings->value(QStringLiteral("newTabBackground"), QString()).toString();
 }
 
 void BrowserController::setNewTabBackground(const QString &path)
 {
-    QSettings settings;
-    if (settings.value(QStringLiteral("newTabBackground")).toString() != path) {
-        settings.setValue(QStringLiteral("newTabBackground"), path);
+    if (m_settings->value(QStringLiteral("newTabBackground")).toString() != path)
+    {
+        m_settings->setValue(QStringLiteral("newTabBackground"), path);
         emit newTabBackgroundChanged();
         updateAdaptiveAccent();
     }
@@ -91,14 +97,17 @@ void BrowserController::updateAdaptiveAccent()
 {
     const QString bgPath = newTabBackground();
     QString newAccent;
-    if (!bgPath.isEmpty()) {
+    if (!bgPath.isEmpty())
+    {
         QColor extracted = ColorExtractor::extractDominantColor(bgPath);
-        if (extracted.isValid()) {
+        if (extracted.isValid())
+        {
             newAccent = extracted.name(QColor::HexRgb);
         }
     }
 
-    if (m_adaptiveAccent != newAccent) {
+    if (m_adaptiveAccent != newAccent)
+    {
         m_adaptiveAccent = newAccent;
         emit adaptiveAccentChanged();
     }
@@ -106,15 +115,14 @@ void BrowserController::updateAdaptiveAccent()
 
 QString BrowserController::themeMode() const
 {
-    QSettings settings;
-    return settings.value(QStringLiteral("themeMode"), QStringLiteral("system")).toString();
+    return m_settings->value(QStringLiteral("themeMode"), QStringLiteral("system")).toString();
 }
 
 void BrowserController::setThemeMode(const QString &mode)
 {
-    QSettings settings;
-    if (settings.value(QStringLiteral("themeMode"), QStringLiteral("system")).toString() != mode) {
-        settings.setValue(QStringLiteral("themeMode"), mode);
+    if (m_settings->value(QStringLiteral("themeMode"), QStringLiteral("system")).toString() != mode)
+    {
+        m_settings->setValue(QStringLiteral("themeMode"), mode);
         emit themeModeChanged();
     }
 }
@@ -124,8 +132,8 @@ void BrowserController::setThemeMode(const QString &mode)
 void BrowserController::newTab(const QString &urlStr)
 {
     const QUrl url = urlStr.isEmpty()
-                   ? QUrl("newtab://newtab")
-                   : UrlResolver::resolve(urlStr);
+                         ? QUrl(NEW_TAB_URL)
+                         : UrlResolver::resolve(urlStr);
 
     const int newIndex = m_model->rowCount();
     m_model->addTab(url, m_webEngineProfile);
@@ -135,18 +143,20 @@ void BrowserController::newTab(const QString &urlStr)
 
 void BrowserController::closeTab(int index)
 {
-    if (m_model->rowCount() <= 1) {
+    if (m_model->rowCount() <= 1)
+    {
         // close the last time -> close the browser
         QCoreApplication::quit();
         return;
     }
     m_model->removeTab(index);
-    m_model->setActiveIndex(qMin(index, m_model->rowCount() - 1));
+    m_model->setActiveIndex(std::min(index, m_model->rowCount() - 1));
 }
 
 void BrowserController::activateTab(int index)
 {
-    if (index >= 0 && index < m_model->rowCount()) {
+    if (index >= 0 && index < m_model->rowCount())
+    {
         m_model->setActiveIndex(index);
         rewireActiveTab();
     }
@@ -155,10 +165,12 @@ void BrowserController::activateTab(int index)
 void BrowserController::cycleTab(int delta)
 {
     const int count = m_model->rowCount();
-    if (count < 2 || delta == 0) return;
+    if (count < MIN_TABS_FOR_CYCLE || delta == NO_TAB_CYCLE_DELTA)
+        return;
 
     int index = (m_model->activeIndex() + delta) % count;
-    if (index < 0) index += count;
+    if (index < 0)
+        index += count;
     activateTab(index);
 }
 
@@ -167,8 +179,9 @@ void BrowserController::cycleTab(int delta)
 void BrowserController::navigate(const QString &input)
 {
     const QUrl url = UrlResolver::resolve(input);
-    const int  idx = m_model->activeIndex();
-    if (BrowserTab *tab = m_model->tabAt(idx)) {
+    const int idx = m_model->activeIndex();
+    if (BrowserTab *tab = m_model->tabAt(idx))
+    {
         // update URL imediatly before page is loaded
         tab->setUrl(url);
         tab->requestLoad(url);
@@ -176,28 +189,47 @@ void BrowserController::navigate(const QString &input)
     }
 }
 
-void BrowserController::reload()       { emit navigationRequested(QStringLiteral("reload")); }
-void BrowserController::goBack()       { emit navigationRequested(QStringLiteral("back")); }
-void BrowserController::goForward()    { emit navigationRequested(QStringLiteral("forward")); }
-void BrowserController::toggleDevTools(){ emit navigationRequested(QStringLiteral("devtools")); }
+void BrowserController::reload() { emit navigationRequested(QStringLiteral("reload")); }
+void BrowserController::goBack() { emit navigationRequested(QStringLiteral("back")); }
+void BrowserController::goForward() { emit navigationRequested(QStringLiteral("forward")); }
+void BrowserController::toggleDevTools() { emit navigationRequested(QStringLiteral("devtools")); }
 
 // qml to cpp
 // rust later?
 
 void BrowserController::onTitleChanged(int i, const QString &v)
-{ if (auto *t = m_model->tabAt(i)) t->setTitle(v); }
+{
+    if (auto *t = m_model->tabAt(i))
+        t->setTitle(v);
+}
 
 void BrowserController::onUrlChanged(int i, const QString &v)
-{ if (auto *t = m_model->tabAt(i)) t->setUrl(QUrl(v)); }
+{
+    if (auto *t = m_model->tabAt(i))
+        t->setUrl(QUrl(v));
+}
 
 void BrowserController::onLoadingChanged(int i, bool v)
-{ if (auto *t = m_model->tabAt(i)) t->setLoading(v); }
+{
+    if (auto *t = m_model->tabAt(i))
+        t->setLoading(v);
+}
 
 void BrowserController::onLoadProgressChanged(int i, int v)
-{ if (auto *t = m_model->tabAt(i)) t->setProgress(v); }
+{
+    if (auto *t = m_model->tabAt(i))
+        t->setProgress(v);
+}
 
 void BrowserController::onIconUrlChanged(int i, const QString &v)
-{ if (auto *t = m_model->tabAt(i)) t->setIconUrl(v); }
+{
+    if (auto *t = m_model->tabAt(i))
+        t->setIconUrl(v);
+}
 
 void BrowserController::onNewWindowRequested(int /*i*/, const QString &url)
-{ newTab(url); }
+{
+    newTab(url);
+}
+
+const QString BrowserController::NEW_TAB_URL = "newtab://newtab";

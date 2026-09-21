@@ -11,7 +11,8 @@ QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
         return {};
 
     QString localPath = imagePathOrUrl;
-    if (localPath.startsWith(QLatin1String("file://"))) {
+    if (localPath.startsWith(QLatin1String("file://")))
+    {
         localPath = QUrl(imagePathOrUrl).toLocalFile();
     }
 
@@ -28,7 +29,8 @@ QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
 
     img = img.convertToFormat(QImage::Format_ARGB32);
 
-    struct Bucket {
+    struct Bucket
+    {
         quint64 sumR = 0, sumG = 0, sumB = 0;
         int count = 0;
         float totalSat = 0;
@@ -40,9 +42,11 @@ QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
     const int width = img.width();
     const int height = img.height();
 
-    for (int y = 0; y < height; ++y) {
+    for (int y = 0; y < height; ++y)
+    {
         const QRgb *scan = reinterpret_cast<const QRgb *>(img.constScanLine(y));
-        for (int x = 0; x < width; ++x) {
+        for (int x = 0; x < width; ++x)
+        {
             const QRgb pixel = scan[x];
             if (qAlpha(pixel) < 128)
                 continue;
@@ -53,7 +57,8 @@ QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
             float v = c.valueF();
 
             // Skip pure blacks or pure whites
-            if (v < 0.15f || v > 0.95f || s < 0.18f || h < 0.0f) {
+            if (v < 0.15f || v > 0.95f || s < 0.18f || h < 0.0f)
+            {
                 buckets[12].sumR += qRed(pixel);
                 buckets[12].sumG += qGreen(pixel);
                 buckets[12].sumB += qBlue(pixel);
@@ -75,19 +80,22 @@ QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
     int bestBucket = -1;
     float bestScore = -1.0f;
 
-    for (int i = 0; i < 12; ++i) {
+    for (int i = 0; i < 12; ++i)
+    {
         if (buckets[i].count == 0)
             continue;
         float avgSat = buckets[i].totalSat / buckets[i].count;
         float score = static_cast<float>(buckets[i].count) * (0.5f + avgSat);
-        if (score > bestScore) {
+        if (score > bestScore)
+        {
             bestScore = score;
             bestBucket = i;
         }
     }
 
     // Fall back to neutral bucket if no colorful bucket found
-    if (bestBucket == -1) {
+    if (bestBucket == -1)
+    {
         if (buckets[12].count > 0)
             bestBucket = 12;
         else

@@ -16,17 +16,19 @@ Item {
     property var webView: null
     readonly property real minZoom: 0.25
     readonly property real maxZoom: 5.0
-    readonly property int  zoomPercent: webView ? Math.round(webView.zoomFactor * 100) : 100
+    readonly property int zoomPercent: webView ? Math.round(webView.zoomFactor * 100) : 100
 
     visible: webView && zoomPercent !== 100
 
     function zoomBy(delta) {
-        if (!webView) return
-        webView.zoomFactor = Math.min(maxZoom, Math.max(minZoom, webView.zoomFactor + delta))
+        if (!webView)
+            return;
+        webView.zoomFactor = Math.min(maxZoom, Math.max(minZoom, webView.zoomFactor + delta));
     }
 
     function zoomReset() {
-        if (webView) webView.zoomFactor = 1.0
+        if (webView)
+            webView.zoomFactor = 1.0;
     }
 
     Rectangle {
@@ -47,8 +49,12 @@ Item {
                 color: zoomOutHover.hovered ? Theme.text : Theme.textMuted
                 Layout.alignment: Qt.AlignVCenter
 
-                HoverHandler { id: zoomOutHover }
-                TapHandler { onTapped: root.zoomBy(-0.1) }
+                HoverHandler {
+                    id: zoomOutHover
+                }
+                TapHandler {
+                    onTapped: root.zoomBy(-0.1)
+                }
             }
 
             Text {
@@ -60,8 +66,12 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
                 horizontalAlignment: Text.AlignHCenter
 
-                HoverHandler { id: resetHover }
-                TapHandler { onTapped: root.zoomReset() }
+                HoverHandler {
+                    id: resetHover
+                }
+                TapHandler {
+                    onTapped: root.zoomReset()
+                }
             }
 
             LucideIcon {
@@ -70,8 +80,12 @@ Item {
                 color: zoomInHover.hovered ? Theme.text : Theme.textMuted
                 Layout.alignment: Qt.AlignVCenter
 
-                HoverHandler { id: zoomInHover }
-                TapHandler { onTapped: root.zoomBy(0.1) }
+                HoverHandler {
+                    id: zoomInHover
+                }
+                TapHandler {
+                    onTapped: root.zoomBy(0.1)
+                }
             }
         }
     }

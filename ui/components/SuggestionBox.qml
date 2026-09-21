@@ -5,9 +5,9 @@ import QT_Illuminate.ui
 Rectangle {
     id: root
 
-    property var  model:           null
-    property int  highlighted:     -1
-    property bool addressFocused:  false
+    property var model: null
+    property int highlighted: -1
+    property bool addressFocused: false
     signal suggestionClicked(int index)
 
     height: model.count > 0 ? (suggestionsColumn.implicitHeight + 8) : 0
@@ -18,8 +18,16 @@ Rectangle {
     border.color: Theme.border
     border.width: 1
     opacity: visible ? 1 : 0
-    Behavior on height  { NumberAnimation { duration: Theme.durationFast } }
-    Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+    Behavior on height {
+        NumberAnimation {
+            duration: Theme.durationFast
+        }
+    }
+    Behavior on opacity {
+        NumberAnimation {
+            duration: Theme.durationFast
+        }
+    }
 
     Column {
         id: suggestionsColumn
@@ -37,15 +45,13 @@ Rectangle {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin:  12
+                    anchors.leftMargin: 12
                     anchors.rightMargin: 12
                     spacing: 8
 
                     LucideIcon {
                         size: 14
-                        source: model.isBookmark
-                                ? "qrc:/QT_Illuminate/ui/ui/icons/star-filled.svg"
-                                : "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
+                        source: model.isBookmark ? "qrc:/QT_Illuminate/ui/ui/icons/star-filled.svg" : "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
                         color: model.isBookmark ? Theme.accent : Theme.textMuted
                         Layout.alignment: Qt.AlignVCenter
                     }
@@ -62,7 +68,8 @@ Rectangle {
                 }
 
                 HoverHandler {
-                    onHoveredChanged: if (hovered) root.highlighted = index
+                    onHoveredChanged: if (hovered)
+                        root.highlighted = index
                 }
                 TapHandler {
                     onTapped: root.suggestionClicked(index)

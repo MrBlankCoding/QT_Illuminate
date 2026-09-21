@@ -12,7 +12,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 WebEngineQuick)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 WebEngineQuick WebChannel WebChannelQuick)
 find_package(Qt6 QUIET COMPONENTS QuickEffects)
 if(Qt6QuickEffects_FOUND)
     set(QUICK_EFFECTS_LIB Qt6::QuickEffects)
@@ -39,6 +39,15 @@ qt_add_executable(QT_Illuminate
 
     src/core/ExtensionService.h
     src/core/ExtensionService.cpp
+    src/core/ExtensionServiceInternals.h
+    src/core/ExtensionServiceInstall.cpp
+    src/core/ExtensionServiceData.cpp
+
+    src/core/ExtensionSchemeHandler.h
+    src/core/ExtensionSchemeHandler.cpp
+
+    src/core/ExtensionLogStore.h
+    src/core/ExtensionLogStore.cpp
 
     src/core/InternalPageManager.h
     src/core/InternalPageManager.cpp
@@ -87,6 +96,9 @@ target_link_libraries(QT_Illuminate PRIVATE
     ${QUICK_EFFECTS_LIB}
     Qt6::QuickControls2
     Qt6::WebEngineQuick
+    Qt6::WebEngineCore
+    Qt6::WebChannel
+    Qt6::WebChannelQuick
 )
 
 set_source_files_properties(ui/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -113,11 +125,13 @@ qt_add_qml_module(QT_Illuminate
          ui/Theme.qml
          ui/components/LucideIcon.qml
          ui/pages/NewTabPage.qml
-         ui/pages/ExtensionsPage.qml
+
          ui/pages/InstalledExtensionsPage.qml
+         ui/components/ExtensionCard.qml
          ui/components/SuggestionBox.qml
          ui/components/ProfileTile.qml
          ui/components/PillButton.qml
+         ui/components/ContextMenu.qml
     RESOURCES
         ui/icons/alert-triangle.svg
         ui/icons/globe.svg
@@ -136,6 +150,7 @@ qt_add_qml_module(QT_Illuminate
         ui/icons/star-filled.svg
         ui/icons/image.svg
         ui/icons/pin.svg
+        resources/js/extensions_store_intercept.js
     )
 
 # macos

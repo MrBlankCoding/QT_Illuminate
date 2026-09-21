@@ -8,6 +8,7 @@
 
 class Profile : public QObject
 {
+    Q_DISABLE_COPY_MOVE(Profile)
     Q_OBJECT
     Q_PROPERTY(QString id READ id CONSTANT)
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
@@ -25,8 +26,8 @@ public:
     void setColor(const QString &color);
     QString path() const;
 
-    QSettings* settings() const;
-    QWebEngineProfile* webEngineProfile() const;
+    QSettings *settings();
+    QWebEngineProfile *webEngineProfile();
 
 signals:
     void nameChanged();
@@ -37,8 +38,8 @@ private:
     QString m_name;
     QString m_color;
     QString m_path;
-    mutable QSettings* m_settings;
-    mutable QWebEngineProfile* m_webEngineProfile;
+    QSettings *m_settings;
+    QWebEngineProfile *m_webEngineProfile;
 };
 
 #endif // PROFILE_H

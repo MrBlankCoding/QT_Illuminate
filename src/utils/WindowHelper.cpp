@@ -21,7 +21,7 @@ void WindowHelper::applyTitleBarStyle(QQuickWindow *window, qreal barHeight)
 
     BOOL enable = TRUE;
     DwmSetWindowAttribute(hwnd, 20, &enable, sizeof(enable));
-    MARGINS margins = { 0, 0, 0, static_cast<LONG>(barHeight) };
+    MARGINS margins = {0, 0, 0, static_cast<LONG>(barHeight)};
     DwmExtendFrameIntoClientArea(hwnd, &margins);
 #else
     Q_UNUSED(window);

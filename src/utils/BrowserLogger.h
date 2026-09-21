@@ -7,7 +7,6 @@
 #include <QString>
 #include <QDateTime>
 
-
 // Four levels: DEBUG / INFO / WARNING / ERROR
 // writes to console and log file
 // renames not to .1 when the log file exceeds 2 MB
@@ -19,7 +18,13 @@ class BrowserLogger : public QObject
     Q_OBJECT
 
 public:
-    enum Level { Debug = 0, Info, Warning, Error };
+    enum Level
+    {
+        Debug = 0,
+        Info,
+        Warning,
+        Error
+    };
     Q_ENUM(Level)
 
     static BrowserLogger &instance();
@@ -28,10 +33,10 @@ public:
     void log(Level level, const QString &category, const QString &message);
 
     // log types
-    void debug  (const QString &category, const QString &message) { log(Debug,   category, message); }
-    void info   (const QString &category, const QString &message) { log(Info,    category, message); }
+    void debug(const QString &category, const QString &message) { log(Debug, category, message); }
+    void info(const QString &category, const QString &message) { log(Info, category, message); }
     void warning(const QString &category, const QString &message) { log(Warning, category, message); }
-    void error  (const QString &category, const QString &message) { log(Error,   category, message); }
+    void error(const QString &category, const QString &message) { log(Error, category, message); }
 
     // redirect all qDebug / qWarning / qCritical / qFatal output here.
     void installAsQtHandler();
@@ -52,12 +57,12 @@ private:
                                  const QMessageLogContext &ctx,
                                  const QString &msg);
 
-    QFile        m_file;
-    QTextStream  m_stream;
-    QMutex       m_mutex;
-    QString      m_logPath;
-    int          m_unflushedCount = 0;
+    QFile m_file;
+    QTextStream m_stream;
+    QMutex m_mutex;
+    QString m_logPath;
+    int m_unflushedCount = 0;
 
     static constexpr qint64 kMaxFileBytes = 2 * 1024 * 1024; // 2 MB
-    static constexpr int    kFlushEvery   = 25;               // Debug/Info batch size
+    static constexpr int kFlushEvery = 25;                   // Debug/Info batch size
 };

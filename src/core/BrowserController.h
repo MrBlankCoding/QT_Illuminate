@@ -6,36 +6,38 @@
 #include <QWebEngineProfile>
 #include "TabModel.h"
 #include "Profile.h"
+#include "ExtensionService.h"
 
 class BrowserController : public QObject
 {
+    Q_DISABLE_COPY_MOVE(BrowserController)
     Q_OBJECT
 
     // MOC revice tab model
-    Q_PROPERTY(TabModel *tabModel    READ tabModel    CONSTANT)
-    Q_PROPERTY(int       activeIndex READ activeIndex NOTIFY activeIndexChanged)
-    Q_PROPERTY(QString   activeUrl      READ activeUrl      NOTIFY activeStateChanged)
-    Q_PROPERTY(QString   activeTitle    READ activeTitle    NOTIFY activeStateChanged)
-    Q_PROPERTY(bool      activeLoading  READ activeLoading  NOTIFY activeStateChanged)
-    Q_PROPERTY(int       activeProgress READ activeProgress NOTIFY activeStateChanged)
-    Q_PROPERTY(QString   newTabBackground READ newTabBackground WRITE setNewTabBackground NOTIFY newTabBackgroundChanged)
-    Q_PROPERTY(QString   themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
-    Q_PROPERTY(QString   adaptiveAccent READ adaptiveAccent NOTIFY adaptiveAccentChanged)
+    Q_PROPERTY(TabModel *tabModel READ tabModel CONSTANT)
+    Q_PROPERTY(int activeIndex READ activeIndex NOTIFY activeIndexChanged)
+    Q_PROPERTY(QString activeUrl READ activeUrl NOTIFY activeStateChanged)
+    Q_PROPERTY(QString activeTitle READ activeTitle NOTIFY activeStateChanged)
+    Q_PROPERTY(bool activeLoading READ activeLoading NOTIFY activeStateChanged)
+    Q_PROPERTY(int activeProgress READ activeProgress NOTIFY activeStateChanged)
+    Q_PROPERTY(QString newTabBackground READ newTabBackground WRITE setNewTabBackground NOTIFY newTabBackgroundChanged)
+    Q_PROPERTY(QString themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
+    Q_PROPERTY(QString adaptiveAccent READ adaptiveAccent NOTIFY adaptiveAccentChanged)
 
 public:
-    explicit BrowserController(Profile *profile, QObject *parent = nullptr);
+    explicit BrowserController(Profile *profile, ExtensionService *extensionService, QObject *parent = nullptr);
 
-    TabModel *tabModel()      const;
-    int       activeIndex()   const;
-    QString   activeUrl()     const;
-    QString   activeTitle()   const;
-    bool      activeLoading() const;
-    int       activeProgress()const;
-    QString   newTabBackground() const;
-    void      setNewTabBackground(const QString &path);
-    QString   themeMode() const;
-    void      setThemeMode(const QString &mode);
-    QString   adaptiveAccent() const;
+    TabModel *tabModel() const;
+    int activeIndex() const;
+    QString activeUrl() const;
+    QString activeTitle() const;
+    bool activeLoading() const;
+    int activeProgress() const;
+    QString newTabBackground() const;
+    void setNewTabBackground(const QString &path);
+    QString themeMode() const;
+    void setThemeMode(const QString &mode);
+    QString adaptiveAccent() const;
 
     // user actions
     Q_INVOKABLE void newTab(const QString &url = {});
@@ -63,7 +65,7 @@ signals:
     void themeModeChanged();
     void adaptiveAccentChanged();
     void loadRequested(int tabIndex, const QUrl &url);
-    void navigationRequested(const QString &action);   // "back"|"forward"|"reload"|"devtools"
+    void navigationRequested(const QString &action); // "back"|"forward"|"reload"|"devtools"
 
 private:
     void rewireActiveTab();
@@ -72,7 +74,13 @@ private:
     TabModel *m_model;
     Profile *m_profile;
     QWebEngineProfile *m_webEngineProfile;
+    ExtensionService *m_extensionService;
     // deleted and recreated every tab change
-    QObject  *m_activeTabCtx = nullptr;
-    QString   m_adaptiveAccent;
+    QObject *m_activeTabCtx = nullptr;
+    QString m_adaptiveAccent;
+    QSettings *m_settings;
+
+    static const int MIN_TABS_FOR_CYCLE = 2;
+    static const int NO_TAB_CYCLE_DELTA = 0;
+    static const QString NEW_TAB_URL;
 };

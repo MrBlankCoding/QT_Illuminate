@@ -1,13 +1,15 @@
 #include "TabModel.h"
 #include "BrowserTab.h"
 
-TabModel::TabModel(QObject *parent)
-    : QAbstractListModel(parent)
-{}
+TabModel::TabModel(ExtensionService *extensionService, QObject *parent)
+    : QAbstractListModel(parent), m_extensionService(extensionService)
+{
+}
 
 int TabModel::rowCount(const QModelIndex &parent) const
 {
-    if (parent.isValid()) return 0;
+    if (parent.isValid())
+        return 0;
     return m_tabs.size();
 }
 
@@ -17,24 +19,31 @@ QVariant TabModel::data(const QModelIndex &index, int role) const
         return {};
 
     const BrowserTab *tab = m_tabs.at(index.row());
-    switch (role) {
-    case TitleRole:    return tab->title().isEmpty() ? QStringLiteral("New Tab") : tab->title();
-    case UrlRole:      return tab->url();
-    case IconUrlRole:  return tab->iconUrl();
-    case ProgressRole: return tab->progress();
-    case LoadingRole:  return tab->loading();
-    default:           return {};
+    switch (role)
+    {
+    case TitleRole:
+        return tab->title().isEmpty() ? QStringLiteral("New Tab") : tab->title();
+    case UrlRole:
+        return tab->url();
+    case IconUrlRole:
+        return tab->iconUrl();
+    case ProgressRole:
+        return tab->progress();
+    case LoadingRole:
+        return tab->loading();
+    default:
+        return {};
     }
 }
 
 QHash<int, QByteArray> TabModel::roleNames() const
 {
     return {
-        { TitleRole,    "title"    },
-        { UrlRole,      "url"      },
-        { IconUrlRole,  "iconUrl"  },
-        { ProgressRole, "progress" },
-        { LoadingRole,  "loading"  },
+        {TitleRole, "title"},
+        {UrlRole, "url"},
+        {IconUrlRole, "iconUrl"},
+        {ProgressRole, "progress"},
+        {LoadingRole, "loading"},
     };
 }
 
@@ -43,14 +52,15 @@ BrowserTab *TabModel::addTab(const QUrl &url, QWebEngineProfile *profile)
     const int row = m_tabs.size();
     beginInsertRows({}, row, row);
 
-    auto *tab = new BrowserTab(profile, this);
+    auto *tab = new BrowserTab(profile, m_extensionService, this);
 
-    auto refresh = [this, tab]() { refreshTab(tab); };
-    connect(tab, &BrowserTab::titleChanged,    this, refresh);
-    connect(tab, &BrowserTab::urlChanged,      this, refresh);
-    connect(tab, &BrowserTab::iconUrlChanged,  this, refresh);
+    auto refresh = [this, tab]()
+    { refreshTab(tab); };
+    connect(tab, &BrowserTab::titleChanged, this, refresh);
+    connect(tab, &BrowserTab::urlChanged, this, refresh);
+    connect(tab, &BrowserTab::iconUrlChanged, this, refresh);
     connect(tab, &BrowserTab::progressChanged, this, refresh);
-    connect(tab, &BrowserTab::loadingChanged,  this, refresh);
+    connect(tab, &BrowserTab::loadingChanged, this, refresh);
 
     // this has to happen before endInsertRows()
     // setting it after would cause the read to see an empty url
@@ -70,7 +80,8 @@ BrowserTab *TabModel::addTab(const QUrl &url, QWebEngineProfile *profile)
 
 void TabModel::removeTab(int index)
 {
-    if (index < 0 || index >= m_tabs.size()) return;
+    if (index < 0 || index >= m_tabs.size())
+        return;
 
     beginRemoveRows({}, index, index);
     BrowserTab *tab = m_tabs.takeAt(index);
@@ -110,15 +121,17 @@ void TabModel::moveTab(int from, int to)
 
 BrowserTab *TabModel::tabAt(int index) const
 {
-    if (index < 0 || index >= m_tabs.size()) return nullptr;
+    if (index < 0 || index >= m_tabs.size())
+        return nullptr;
     return m_tabs.at(index);
 }
 
-int  TabModel::activeIndex() const { return m_activeIndex; }
+int TabModel::activeIndex() const { return m_activeIndex; }
 
 void TabModel::setActiveIndex(int index)
 {
-    if (m_activeIndex == index) return;
+    if (m_activeIndex == index)
+        return;
     m_activeIndex = index;
     emit activeIndexChanged();
 }
@@ -126,20 +139,22 @@ void TabModel::setActiveIndex(int index)
 void TabModel::refreshTab(BrowserTab *tab)
 {
     const int row = m_tabs.indexOf(tab);
-    if (row < 0) return;
+    if (row < 0)
+        return;
     const QModelIndex idx = createIndex(row, 0);
     emit dataChanged(idx, idx);
 }
 
 QVariantMap TabModel::get(int index) const
 {
-    if (index < 0 || index >= m_tabs.size()) return {};
+    if (index < 0 || index >= m_tabs.size())
+        return {};
     const BrowserTab *tab = m_tabs.at(index);
     return {
-        { "title",    tab->title().isEmpty() ? QStringLiteral("New Tab") : tab->title() },
-        { "url",      tab->url()      },
-        { "iconUrl",  tab->iconUrl()  },
-        { "progress", tab->progress() },
-        { "loading",  tab->loading()  },
+        {"title", tab->title().isEmpty() ? QStringLiteral("New Tab") : tab->title()},
+        {"url", tab->url()},
+        {"iconUrl", tab->iconUrl()},
+        {"progress", tab->progress()},
+        {"loading", tab->loading()},
     };
 }

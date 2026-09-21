@@ -3,7 +3,6 @@ import QtQuick.Layouts
 import QtWebEngine
 import QT_Illuminate.ui
 
-
 Item {
     id: root
     anchors.top: parent.top
@@ -16,46 +15,49 @@ Item {
     z: 100
 
     property var webView: null
-    property int  matchCount:  0
-    property int  activeMatch: 0
+    property int matchCount: 0
+    property int activeMatch: 0
     property bool hasSearched: false
 
     function open() {
-        visible = true
-        Qt.callLater(function() { input.forceActiveFocus(); input.selectAll() })
+        visible = true;
+        Qt.callLater(function () {
+            input.forceActiveFocus();
+            input.selectAll();
+        });
         if (input.text.length > 0)
-            search(false)
+            search(false);
     }
 
     function close() {
-        visible = false
-        hasSearched = false
-        matchCount = 0
-        activeMatch = 0
+        visible = false;
+        hasSearched = false;
+        matchCount = 0;
+        activeMatch = 0;
         if (webView)
-            webView.findText("")
+            webView.findText("");
         if (webView)
-            webView.forceActiveFocus()
+            webView.forceActiveFocus();
     }
 
     function search(backward) {
         if (!webView || input.text.length === 0) {
-            matchCount = 0
-            activeMatch = 0
-            hasSearched = false
+            matchCount = 0;
+            activeMatch = 0;
+            hasSearched = false;
             if (webView)
-                webView.findText("")
-            return
+                webView.findText("");
+            return;
         }
-        hasSearched = true
-        const flags = backward ? WebEngineView.FindBackward : 0
-        webView.findText(input.text, flags)
+        hasSearched = true;
+        const flags = backward ? WebEngineView.FindBackward : 0;
+        webView.findText(input.text, flags);
     }
 
     // rerun search on tab switch
     onWebViewChanged: {
         if (visible && input.text.length > 0)
-            search(false)
+            search(false);
     }
 
     // findText()'s own callback isn't invoked by QtWebEngine build
@@ -63,8 +65,8 @@ Item {
     Connections {
         target: root.webView
         function onFindTextFinished(result) {
-            matchCount  = result.numberOfMatches
-            activeMatch = result.numberOfMatches > 0 ? result.activeMatch : 0
+            matchCount = result.numberOfMatches;
+            activeMatch = result.numberOfMatches > 0 ? result.activeMatch : 0;
         }
     }
 
@@ -78,7 +80,7 @@ Item {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin:  12
+            anchors.leftMargin: 12
             anchors.rightMargin: 6
             spacing: 4
 
@@ -87,15 +89,15 @@ Item {
                 Layout.fillWidth: true
                 color: Theme.text
                 font.pixelSize: Theme.fontSizeM
-                font.family:    Theme.fontFamily
-                selectByMouse:  true
+                font.family: Theme.fontFamily
+                selectByMouse: true
                 clip: true
                 verticalAlignment: TextInput.AlignVCenter
 
                 onTextChanged: root.search(false)
 
-                Keys.onReturnPressed: function(event) {
-                    root.search((event.modifiers & Qt.ShiftModifier) !== 0)
+                Keys.onReturnPressed: function (event) {
+                    root.search((event.modifiers & Qt.ShiftModifier) !== 0);
                 }
                 Keys.onEscapePressed: root.close()
 
@@ -128,8 +130,12 @@ Item {
                 Layout.preferredWidth: 20
                 horizontalAlignment: Text.AlignHCenter
 
-                HoverHandler { id: prevHover }
-                TapHandler { onTapped: root.search(true) }
+                HoverHandler {
+                    id: prevHover
+                }
+                TapHandler {
+                    onTapped: root.search(true)
+                }
             }
 
             // next
@@ -142,8 +148,12 @@ Item {
                 Layout.preferredWidth: 20
                 horizontalAlignment: Text.AlignHCenter
 
-                HoverHandler { id: nextHover }
-                TapHandler { onTapped: root.search(false) }
+                HoverHandler {
+                    id: nextHover
+                }
+                TapHandler {
+                    onTapped: root.search(false)
+                }
             }
 
             // close
@@ -154,8 +164,12 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
                 Layout.leftMargin: 2
 
-                HoverHandler { id: closeHover }
-                TapHandler { onTapped: root.close() }
+                HoverHandler {
+                    id: closeHover
+                }
+                TapHandler {
+                    onTapped: root.close()
+                }
             }
         }
     }

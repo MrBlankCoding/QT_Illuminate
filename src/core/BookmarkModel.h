@@ -13,7 +13,8 @@ class BookmarkModel : public QAbstractListModel
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
 
 public:
-    enum Roles {
+    enum Roles
+    {
         TitleRole = Qt::UserRole + 1,
         UrlRole,
         IconUrlRole,
@@ -21,7 +22,7 @@ public:
 
     explicit BookmarkModel(QObject *parent = nullptr);
 
-    int      rowCount(const QModelIndex &parent = {}) const override;
+    int rowCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
@@ -39,16 +40,17 @@ signals:
     void countChanged();
 
 private:
-    struct Bookmark {
+    struct Bookmark
+    {
         QString title;
         QString url;
         QString iconUrl;
     };
 
-    int  indexOfUrl(const QString &url) const;
+    int indexOfUrl(const QString &url) const;
     void load();
     void save() const;
 
     QVector<Bookmark> m_bookmarks;
-    QString           m_storagePath;
+    QString m_storagePath;
 };

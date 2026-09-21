@@ -5,7 +5,8 @@
 
 class QQuickWindow;
 
-namespace WindowRounding {
+namespace WindowRounding
+{
 #if defined(Q_OS_MACOS)
     // quit the file
     void applyMacTitleBarStyle(QQuickWindow *window, qreal barHeight);

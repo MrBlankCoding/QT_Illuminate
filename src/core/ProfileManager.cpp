@@ -9,15 +9,16 @@
 #include <utility>
 
 ProfileManager::ProfileManager(QObject *parent)
-    : QObject(parent)
-    , m_activeProfile(nullptr)
+    : QObject(parent), m_activeProfile(nullptr)
 {
     loadProfiles();
-    if (m_profiles.isEmpty()) {
+    if (m_profiles.isEmpty())
+    {
         // Create a default profile if none exist
         createProfile(QStringLiteral("Default"));
     }
-    if (!m_activeProfile && !m_profiles.isEmpty()) {
+    if (!m_activeProfile && !m_profiles.isEmpty())
+    {
         setActiveProfile(m_profiles.first());
     }
 }
@@ -30,18 +31,19 @@ ProfileManager::~ProfileManager()
 QVariantList ProfileManager::profiles() const
 {
     QVariantList list;
-    for (Profile *profile : m_profiles) {
+    for (Profile *profile : m_profiles)
+    {
         list.append(QVariant::fromValue(profile));
     }
     return list;
 }
 
-Profile* ProfileManager::activeProfile() const
+Profile *ProfileManager::activeProfile() const
 {
     return m_activeProfile;
 }
 
-void ProfileManager::setActiveProfile(Profile* profile)
+void ProfileManager::setActiveProfile(Profile *profile)
 {
     if (m_activeProfile == profile)
         return;
@@ -50,7 +52,7 @@ void ProfileManager::setActiveProfile(Profile* profile)
     emit activeProfileChanged();
 }
 
-Profile* ProfileManager::createProfile(const QString &name, const QString &color)
+Profile *ProfileManager::createProfile(const QString &name, const QString &color)
 {
     QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     QString profilePath = profilesDirectory() + QDir::separator() + id;
@@ -65,7 +67,8 @@ Profile* ProfileManager::createProfile(const QString &name, const QString &color
 void ProfileManager::deleteProfile(const QString &id)
 {
     Profile *profile = m_profileMap.value(id);
-    if (profile) {
+    if (profile)
+    {
         m_profiles.removeOne(profile);
         m_profileMap.remove(id);
         QDir profileDir(profile->path());
@@ -74,13 +77,14 @@ void ProfileManager::deleteProfile(const QString &id)
         saveProfiles();
         emit profilesChanged();
 
-        if (m_activeProfile == profile) {
+        if (m_activeProfile == profile)
+        {
             setActiveProfile(m_profiles.isEmpty() ? nullptr : m_profiles.first());
         }
     }
 }
 
-Profile* ProfileManager::getProfile(const QString &id) const
+Profile *ProfileManager::getProfile(const QString &id) const
 {
     return m_profileMap.value(id);
 }
@@ -88,11 +92,13 @@ Profile* ProfileManager::getProfile(const QString &id) const
 void ProfileManager::loadProfiles()
 {
     QString filePath = profilesDirectory() + QDir::separator() + QStringLiteral("profiles.json");
-    if (!QFile::exists(filePath)) {
+    if (!QFile::exists(filePath))
+    {
         return;
     }
     QFile file(filePath);
-    if (!file.open(QFile::ReadOnly | QFile::Text)) {
+    if (!file.open(QFile::ReadOnly | QFile::Text))
+    {
         qWarning() << "Could not open profiles.json for reading:" << file.errorString();
         return;
     }
@@ -100,25 +106,31 @@ void ProfileManager::loadProfiles()
     QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     file.close();
 
-    if (!doc.isArray()) {
+    if (!doc.isArray())
+    {
         qWarning() << "profiles.json is not a JSON array.";
         return;
     }
 
     QJsonArray profileArray = doc.array();
-    for (const QJsonValue &value : profileArray) {
-        if (value.isObject()) {
+    for (const QJsonValue &value : profileArray)
+    {
+        if (value.isObject())
+        {
             QJsonObject obj = value.toObject();
             QString id = obj[QStringLiteral("id")].toString();
             QString name = obj[QStringLiteral("name")].toString();
             QString path = obj[QStringLiteral("path")].toString();
             QString color = obj[QStringLiteral("color")].toString();
 
-            if (!id.isEmpty() && !name.isEmpty() && !path.isEmpty()) {
+            if (!id.isEmpty() && !name.isEmpty() && !path.isEmpty())
+            {
                 Profile *profile = new Profile(id, name, path, color, this);
                 m_profiles.append(profile);
                 m_profileMap.insert(id, profile);
-            } else {
+            }
+            else
+            {
                 qWarning() << "Invalid profile data in profiles.json";
             }
         }
@@ -128,7 +140,8 @@ void ProfileManager::loadProfiles()
 void ProfileManager::saveProfiles()
 {
     QJsonArray profileArray;
-    for (Profile *profile : std::as_const(m_profiles)) {
+    for (Profile *profile : std::as_const(m_profiles))
+    {
         QJsonObject obj;
         obj[QStringLiteral("id")] = profile->id();
         obj[QStringLiteral("name")] = profile->name();
@@ -139,7 +152,8 @@ void ProfileManager::saveProfiles()
 
     QJsonDocument doc(profileArray);
     QFile file(profilesDirectory() + QDir::separator() + QStringLiteral("profiles.json"));
-    if (!file.open(QFile::WriteOnly | QFile::Text | QFile::Truncate)) {
+    if (!file.open(QFile::WriteOnly | QFile::Text | QFile::Truncate))
+    {
         qWarning() << "Could not open profiles.json for writing:" << file.errorString();
         return;
     }
@@ -152,7 +166,8 @@ QString ProfileManager::profilesDirectory() const
 {
     QString dataLocation = QDir::currentPath() + QDir::separator() + ".profiles";
     QDir dir(dataLocation);
-    if (!dir.exists()) {
+    if (!dir.exists())
+    {
         dir.mkpath(".");
     }
     return dataLocation;

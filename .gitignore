@@ -3,6 +3,7 @@
 
 build
 .profiles
+.vscode
 
 ### C++ ###
 # Prerequisites

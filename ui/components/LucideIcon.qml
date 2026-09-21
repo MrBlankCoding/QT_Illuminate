@@ -7,30 +7,32 @@ Item {
     id: root
 
     property string source: ""
-    property color  color:  Theme.textMuted
-    property int    size:   16
+    property color color: Theme.textMuted
+    property int size: 16
 
-    width:  size
+    width: size
     height: size
 
     Image {
         id: img
         anchors.fill: parent
-        source:       root.source
-        visible:      false
-        fillMode:     Image.PreserveAspectFit
-        smooth:       true
-        mipmap:       true
+        source: root.source
+        visible: false
+        fillMode: Image.PreserveAspectFit
+        smooth: true
+        mipmap: true
     }
 
     MultiEffect {
-        anchors.fill:      parent
-        source:            img
-        colorization:      1.0
+        anchors.fill: parent
+        source: img
+        colorization: 1.0
         colorizationColor: root.color
 
         Behavior on colorizationColor {
-            ColorAnimation { duration: Theme.durationFast }
+            ColorAnimation {
+                duration: Theme.durationFast
+            }
         }
     }
 }

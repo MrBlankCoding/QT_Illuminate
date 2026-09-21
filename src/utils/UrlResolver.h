@@ -11,7 +11,8 @@
 //   4. No spaces, contains "."  → prepend https://
 //   5. Anything else            → Google search
 
-namespace UrlResolver {
+namespace UrlResolver
+{
     QUrl resolve(const QString &input);
     bool looksLikeHost(const QString &trimmed);
 }

@@ -3,8 +3,8 @@ import QtQuick.Layouts
 import QtWebEngine
 import QT_Illuminate.ui
 
-// downloads 
-// UI shows when one has started 
+// downloads
+// UI shows when one has started
 Item {
     id: root
     anchors.top: parent.top
@@ -23,81 +23,97 @@ Item {
     // used for showing/hiding toolbar
     readonly property alias downloadCount: downloadsModel.count
 
-    function open()   { visible = true }
-    function close()  { visible = false }
-    function toggle() { visible = !visible }
+    function open() {
+        visible = true;
+    }
+    function close() {
+        visible = false;
+    }
+    function toggle() {
+        visible = !visible;
+    }
 
-    ListModel { id: downloadsModel }
+    ListModel {
+        id: downloadsModel
+    }
 
     function rowIndexFor(downloadObj) {
         for (let i = 0; i < downloadsModel.count; i++) {
             if (downloadsModel.get(i).downloadObj === downloadObj)
-                return i
+                return i;
         }
-        return -1
+        return -1;
     }
 
     function formatBytes(n) {
-        if (n < 0) return ""
-        if (n < 1024) return n + " B"
-        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB"
-        return (n / (1024 * 1024)).toFixed(1) + " MB"
+        if (n < 0)
+            return "";
+        if (n < 1024)
+            return n + " B";
+        if (n < 1024 * 1024)
+            return (n / 1024).toFixed(1) + " KB";
+        return (n / (1024 * 1024)).toFixed(1) + " MB";
     }
 
     function statusText(state, receivedBytes, totalBytes) {
-        if (state === WebEngineDownloadRequest.DownloadCompleted)  return "Completed"
-        if (state === WebEngineDownloadRequest.DownloadCancelled)  return "Cancelled"
-        if (state === WebEngineDownloadRequest.DownloadInterrupted) return "Failed"
-        return formatBytes(receivedBytes) + (totalBytes > 0 ? " / " + formatBytes(totalBytes) : "")
+        if (state === WebEngineDownloadRequest.DownloadCompleted)
+            return "Completed";
+        if (state === WebEngineDownloadRequest.DownloadCancelled)
+            return "Cancelled";
+        if (state === WebEngineDownloadRequest.DownloadInterrupted)
+            return "Failed";
+        return formatBytes(receivedBytes) + (totalBytes > 0 ? " / " + formatBytes(totalBytes) : "");
     }
 
     function cancelOrRemove(index) {
-        const row = downloadsModel.get(index)
-        if (row.state === WebEngineDownloadRequest.DownloadInProgress
-                || row.state === WebEngineDownloadRequest.DownloadRequested)
-            row.downloadObj.cancel()
+        const row = downloadsModel.get(index);
+        if (row.state === WebEngineDownloadRequest.DownloadInProgress || row.state === WebEngineDownloadRequest.DownloadRequested)
+            row.downloadObj.cancel();
         else
-            downloadsModel.remove(index)
+            downloadsModel.remove(index);
     }
 
     function revealInFolder(index) {
-        Qt.openUrlExternally("file://" + downloadsModel.get(index).directory)
+        Qt.openUrlExternally("file://" + downloadsModel.get(index).directory);
     }
 
     function openFile(index) {
-        const row = downloadsModel.get(index)
-        Qt.openUrlExternally("file://" + row.directory + "/" + row.fileName)
+        const row = downloadsModel.get(index);
+        Qt.openUrlExternally("file://" + row.directory + "/" + row.fileName);
     }
 
     Connections {
         target: WebEngine.defaultProfile
         function onDownloadRequested(download) {
-            download.accept()
-            root.activeCount++
+            download.accept();
+            root.activeCount++;
 
             downloadsModel.insert(0, {
-                downloadObj:   download,
-                fileName:      download.downloadFileName.length > 0 ? download.downloadFileName : download.suggestedFileName,
-                directory:     download.downloadDirectory,
-                totalBytes:    download.totalBytes,
+                downloadObj: download,
+                fileName: download.downloadFileName.length > 0 ? download.downloadFileName : download.suggestedFileName,
+                directory: download.downloadDirectory,
+                totalBytes: download.totalBytes,
                 receivedBytes: download.receivedBytes,
-                state:         download.state
-            })
+                state: download.state
+            });
 
-            download.receivedBytesChanged.connect(function() {
-                const i = root.rowIndexFor(download)
-                if (i >= 0) downloadsModel.setProperty(i, "receivedBytes", download.receivedBytes)
-            })
-            download.totalBytesChanged.connect(function() {
-                const i = root.rowIndexFor(download)
-                if (i >= 0) downloadsModel.setProperty(i, "totalBytes", download.totalBytes)
-            })
-            download.stateChanged.connect(function(state) {
-                const i = root.rowIndexFor(download)
-                if (i >= 0) downloadsModel.setProperty(i, "state", state)
+            download.receivedBytesChanged.connect(function () {
+                const i = root.rowIndexFor(download);
+                if (i >= 0)
+                    downloadsModel.setProperty(i, "receivedBytes", download.receivedBytes);
+            });
+            download.totalBytesChanged.connect(function () {
+                const i = root.rowIndexFor(download);
+                if (i >= 0)
+                    downloadsModel.setProperty(i, "totalBytes", download.totalBytes);
+            });
+            download.stateChanged.connect(function (state) {
+                const i = root.rowIndexFor(download);
+                if (i >= 0)
+                    downloadsModel.setProperty(i, "state", state);
                 if (download.isFinished)
-                    root.activeCount = Math.max(0, root.activeCount - 1)
-            })
+                    root.activeCount = Math.max(0, root.activeCount - 1);
+            });
         }
     }
 
@@ -130,8 +146,12 @@ Item {
                     source: "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
                     color: panelCloseHover.hovered ? Theme.text : Theme.textMuted
 
-                    HoverHandler { id: panelCloseHover }
-                    TapHandler { onTapped: root.close() }
+                    HoverHandler {
+                        id: panelCloseHover
+                    }
+                    TapHandler {
+                        onTapped: root.close()
+                    }
                 }
             }
 
@@ -193,8 +213,12 @@ Item {
                                 source: "qrc:/QT_Illuminate/ui/ui/icons/folder.svg"
                                 color: folderHover.hovered ? Theme.text : Theme.textMuted
 
-                                HoverHandler { id: folderHover }
-                                TapHandler { onTapped: root.revealInFolder(index) }
+                                HoverHandler {
+                                    id: folderHover
+                                }
+                                TapHandler {
+                                    onTapped: root.revealInFolder(index)
+                                }
                             }
 
                             LucideIcon {
@@ -202,8 +226,12 @@ Item {
                                 source: "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
                                 color: cancelHover.hovered ? Theme.text : Theme.textMuted
 
-                                HoverHandler { id: cancelHover }
-                                TapHandler { onTapped: root.cancelOrRemove(index) }
+                                HoverHandler {
+                                    id: cancelHover
+                                }
+                                TapHandler {
+                                    onTapped: root.cancelOrRemove(index)
+                                }
                             }
                         }
 
@@ -226,7 +254,11 @@ Item {
                                 radius: parent.radius
                                 color: Theme.accent
                                 width: parent.width * (model.totalBytes > 0 ? model.receivedBytes / model.totalBytes : 0)
-                                Behavior on width { NumberAnimation { duration: 120 } }
+                                Behavior on width {
+                                    NumberAnimation {
+                                        duration: 120
+                                    }
+                                }
                             }
                         }
                     }

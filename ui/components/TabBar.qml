@@ -6,9 +6,7 @@ import QT_Illuminate.ui
 Item {
     id: root
     height: Theme.tabBarHeight
-    readonly property real availableForTabs: Math.max(0,
-        width - trafficLightSpacer.width - newTabButton.width
-             - (Qt.platform.os === "windows" ? Theme.sysControlW : 0))
+    readonly property real availableForTabs: Math.max(0, width - trafficLightSpacer.width - newTabButton.width - (Qt.platform.os === "windows" ? Theme.sysControlW : 0))
 
     // background fill color
     Rectangle {
@@ -22,17 +20,20 @@ Item {
         DragHandler {
             target: null
             onActiveChanged: {
-                if (active) root.Window.window.startSystemMove()
+                if (active)
+                    root.Window.window.startSystemMove();
             }
         }
 
         TapHandler {
             gesturePolicy: TapHandler.DragThreshold
             onTapCountChanged: {
-                if (tapCount !== 2) return
-                const win = root.Window.window
-                if (!win) return
-                win.visibility === Window.Maximized ? win.showNormal() : win.showMaximized()
+                if (tapCount !== 2)
+                    return;
+                const win = root.Window.window;
+                if (!win)
+                    return;
+                win.visibility === Window.Maximized ? win.showNormal() : win.showMaximized();
             }
         }
     }
@@ -56,7 +57,9 @@ Item {
             Layout.preferredWidth: Qt.platform.os === "osx" ? Theme.trafficLightW : 8
             Layout.fillHeight: true
 
-            DragRegion { anchors.fill: parent }
+            DragRegion {
+                anchors.fill: parent
+            }
         }
 
         // tab list
@@ -72,67 +75,96 @@ Item {
             interactive: false
 
             // avoid binding loop
-            readonly property real tabWidth: Math.min(Theme.tabMaxWidth,
-                Math.max(Theme.tabMinWidth, root.availableForTabs / Math.max(count, 1)))
+            readonly property real tabWidth: Math.min(Theme.tabMaxWidth, Math.max(Theme.tabMinWidth, root.availableForTabs / Math.max(count, 1)))
 
             displaced: Transition {
-                NumberAnimation { properties: "x"; duration: Theme.durationMid; easing.type: Easing.OutCubic }
+                NumberAnimation {
+                    properties: "x"
+                    duration: Theme.durationMid
+                    easing.type: Easing.OutCubic
+                }
             }
             add: Transition {
-                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.durationFast }
+                NumberAnimation {
+                    property: "opacity"
+                    from: 0
+                    to: 1
+                    duration: Theme.durationFast
+                }
             }
             remove: Transition {
-                NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.durationFast }
+                NumberAnimation {
+                    property: "opacity"
+                    from: 1
+                    to: 0
+                    duration: Theme.durationFast
+                }
             }
             move: Transition {
-                NumberAnimation { properties: "x"; duration: Theme.durationMid; easing.type: Easing.OutCubic }
+                NumberAnimation {
+                    properties: "x"
+                    duration: Theme.durationMid
+                    easing.type: Easing.OutCubic
+                }
             }
 
             delegate: TabItem {
                 height: tabList.height
-                width:  tabList.tabWidth
+                width: tabList.tabWidth
                 tabCount: tabList.count
 
-                tabTitle:   model.title
+                tabTitle: model.title
                 tabIconUrl: model.iconUrl
                 tabLoading: model.loading
-                isActive:   index === tabModel.activeIndex
+                isActive: index === tabModel.activeIndex
 
                 // active tab renders on top
                 z: dragging ? 3 : (isActive ? 2 : 1)
 
-                onActivated:    browser.activateTab(index)
+                onActivated: browser.activateTab(index)
                 onCloseClicked: browser.closeTab(index)
 
-                onReorderRequested: (targetIndex) => tabModel.moveTab(index, targetIndex)
+                onReorderRequested: targetIndex => tabModel.moveTab(index, targetIndex)
             }
         }
 
         // new tab button
         Item {
             id: newTabButton
-            Layout.preferredWidth:  32
+            Layout.preferredWidth: 32
             Layout.preferredHeight: Theme.tabBarHeight
-            Layout.alignment:       Qt.AlignVCenter
+            Layout.alignment: Qt.AlignVCenter
 
             Rectangle {
                 anchors.centerIn: parent
-                width:  26
+                width: 26
                 height: 26
                 radius: 13
-                color:  plusHover.hovered ? Theme.surfaceHigh : "transparent"
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                color: plusHover.hovered ? Theme.surfaceHigh : "transparent"
+                Behavior on color {
+                    ColorAnimation {
+                        duration: Theme.durationFast
+                    }
+                }
 
                 LucideIcon {
                     anchors.centerIn: parent
                     source: "qrc:/QT_Illuminate/ui/ui/icons/plus.svg"
-                    size:   15
-                    color:  plusHover.hovered ? Theme.text : Theme.textMuted
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                    size: 15
+                    color: plusHover.hovered ? Theme.text : Theme.textMuted
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Theme.durationFast
+                        }
+                    }
                 }
 
-                HoverHandler { id: plusHover }
-                TapHandler   { onTapped: browser.newTab() }
+                HoverHandler {
+                    id: plusHover
+                }
+                TapHandler {
+                    onTapped: browser.newTab()
+                }
             }
         }
 
@@ -149,7 +181,9 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            DragRegion { anchors.fill: parent }
+            DragRegion {
+                anchors.fill: parent
+            }
         }
     }
 }

@@ -4,19 +4,23 @@ import QT_Illuminate.ui
 
 Item {
     id: tile
-    property var  profile: null
-    property var  avatarColor: ""
+    property var profile: null
+    property var avatarColor: ""
     Layout.preferredWidth: 120
     Layout.preferredHeight: 128
 
-    signal tileClicked()
+    signal tileClicked
     signal tileRightClicked(var position)
 
     Rectangle {
         anchors.fill: parent
         radius: 12
         color: hoverArea.containsMouse ? Qt.alpha(Theme.accent, 0.12) : "transparent"
-        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        Behavior on color {
+            ColorAnimation {
+                duration: Theme.durationFast
+            }
+        }
     }
 
     Column {
@@ -58,11 +62,11 @@ Item {
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: Qt.PointingHandCursor
-        onClicked: function(mouse) {
+        onClicked: function (mouse) {
             if (mouse.button === Qt.LeftButton) {
-                tile.tileClicked()
+                tile.tileClicked();
             } else if (mouse.button === Qt.RightButton) {
-                tile.tileRightClicked(hoverArea.mapToItem(null, mouse.x, mouse.y))
+                tile.tileRightClicked(hoverArea.mapToItem(null, mouse.x, mouse.y));
             }
         }
     }

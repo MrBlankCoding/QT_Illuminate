@@ -9,23 +9,21 @@ Item {
     id: root
     height: Theme.toolbarHeight + Theme.progressH
 
-    property string currentUrl:  ""
+    property string currentUrl: ""
     property string currentTitle: ""
     property string currentIconUrl: ""
-    property bool   isLoading:   false
-    property int    loadProgress: 0
-    property bool   canGoBack:    false
-    property bool   canGoForward: false
+    property bool isLoading: false
+    property int loadProgress: 0
+    property bool canGoBack: false
+    property bool canGoForward: false
 
     // emitted when user picks a profile or opens selector
     signal switchToProfile(var profile)
-    signal openProfileSelector()
+    signal openProfileSelector
 
     // avatar color helper (mirrors ProfilePicker.avatarColorFor)
     function avatarColorFor(profile) {
-        return profile && profile.color && profile.color.length > 0
-            ? profile.color
-            : (typeof Theme !== "undefined" && Theme.accent) || "#3b82f6"
+        return profile && profile.color && profile.color.length > 0 ? profile.color : (typeof Theme !== "undefined" && Theme.accent) || "#3b82f6";
     }
 
     // recheck bookmarks on change
@@ -41,82 +39,116 @@ Item {
 
     // called by shortcut
     function focusAddressBar() {
-        addressInput.forceActiveFocus()
-        addressInput.selectAll()
+        addressInput.forceActiveFocus();
+        addressInput.selectAll();
+    }
+
+    // QQC2 Popups create their content lazily on first open. Forcing creation
+    // at startup means the WebEngineView + renderer process exist before the
+    // first extension-popup click; otherwise the first open stalls ~3s while
+    // the engine spins up a fresh view. Preloading the first popup URL also
+    // warms the illum-ext site instance, so the first click never pays for a
+    // cold renderer.
+    Component.onCompleted: {
+        extensionPopup.open();
+        extensionPopup.close();
+        for (let i = 0; i < extensionService.count; ++i) {
+            const id = extensionService.data(extensionService.index(i, 0), Qt.UserRole + 1);
+            const url = extensionService.getPopupUrl(id);
+            if (url !== "") {
+                extensionPopupView.url = url;
+                break;
+            }
+        }
     }
 
     // called on star and shortcut
     function toggleBookmark() {
-        if (root.currentUrl === "" || root.currentUrl === "newtab://newtab") return
-        bookmarks.toggleBookmark(root.currentTitle, root.currentUrl, root.currentIconUrl)
+        if (root.currentUrl === "" || root.currentUrl === "newtab://newtab")
+            return;
+        bookmarks.toggleBookmark(root.currentTitle, root.currentUrl, root.currentIconUrl);
     }
 
     // --- search suggestions model & helpers ---
-    ListModel { id: suggestionModel }
+    ListModel {
+        id: suggestionModel
+    }
 
     function clearSuggestions() {
-        suggestionModel.clear()
-        suggestionsBox.highlighted = -1
+        suggestionModel.clear();
+        suggestionsBox.highlighted = -1;
     }
 
     function applySuggestions(list) {
-        suggestionModel.clear()
+        suggestionModel.clear();
         for (let i = 0; i < list.length; i++)
-            suggestionModel.append(list[i])
-        suggestionsBox.highlighted = -1
+            suggestionModel.append(list[i]);
+        suggestionsBox.highlighted = -1;
     }
 
     function acceptSuggestion(i) {
-        if (i < 0 || i >= suggestionModel.count) return
-        const item = suggestionModel.get(i)
-        clearSuggestions()
-        addressInput.focus = false
-        root.navigate(item.isBookmark ? item.url : item.text)
+        if (i < 0 || i >= suggestionModel.count)
+            return;
+        const item = suggestionModel.get(i);
+        clearSuggestions();
+        addressInput.focus = false;
+        root.navigate(item.isBookmark ? item.url : item.text);
     }
 
     Timer {
         id: suggestTimer
         interval: 150
-        repeat:   false
+        repeat: false
         onTriggered: root.fetchSuggestions(addressInput.text.trim())
     }
 
     function fetchSuggestions(query) {
         if (query === "" || query === "newtab://newtab") {
-            clearSuggestions()
-            return
+            clearSuggestions();
+            return;
         }
 
-        const q = query.toLowerCase()
-        const local = []
+        const q = query.toLowerCase();
+        const local = [];
         for (let i = 0; i < bookmarks.count && local.length < 4; i++) {
-            const bm = bookmarks.get(i)
+            const bm = bookmarks.get(i);
             if (bm.title.toLowerCase().includes(q) || bm.url.toLowerCase().includes(q))
-                local.push({ text: bm.title, url: bm.url, isBookmark: true })
+                local.push({
+                    text: bm.title,
+                    url: bm.url,
+                    isBookmark: true
+                });
         }
 
         if (local.length > 0)
-            applySuggestions(local)
+            applySuggestions(local);
 
-        const xhr = new XMLHttpRequest()
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return
-            if (xhr.status !== 200) return
-            if (addressInput.text.trim() !== query) return
+        const xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== XMLHttpRequest.DONE)
+                return;
+            if (xhr.status !== 200)
+                return;
+            if (addressInput.text.trim() !== query)
+                return;
             try {
-                const data = JSON.parse(xhr.responseText)
-                const remote = data[1] || []
-                const merged = local.slice()
+                const data = JSON.parse(xhr.responseText);
+                const remote = data[1] || [];
+                const merged = local.slice();
                 for (let i = 0; i < remote.length && merged.length < 8; i++)
-                    merged.push({ text: remote[i], url: "", isBookmark: false })
-                applySuggestions(merged)
+                    merged.push({
+                        text: remote[i],
+                        url: "",
+                        isBookmark: false
+                    });
+                applySuggestions(merged);
             } catch (e) {
                 if (local.length === 0)
-                    clearSuggestions()
+                    clearSuggestions();
             }
-        }
-        xhr.open("GET", "https://suggestqueries.google.com/complete/search?client=firefox&q=" + encodeURIComponent(query))
-        xhr.send()
+        };
+        xhr.open("GET", "https://suggestqueries.google.com/complete/search?client=firefox&q=" + encodeURIComponent(query));
+        xhr.send();
     }
 
     // background
@@ -130,7 +162,7 @@ Item {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin:  12
+            anchors.leftMargin: 12
             anchors.rightMargin: 12
             spacing: 8
 
@@ -154,7 +186,10 @@ Item {
                         source: "qrc:/QT_Illuminate/ui/ui/icons/chevron-left.svg"
                         color: Theme.textMuted
                         opacity: root.canGoBack ? 1 : 0.35
-                        TapHandler { enabled: root.canGoBack; onTapped: browser.goBack() }
+                        TapHandler {
+                            enabled: root.canGoBack
+                            onTapped: browser.goBack()
+                        }
                     }
 
                     LucideIcon {
@@ -162,16 +197,19 @@ Item {
                         source: "qrc:/QT_Illuminate/ui/ui/icons/chevron-right.svg"
                         color: Theme.textMuted
                         opacity: root.canGoForward ? 1 : 0.35
-                        TapHandler { enabled: root.canGoForward; onTapped: browser.goForward() }
+                        TapHandler {
+                            enabled: root.canGoForward
+                            onTapped: browser.goForward()
+                        }
                     }
 
                     LucideIcon {
                         size: 15
-                        source: root.isLoading
-                               ? "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
-                               : "qrc:/QT_Illuminate/ui/ui/icons/rotate-cw.svg"
+                        source: root.isLoading ? "qrc:/QT_Illuminate/ui/ui/icons/x.svg" : "qrc:/QT_Illuminate/ui/ui/icons/rotate-cw.svg"
                         color: Theme.textMuted
-                        TapHandler { onTapped: browser.reload() }
+                        TapHandler {
+                            onTapped: browser.reload()
+                        }
                     }
                 }
             }
@@ -184,7 +222,11 @@ Item {
                 radius: Theme.pillRadius
                 color: addressInput.activeFocus ? Theme.bg : Theme.surfaceHigh
 
-                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                Behavior on color {
+                    ColorAnimation {
+                        duration: Theme.durationFast
+                    }
+                }
 
                 // Focus
                 Rectangle {
@@ -193,12 +235,16 @@ Item {
                     color: "transparent"
                     border.color: Theme.accent
                     border.width: addressInput.activeFocus ? 1.5 : 0
-                    Behavior on border.width { NumberAnimation { duration: Theme.durationFast } }
+                    Behavior on border.width {
+                        NumberAnimation {
+                            duration: Theme.durationFast
+                        }
+                    }
                 }
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin:  14
+                    anchors.leftMargin: 14
                     anchors.rightMargin: 10
                     spacing: 6
 
@@ -211,16 +257,20 @@ Item {
                         opacity: 0.7
 
                         source: {
-                            const u = root.currentUrl
-                            if (u.startsWith("https://")) return "qrc:/QT_Illuminate/ui/ui/icons/lock.svg"
-                            if (u.startsWith("http://"))  return "qrc:/QT_Illuminate/ui/ui/icons/alert-triangle.svg"
-                            return "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
+                            const u = root.currentUrl;
+                            if (u.startsWith("https://"))
+                                return "qrc:/QT_Illuminate/ui/ui/icons/lock.svg";
+                            if (u.startsWith("http://"))
+                                return "qrc:/QT_Illuminate/ui/ui/icons/alert-triangle.svg";
+                            return "qrc:/QT_Illuminate/ui/ui/icons/globe.svg";
                         }
                         color: {
-                            const u = root.currentUrl
-                            if (u.startsWith("https://")) return Theme.accent
-                            if (u.startsWith("http://"))  return Theme.danger
-                            return Theme.textMuted
+                            const u = root.currentUrl;
+                            if (u.startsWith("https://"))
+                                return Theme.accent;
+                            if (u.startsWith("http://"))
+                                return Theme.danger;
+                            return Theme.textMuted;
                         }
                     }
 
@@ -228,57 +278,57 @@ Item {
                     TextInput {
                         id: addressInput
                         Layout.fillWidth: true
-                        text:  root.currentUrl
+                        text: root.currentUrl
                         color: Theme.text
                         font.pixelSize: Theme.fontSizeM
-                        font.family:    Theme.fontFamily
-                        selectByMouse:  true
+                        font.family: Theme.fontFamily
+                        selectByMouse: true
                         clip: true
                         verticalAlignment: TextInput.AlignVCenter
                         onTextChanged: {
                             if (activeFocus) {
-                                suggestionsBox.highlighted = -1
-                                suggestTimer.restart()
+                                suggestionsBox.highlighted = -1;
+                                suggestTimer.restart();
                             }
                         }
 
                         onActiveFocusChanged: {
                             if (activeFocus) {
-                                Qt.callLater(selectAll)
+                                Qt.callLater(selectAll);
                                 if (text.trim() !== "" && text !== "newtab://newtab")
-                                    suggestTimer.restart()
+                                    suggestTimer.restart();
                             } else {
-                                root.clearSuggestions()
+                                root.clearSuggestions();
                             }
                         }
 
                         Keys.onDownPressed: {
                             if (suggestionModel.count > 0)
-                                suggestionsBox.highlighted = Math.min(suggestionsBox.highlighted + 1, suggestionModel.count - 1)
+                                suggestionsBox.highlighted = Math.min(suggestionsBox.highlighted + 1, suggestionModel.count - 1);
                         }
                         Keys.onUpPressed: {
                             if (suggestionModel.count > 0)
-                                suggestionsBox.highlighted = Math.max(suggestionsBox.highlighted - 1, -1)
+                                suggestionsBox.highlighted = Math.max(suggestionsBox.highlighted - 1, -1);
                         }
                         Keys.onReturnPressed: {
                             if (suggestionsBox.highlighted >= 0) {
-                                root.acceptSuggestion(suggestionsBox.highlighted)
+                                root.acceptSuggestion(suggestionsBox.highlighted);
                             } else if (text.trim() !== "") {
-                                root.clearSuggestions()
-                                focus = false
-                                root.navigate(text.trim())
+                                root.clearSuggestions();
+                                focus = false;
+                                root.navigate(text.trim());
                             }
                         }
                         Keys.onEscapePressed: {
                             if (suggestionModel.count > 0) {
-                                root.clearSuggestions()
+                                root.clearSuggestions();
                             } else {
-                                text = root.currentUrl
-                                focus = false
+                                text = root.currentUrl;
+                                focus = false;
                             }
                         }
 
-                        // empty 
+                        // empty
                         Text {
                             anchors.fill: parent
                             verticalAlignment: Text.AlignVCenter
@@ -293,14 +343,16 @@ Item {
                     LucideIcon {
                         size: 14
                         visible: root.currentUrl !== "" && root.currentUrl !== "newtab://newtab"
-                        source: root.isBookmarked
-                               ? "qrc:/QT_Illuminate/ui/ui/icons/star-filled.svg"
-                               : "qrc:/QT_Illuminate/ui/ui/icons/star.svg"
+                        source: root.isBookmarked ? "qrc:/QT_Illuminate/ui/ui/icons/star-filled.svg" : "qrc:/QT_Illuminate/ui/ui/icons/star.svg"
                         color: root.isBookmarked ? Theme.accent : (starHover.hovered ? Theme.text : Theme.textMuted)
                         Layout.alignment: Qt.AlignVCenter
 
-                        HoverHandler { id: starHover }
-                        TapHandler { onTapped: root.toggleBookmark() }
+                        HoverHandler {
+                            id: starHover
+                        }
+                        TapHandler {
+                            onTapped: root.toggleBookmark()
+                        }
                     }
                 }
             }
@@ -316,13 +368,21 @@ Item {
                     visible: model.enabled && model.pinned
                     clip: true
 
-                    Behavior on width { NumberAnimation { duration: Theme.durationFast } }
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: Theme.durationFast
+                        }
+                    }
 
                     Rectangle {
                         anchors.fill: parent
                         radius: 6
                         color: extHover.hovered ? Theme.surfaceHigh : "transparent"
-                        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: Theme.durationFast
+                            }
+                        }
                     }
 
                     Image {
@@ -331,8 +391,8 @@ Item {
                         width: 16
                         height: 16
                         source: {
-                            const iconPath = extensionService.getInstalledIconPath(model.id)
-                            return iconPath !== "" ? "file://" + iconPath : ""
+                            const iconPath = extensionService.getInstalledIconPath(model.id);
+                            return iconPath !== "" ? "file://" + iconPath : "";
                         }
                         visible: status === Image.Ready
                         fillMode: Image.PreserveAspectFit
@@ -347,22 +407,29 @@ Item {
                         visible: !extImg.visible
                     }
 
-                    HoverHandler { id: extHover }
+                    HoverHandler {
+                        id: extHover
+                    }
 
                     // left click — open popup or navigate
                     TapHandler {
                         acceptedButtons: Qt.LeftButton
                         onTapped: {
-                            const popupUrl = extensionService.getPopupUrl(model.id)
+                            // Toggle: close when the popup is already showing.
+                            if (extensionPopup.opened) {
+                                extensionPopup.close();
+                                return;
+                            }
+                            const popupUrl = extensionService.getPopupUrl(model.id);
                             if (popupUrl !== "") {
                                 if (extensionPopupView.url.toString() === popupUrl) {
-                                    extensionPopupView.reload()
+                                    extensionPopupView.reload();
                                 } else {
-                                    extensionPopupView.url = popupUrl
+                                    extensionPopupView.url = popupUrl;
                                 }
-                                extensionPopup.open()
+                                extensionPopup.open();
                             } else {
-                                browser.navigate("illuminate://installed-extensions")
+                                browser.navigate("illuminate://installed-extensions");
                             }
                         }
                     }
@@ -403,8 +470,12 @@ Item {
                 color: (downloadsHover.hovered || (root.downloadsPanel && root.downloadsPanel.visible)) ? Theme.text : Theme.textMuted
                 Layout.alignment: Qt.AlignVCenter
 
-                HoverHandler { id: downloadsHover }
-                TapHandler { onTapped: root.downloadsPanel && root.downloadsPanel.toggle() }
+                HoverHandler {
+                    id: downloadsHover
+                }
+                TapHandler {
+                    onTapped: root.downloadsPanel && root.downloadsPanel.toggle()
+                }
 
                 // active
                 Rectangle {
@@ -434,22 +505,29 @@ Item {
                     color: root.avatarColorFor(profileManager.activeProfile)
                     border.color: profileHover.hovered ? Theme.text : "transparent"
                     border.width: profileHover.hovered ? 1 : 0
-                    Behavior on border.width { NumberAnimation { duration: Theme.durationFast } }
+                    Behavior on border.width {
+                        NumberAnimation {
+                            duration: Theme.durationFast
+                        }
+                    }
                 }
 
                 Text {
                     anchors.centerIn: parent
-                    text: (profileManager.activeProfile && profileManager.activeProfile.name)
-                          ? profileManager.activeProfile.name.charAt(0).toUpperCase()
-                          : "⊕"
+                    text: (profileManager.activeProfile && profileManager.activeProfile.name) ? profileManager.activeProfile.name.charAt(0).toUpperCase() : "⊕"
                     font.pixelSize: 12
                     font.weight: Font.Medium
                     font.family: Theme.fontFamily
                     color: "white"
                 }
 
-                HoverHandler { id: profileHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: profileMenu.popup() }
+                HoverHandler {
+                    id: profileHover
+                    cursorShape: Qt.PointingHandCursor
+                }
+                TapHandler {
+                    onTapped: profileMenu.popup()
+                }
 
                 Menu {
                     id: profileMenu
@@ -461,11 +539,9 @@ Item {
                         MenuItem {
                             width: 200
                             text: {
-                                const nm = modelData.name || "Unnamed"
-                                return modelData === profileManager.activeProfile
-                                    ? nm + "  ✓"
-                                    : nm
-                                }
+                                const nm = modelData.name || "Unnamed";
+                                return modelData === profileManager.activeProfile ? nm + "  ✓" : nm;
+                            }
                             enabled: modelData !== profileManager.activeProfile
                             onClicked: root.switchToProfile(modelData)
                         }
@@ -488,8 +564,12 @@ Item {
                 color: (menuHover.hovered || appMenu.visible) ? Theme.text : Theme.textMuted
                 Layout.alignment: Qt.AlignVCenter
 
-                HoverHandler { id: menuHover }
-                TapHandler { onTapped: appMenu.popup() }
+                HoverHandler {
+                    id: menuHover
+                }
+                TapHandler {
+                    onTapped: appMenu.popup()
+                }
 
                 Menu {
                     id: appMenu
@@ -569,20 +649,46 @@ Item {
     }
 
     // extension action popup
+    function positionExtensionPopup() {
+        const margin = 12;
+        extensionPopup.x = root.width - extensionPopup.width - margin;
+        extensionPopup.y = root.height + margin;
+    }
+    // Shrink/grow the box to the extension's own popup.html size instead of a
+    // hardcoded 360x520, clamped to sane limits.
+    function sizePopupToContent() {
+        extensionPopupView.runJavaScript(
+            "(function(){try{var d=document.documentElement,b=document.body;" +
+            "return JSON.stringify([(b&&b.scrollWidth)||(d&&d.scrollWidth),(b&&b.scrollHeight)||(d&&d.scrollHeight)]);" +
+            "}catch(e){return '[]';}})()",
+            function (result) {
+                try {
+                    const dims = JSON.parse(result);
+                    if (!dims || dims.length !== 2) return;
+                    const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+                    extensionPopup.width = clamp(dims[0] + 2, 200, 460);
+                    extensionPopup.height = clamp(dims[1] + 2, 200, 680);
+                    positionExtensionPopup();
+                } catch (e) {
+                    logger.warning("ExtPopup", "sizePopupToContent parse failed: " + e);
+                }
+            });
+    }
+
     Popup {
         id: extensionPopup
         width: 360
         height: 520
         x: 0
         y: 0
-        modal: true
+        modal: false
         focus: true
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        // No CloseOnPressOutside: its press would fire on the icon's same click
+        // and flap (close on press, reopen on release via TapHandler). The icon
+        // toggles and Esc closes, that's it.
+        closePolicy: Popup.CloseOnEscape
         padding: 0
-        onOpened: {
-            y = Theme.tabBarHeight + root.height
-            x = (root.width - width) / 2
-        }
+        onOpened: positionExtensionPopup()
         onClosed: extensionPopupView.url = "about:blank"
 
         background: Rectangle {
@@ -599,6 +705,26 @@ Item {
                 id: extensionPopupView
                 anchors.fill: parent
                 backgroundColor: Theme.surface
+                onJavaScriptConsoleMessage: (level, message, lineNumber, sourceID) => {
+                    logger.debug("ExtPopup", level + " " + sourceID + ":" + lineNumber + " " + message);
+                    extensionLogs.append(extensionPopupView.url.host, level, message);
+                }
+                onLoadingChanged: info => {
+                    logger.debug("ExtPopup", "loadingChanged status=" + info.status + " url=" + extensionPopupView.url.toString() + " error=" + info.errorString);
+                    // 2 == WebEngineView.Succeeded. Skip the about:blank reset page —
+                    // its document.body is null and measuring it is pointless.
+                    if (info.status === 2 && extensionPopupView.url.toString() !== "about:blank")
+                        sizePopupToContent();
+                }
+                // window.open / chrome.tabs.create / chrome.windows.create from the
+                // popup shim land here and open a real tab (mirrors the tab views'
+                // onNewWindowRequested). Close the popup too: the action moved focus
+                // to the new tab.
+                onNewWindowRequested: request => {
+                    logger.debug("ExtPopup", "newWindowRequested url=" + request.requestedUrl);
+                    browser.onNewWindowRequested(-1, request.requestedUrl.toString());
+                    extensionPopup.close();
+                }
             }
         }
     }
@@ -606,21 +732,30 @@ Item {
     // load stipe
     Item {
         id: progressStripe
-        anchors.top:  toolbarBg.bottom
+        anchors.top: toolbarBg.bottom
         width: parent.width
         height: Theme.progressH
 
         Rectangle {
             id: progressFill
             anchors.left: parent.left
-            anchors.top:  parent.top
+            anchors.top: parent.top
             height: parent.height
             width: parent.width * (root.loadProgress / 100)
             color: Theme.accent
             opacity: (root.isLoading && root.loadProgress > 0 && root.loadProgress < 100) ? 1 : 0
 
-            Behavior on width   { NumberAnimation { duration: 80; easing.type: Easing.OutQuad } }
-            Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
+            Behavior on width {
+                NumberAnimation {
+                    duration: 80
+                    easing.type: Easing.OutQuad
+                }
+            }
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: Theme.durationFast
+                }
+            }
         }
     }
 
@@ -629,6 +764,6 @@ Item {
     // i have no clue
     onCurrentUrlChanged: {
         if (!addressInput.activeFocus)
-            addressInput.text = root.currentUrl
+            addressInput.text = root.currentUrl;
     }
 }
