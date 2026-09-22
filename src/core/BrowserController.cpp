@@ -10,7 +10,7 @@
 #include <algorithm>
 
 BrowserController::BrowserController(Profile *profile, ExtensionService *extensionService, QObject *parent)
-    : QObject(parent), m_profile(profile), m_webEngineProfile(profile->webEngineProfile()), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_extensionService(extensionService), m_model(new TabModel(m_extensionService, this))
+    : QObject(parent), m_profile(profile), m_webEngineProfile(profile->webEngineProfile()), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_extensionService(extensionService), m_model(new TabModel(extensionService, this))
 {
     connect(m_model, &TabModel::activeIndexChanged, this, [this]()
             {

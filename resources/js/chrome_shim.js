@@ -273,6 +273,35 @@
     onChanged: storageChanged,
   };
 
+  // No extension service worker runs in this browser, so messages that would
+  // normally be answered by the background script have no real reply. Pages
+  // like uBO Lite's dashboard gate rendering on their options payload
+  // (settings.js: `getOptionsPageData().then(data => { if(!data) return; ... })`
+  // and only removes `body.loading` once data arrives). Answer those known
+  // read-only intents with inert defaults so the UI can reveal itself; leave
+  // everything else unanswered (undefined), as before.
+  function defaultReply(msg) {
+    if (msg == null || typeof msg !== "object") return undefined;
+    switch (String(msg.what)) {
+      case "getOptionsPageData":
+        return {
+          firstRun: false,
+          autoReload: false,
+          canShowBlockedCount: false,
+          showBlockedCount: false,
+          hasOmnipotence: false,
+          strictBlockMode: false,
+          popupBlockMode: true,
+          developerMode: false,
+          disabledFeatures: [],
+          defaultFilteringMode: 2,
+          supportsUserScripts: false,
+          supportsCompiledFilters: false,
+        };
+    }
+    return undefined;
+  }
+
   // runtime shim
   var runtime = {
     id: EXID,
@@ -288,7 +317,7 @@
       return respond(cb, null);
     },
     sendMessage: function () {
-      return respond(lastFn(arguments), undefined);
+      return respond(lastFn(arguments), defaultReply(arguments[0]));
     },
     connect: function (a, b) {
       var info =
