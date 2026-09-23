@@ -33,10 +33,10 @@ public:
     Q_INVOKABLE void removeBookmark(int index);
     Q_INVOKABLE void renameBookmark(int index, const QString &title);
 
-    // QML convenience: bookmarks.get(i).title etc.
-    Q_INVOKABLE QVariantMap get(int index) const;
+// QML convenience: bookmarks.itemAt(i).title etc.
+    Q_INVOKABLE QVariantMap itemAt(int index) const;
 
-signals:
+    signals:
     void countChanged();
 
 private:
@@ -49,7 +49,7 @@ private:
 
     int indexOfUrl(const QString &url) const;
     void load();
-    void save() const;
+    bool save() const;
 
     QVector<Bookmark> m_bookmarks;
     QString m_storagePath;

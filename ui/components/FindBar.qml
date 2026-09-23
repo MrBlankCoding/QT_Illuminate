@@ -5,6 +5,11 @@ import QT_Illuminate.ui
 
 Item {
     id: root
+    property var webView: null
+    property int matchCount: 0
+    property int activeMatch: 0
+    property bool hasSearched: false
+
     anchors.top: parent.top
     anchors.right: parent.right
     anchors.topMargin: 8
@@ -14,10 +19,17 @@ Item {
     visible: false
     z: 100
 
-    property var webView: null
-    property int matchCount: 0
-    property int activeMatch: 0
-    property bool hasSearched: false
+    Timer {
+        id: debounceTimer
+        interval: 160
+        repeat: false
+        onTriggered: root.search(false)
+    }
+
+    // debounce findText() against per-keystroke churn
+    function timedSearch() {
+        debounceTimer.restart();
+    }
 
     function open() {
         visible = true;
@@ -71,7 +83,6 @@ Item {
     }
 
     Rectangle {
-        id: bar
         anchors.fill: parent
         radius: 8
         color: Theme.surface
@@ -79,13 +90,16 @@ Item {
         border.width: 1
 
         RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 6
+            anchors {
+                fill: parent
+                leftMargin: 12
+                rightMargin: 6
+            }
             spacing: 4
 
             TextInput {
                 id: input
+                objectName: "input"
                 Layout.fillWidth: true
                 color: Theme.text
                 font.pixelSize: Theme.fontSizeM
@@ -94,9 +108,10 @@ Item {
                 clip: true
                 verticalAlignment: TextInput.AlignVCenter
 
-                onTextChanged: root.search(false)
+                onTextChanged: root.timedSearch()
 
                 Keys.onReturnPressed: function (event) {
+                    debounceTimer.stop();
                     root.search((event.modifiers & Qt.ShiftModifier) !== 0);
                 }
                 Keys.onEscapePressed: root.close()

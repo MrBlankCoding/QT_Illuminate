@@ -1,8 +1,9 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
-import QtWebEngine
 import QT_Illuminate.ui
+
+pragma ComponentBehavior: Bound
 
     // adress bar pill and loading bar
     Item {
@@ -55,6 +56,8 @@ import QT_Illuminate.ui
         id: suggestionModel
     }
 
+    property var suggestionXhr: null
+
     function clearSuggestions() {
         suggestionModel.clear();
         suggestionsBox.highlighted = -1;
@@ -95,7 +98,7 @@ function acceptSuggestion(i) {
         const q = query.toLowerCase();
         const local = [];
         for (let i = 0; i < bookmarks.count && local.length < 4; i++) {
-            const bm = bookmarks.get(i);
+            const bm = bookmarks.itemAt(i);
             if (bm.title.toLowerCase().includes(q) || bm.url.toLowerCase().includes(q))
                 local.push({
                     text: bm.title,
@@ -107,9 +110,15 @@ function acceptSuggestion(i) {
         if (local.length > 0)
             applySuggestions(local);
 
+        if (root.suggestionXhr)
+            root.suggestionXhr.abort();
+
         const xhr = new XMLHttpRequest();
+        root.suggestionXhr = xhr;
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== XMLHttpRequest.DONE)
+                return;
+            if (xhr !== root.suggestionXhr)
                 return;
             if (xhr.status !== 200)
                 return;
@@ -152,7 +161,6 @@ function acceptSuggestion(i) {
 
             // nav pill
             Rectangle {
-                id: navPill
                 Layout.preferredHeight: 32
                 Layout.preferredWidth: navRow.implicitWidth + 24
                 radius: Theme.pillRadius
@@ -235,7 +243,6 @@ function acceptSuggestion(i) {
                     // icons
                     // could make clicable for context menu
                     LucideIcon {
-                        id: lockIcon
                         size: 14
                         Layout.alignment: Qt.AlignVCenter
                         opacity: 0.7
@@ -276,15 +283,16 @@ function acceptSuggestion(i) {
                             }
                         }
 
-                        onActiveFocusChanged: {
-                            if (activeFocus) {
-                                Qt.callLater(selectAll);
-                                if (text.trim() !== "" && text !== "newtab://newtab")
-                                    suggestTimer.restart();
-                            } else {
-                                root.clearSuggestions();
-                            }
+onActiveFocusChanged: {
+                        if (activeFocus) {
+                            Qt.callLater(selectAll);
+                            if (text.trim() !== "" && text !== "newtab://newtab")
+                                suggestTimer.restart();
+                        } else {
+                            root.clearSuggestions();
+                            text = root.currentUrl;
                         }
+                    }
 
                         Keys.onDownPressed: {
                             if (suggestionModel.count > 0)
@@ -343,7 +351,6 @@ function acceptSuggestion(i) {
 
             // downloads
             LucideIcon {
-                id: downloadsButton
                 visible: root.downloadsPanel && root.downloadsPanel.downloadCount > 0
                 size: 16
                 source: "qrc:/QT_Illuminate/ui/ui/icons/download.svg"
@@ -373,7 +380,6 @@ function acceptSuggestion(i) {
 
             // profile switcher button (avatar circle)
             Item {
-                id: profileButton
                 Layout.preferredWidth: 30
                 Layout.preferredHeight: 30
                 Layout.alignment: Qt.AlignVCenter
@@ -417,6 +423,7 @@ function acceptSuggestion(i) {
                         model: profileManager.profiles
 
                         MenuItem {
+                            required property var modelData
                             width: 200
                             text: {
                                 const nm = modelData.name || "Unnamed";
@@ -438,7 +445,6 @@ function acceptSuggestion(i) {
 
             // app menu
             LucideIcon {
-                id: menuButton
                 size: 16
                 source: "qrc:/QT_Illuminate/ui/ui/icons/more-vertical.svg"
                 color: (menuHover.hovered || appMenu.visible) ? Theme.text : Theme.textMuted
@@ -522,13 +528,11 @@ function acceptSuggestion(i) {
 
     // load stipe
     Item {
-        id: progressStripe
         anchors.top: toolbarBg.bottom
         width: parent.width
         height: Theme.progressH
 
         Rectangle {
-            id: progressFill
             anchors.left: parent.left
             anchors.top: parent.top
             height: parent.height

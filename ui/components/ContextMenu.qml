@@ -3,62 +3,63 @@ import QtQuick.Controls
 import QtWebEngine
 
 Menu {
-    id: contextMenuRoot
+    id: root
     popupType: Popup.Native
 
-    property var webView: null
+    property WebEngineView webView: null
     property var request: null
+
+    signal toggleDevTools
 
     MenuItem {
         text: "Back"
-        enabled: contextMenuRoot.webView && contextMenuRoot.webView.canGoBack
-        onTriggered: contextMenuRoot.webView.goBack()
+        enabled: root.webView && root.webView.canGoBack
+        onTriggered: root.webView.goBack()
     }
     MenuItem {
         text: "Forward"
-        enabled: contextMenuRoot.webView && contextMenuRoot.webView.canGoForward
-        onTriggered: contextMenuRoot.webView.goForward()
+        enabled: root.webView && root.webView.canGoForward
+        onTriggered: root.webView.goForward()
     }
     MenuItem {
         text: "Reload"
-        onTriggered: contextMenuRoot.webView.reload()
+        onTriggered: root.webView.reload()
     }
     MenuSeparator {}
     MenuItem {
         text: "Copy Link"
-        visible: contextMenuRoot.request && contextMenuRoot.request.linkUrl.toString() !== ""
-        onTriggered: contextMenuRoot.webView.triggerWebAction(WebEngineView.CopyLinkToClipboard)
+        visible: root.request && root.request.linkUrl.toString() !== ""
+        onTriggered: root.webView.triggerWebAction(WebEngineView.CopyLinkToClipboard)
     }
     MenuItem {
         // rename based on what was clicked
         // this allows for downloads to be specific
         // download image etc
-        readonly property int mediaType: contextMenuRoot.request ? contextMenuRoot.request.mediaType : ContextMenuRequest.MediaTypeNone
-        readonly property bool hasLink: contextMenuRoot.request && contextMenuRoot.request.linkUrl.toString() !== ""
+        readonly property int mediaType: root.request ? root.request.mediaType : ContextMenuRequest.MediaTypeNone
+        readonly property bool hasLink: root.request && root.request.linkUrl.toString() !== ""
 
         text: mediaType === ContextMenuRequest.MediaTypeImage ? "Download Image" : mediaType === ContextMenuRequest.MediaTypeVideo ? "Download Video" : mediaType === ContextMenuRequest.MediaTypeAudio ? "Download Audio" : "Download Link"
         visible: mediaType === ContextMenuRequest.MediaTypeImage || mediaType === ContextMenuRequest.MediaTypeVideo || mediaType === ContextMenuRequest.MediaTypeAudio || hasLink
         onTriggered: {
             if (mediaType === ContextMenuRequest.MediaTypeImage)
-                contextMenuRoot.webView.triggerWebAction(WebEngineView.DownloadImageToDisk);
+                root.webView.triggerWebAction(WebEngineView.DownloadImageToDisk);
             else if (mediaType === ContextMenuRequest.MediaTypeVideo || mediaType === ContextMenuRequest.MediaTypeAudio)
-                contextMenuRoot.webView.triggerWebAction(WebEngineView.DownloadMediaToDisk);
+                root.webView.triggerWebAction(WebEngineView.DownloadMediaToDisk);
             else
-                contextMenuRoot.webView.triggerWebAction(WebEngineView.DownloadLinkToDisk);
+                root.webView.triggerWebAction(WebEngineView.DownloadLinkToDisk);
         }
     }
     MenuItem {
         text: "Copy"
-        visible: contextMenuRoot.request && contextMenuRoot.request.selectedText !== ""
-        onTriggered: contextMenuRoot.webView.triggerWebAction(WebEngineView.Copy)
+        visible: root.request && root.request.selectedText !== ""
+        onTriggered: root.webView.triggerWebAction(WebEngineView.Copy)
     }
     MenuItem {
         text: "Paste"
-        visible: contextMenuRoot.request && contextMenuRoot.request.isContentEditable
-        onTriggered: contextMenuRoot.webView.triggerWebAction(WebEngineView.Paste)
+        visible: root.request && root.request.isContentEditable
+        onTriggered: root.webView.triggerWebAction(WebEngineView.Paste)
     }
     MenuSeparator {}
-    signal toggleDevTools
 
     MenuItem {
         text: "Toggle Dev Tools"

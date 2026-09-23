@@ -3,11 +3,11 @@ import QtQuick.Layouts
 import QT_Illuminate.ui
 
 Item {
-    id: tile
+    id: root
     property var profile: null
     property var avatarColor: ""
-    Layout.preferredWidth: 120
-    Layout.preferredHeight: 128
+    implicitWidth: 120
+    implicitHeight: 128
 
     signal tileClicked
     signal tileRightClicked(var position)
@@ -32,11 +32,11 @@ Item {
             height: 76
             radius: 38
             anchors.horizontalCenter: parent.horizontalCenter
-            color: tile.avatarColor
+            color: root.avatarColor
 
             Text {
                 anchors.centerIn: parent
-                text: (tile.profile.name || "").charAt(0).toUpperCase()
+                text: root.profile && root.profile.name ? root.profile.name.charAt(0).toUpperCase() : ""
                 font.pixelSize: 30
                 font.weight: Font.Medium
                 font.family: Theme.fontFamily
@@ -46,7 +46,7 @@ Item {
 
         Text {
             width: 100
-            text: tile.profile.name
+            text: root.profile ? root.profile.name : ""
             font.pixelSize: Theme.fontSizeS
             font.family: Theme.fontFamily
             color: Theme.text
@@ -64,9 +64,9 @@ Item {
         cursorShape: Qt.PointingHandCursor
         onClicked: function (mouse) {
             if (mouse.button === Qt.LeftButton) {
-                tile.tileClicked();
+                root.tileClicked();
             } else if (mouse.button === Qt.RightButton) {
-                tile.tileRightClicked(hoverArea.mapToItem(null, mouse.x, mouse.y));
+                root.tileRightClicked(hoverArea.mapToItem(null, mouse.x, mouse.y));
             }
         }
     }

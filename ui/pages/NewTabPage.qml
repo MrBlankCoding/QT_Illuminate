@@ -1,15 +1,17 @@
 import QtQuick
-import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Dialogs
 import QT_Illuminate.ui
 
+pragma ComponentBehavior: Bound
 
 // rendered instead of a WebEngineView
 // "newtab://newtab".
 
 Item {
     id: root
+
+    readonly property var hostRegex: /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//
 
     FileDialog {
         id: bgFileDialog
@@ -49,13 +51,12 @@ Item {
     // domain favicon fetch
     // this should live somewehre else
     function faviconFallback(url) {
-        const host = String(url).replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, "").split("/")[0]
+        const host = String(url).replace(root.hostRegex, "").split("/")[0];
         return "https://www.google.com/s2/favicons?sz=64&domain=" + host
     }
 
     // content
     Column {
-        id: contentCol
         anchors.centerIn: parent
         width:   Math.min(parent.width * 0.72, 680)
         spacing: 32
@@ -73,7 +74,6 @@ Item {
 
         // bookmarks
         Row {
-            id: quickLinksRow
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: 16
             visible: bookmarksRepeater.count > 0
@@ -90,6 +90,7 @@ Item {
 
                     property bool hovered:  tileHover.hovered
                     property bool renaming: false
+                    property bool useFallback: model.iconUrl === ""
 
                     function startRename() { renaming = true }
                     function commitRename(newTitle) {
@@ -131,11 +132,11 @@ Item {
                                     smooth:   true
                                     asynchronous: true
                                     visible:  status === Image.Ready
-                                    source:   model.iconUrl !== "" ? model.iconUrl : root.faviconFallback(model.url)
+                                    source:   tile.useFallback ? root.faviconFallback(model.url) : model.iconUrl
 
                                     onStatusChanged: {
-                                        if (status === Image.Error && source !== root.faviconFallback(model.url))
-                                            source = root.faviconFallback(model.url)
+                                        if (status === Image.Error && !tile.useFallback)
+                                            tile.useFallback = true
                                     }
                                 }
 
@@ -150,7 +151,6 @@ Item {
                             }
 
                             Text {
-                                id: titleText
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 width: 84
                                 visible: !tile.renaming
@@ -164,7 +164,6 @@ Item {
                             }
 
                             TextInput {
-                                id: titleEdit
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 width: 84
                                 visible: tile.renaming
@@ -222,7 +221,6 @@ Item {
 
     // customize background button
     Rectangle {
-        id: customizeBtn
         anchors.bottom: parent.bottom
         anchors.right: parent.right
         anchors.margins: 20

@@ -5,6 +5,22 @@
 #include <algorithm>
 #include <vector>
 
+namespace
+{
+constexpr int kSampleSize = 64;
+constexpr int kHueBucketCount = 12;
+constexpr int kNeutralBucketIndex = kHueBucketCount;
+constexpr int kAlphaCutoff = 128;
+constexpr float kMinValue = 0.15f;
+constexpr float kMaxValue = 0.95f;
+constexpr float kMinSaturation = 0.18f;
+constexpr float kScoreNeutralWeight = 0.5f;
+constexpr float kMinDisplaySaturation = 0.55f;
+constexpr float kDisplayValueMin = 0.65f;
+constexpr float kDisplayValueMax = 0.90f;
+constexpr float kFallbackHue = 0.6f;
+}
+
 QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
 {
     if (imagePathOrUrl.isEmpty())
@@ -22,7 +38,7 @@ QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
         return {};
 
     // Downscale for fast sampling
-    reader.setScaledSize(QSize(64, 64));
+    reader.setScaledSize(QSize(kSampleSize, kSampleSize));
     QImage img = reader.read();
     if (img.isNull())
         return {};
@@ -36,8 +52,8 @@ QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
         float totalSat = 0;
     };
 
-    // 12 hue buckets (30 deg each) + 1 neutral bucket
-    std::vector<Bucket> buckets(13);
+    // hue buckets (30 deg each) + 1 neutral bucket
+    std::vector<Bucket> buckets(kNeutralBucketIndex + 1);
 
     const int width = img.width();
     const int height = img.height();
@@ -48,7 +64,7 @@ QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
         for (int x = 0; x < width; ++x)
         {
             const QRgb pixel = scan[x];
-            if (qAlpha(pixel) < 128)
+            if (qAlpha(pixel) < kAlphaCutoff)
                 continue;
 
             QColor c(pixel);
@@ -57,17 +73,17 @@ QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
             float v = c.valueF();
 
             // Skip pure blacks or pure whites
-            if (v < 0.15f || v > 0.95f || s < 0.18f || h < 0.0f)
+            if (v < kMinValue || v > kMaxValue || s < kMinSaturation || h < 0.0f)
             {
-                buckets[12].sumR += qRed(pixel);
-                buckets[12].sumG += qGreen(pixel);
-                buckets[12].sumB += qBlue(pixel);
-                buckets[12].totalSat += s;
-                buckets[12].count++;
+                buckets[kNeutralBucketIndex].sumR += qRed(pixel);
+                buckets[kNeutralBucketIndex].sumG += qGreen(pixel);
+                buckets[kNeutralBucketIndex].sumB += qBlue(pixel);
+                buckets[kNeutralBucketIndex].totalSat += s;
+                buckets[kNeutralBucketIndex].count++;
                 continue;
             }
 
-            int bucketIdx = std::clamp(static_cast<int>(h * 12.0f), 0, 11);
+            int bucketIdx = std::clamp(static_cast<int>(h * static_cast<float>(kHueBucketCount)), 0, kHueBucketCount - 1);
             buckets[bucketIdx].sumR += qRed(pixel);
             buckets[bucketIdx].sumG += qGreen(pixel);
             buckets[bucketIdx].sumB += qBlue(pixel);
@@ -80,12 +96,12 @@ QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
     int bestBucket = -1;
     float bestScore = -1.0f;
 
-    for (int i = 0; i < 12; ++i)
+    for (int i = 0; i < kHueBucketCount; ++i)
     {
         if (buckets[i].count == 0)
             continue;
         float avgSat = buckets[i].totalSat / buckets[i].count;
-        float score = static_cast<float>(buckets[i].count) * (0.5f + avgSat);
+        float score = static_cast<float>(buckets[i].count) * (kScoreNeutralWeight + avgSat);
         if (score > bestScore)
         {
             bestScore = score;
@@ -96,8 +112,8 @@ QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
     // Fall back to neutral bucket if no colorful bucket found
     if (bestBucket == -1)
     {
-        if (buckets[12].count > 0)
-            bestBucket = 12;
+        if (buckets[kNeutralBucketIndex].count > 0)
+            bestBucket = kNeutralBucketIndex;
         else
             return {};
     }
@@ -110,7 +126,7 @@ QColor ColorExtractor::extractDominantColor(const QString &imagePathOrUrl)
     QColor dominant(r, g, blue);
     // ponytail: ensure minimum saturation and brightness so UI accent remains legible
     float h = dominant.hsvHueF();
-    float s = std::max(dominant.hsvSaturationF(), 0.55f);
-    float v = std::clamp(dominant.valueF(), 0.65f, 0.90f);
-    return QColor::fromHsvF(h < 0.0f ? 0.6f : h, s, v);
+    float s = (std::max)(dominant.hsvSaturationF(), kMinDisplaySaturation);
+    float v = std::clamp(dominant.valueF(), kDisplayValueMin, kDisplayValueMax);
+    return QColor::fromHsvF(h < 0.0f ? kFallbackHue : h, s, v);
 }

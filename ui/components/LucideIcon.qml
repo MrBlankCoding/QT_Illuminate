@@ -17,10 +17,11 @@ Item {
         id: img
         anchors.fill: parent
         source: root.source
+        sourceSize.width: root.size * 2
+        sourceSize.height: root.size * 2
         visible: false
         fillMode: Image.PreserveAspectFit
         smooth: true
-        mipmap: true
     }
 
     MultiEffect {

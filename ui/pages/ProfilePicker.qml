@@ -7,6 +7,15 @@ pragma ComponentBehavior: Bound
 
 ApplicationWindow {
     id: root
+    readonly property var avatarColors: [
+        Theme.accent, "#2DA7A1", "#F3A43B", "#E86F67",
+        "#8A6CFF", "#4A90E2", "#69B578", "#D96ACF"
+    ]
+
+    // keep the last spawned browser window so we can drop it when the
+    // user picks another profile; unparented createObject() leaks otherwise.
+    property var savedWin: null
+
     width: 640
     height: 480
     minimumWidth: 520
@@ -16,27 +25,29 @@ ApplicationWindow {
     flags: Qt.FramelessWindowHint | Qt.Window
     color: "transparent"
 
-    readonly property var avatarColors: [
-        Theme.accent, "#2DA7A1", "#F3A43B", "#E86F67",
-        "#8A6CFF", "#4A90E2", "#69B578", "#D96ACF"
-    ]
-
     function avatarColorFor(profile) {
         return profile && profile.color && profile.color.length > 0
             ? profile.color
             : root.avatarColors[0]
     }
 
-    Component {
-        id: browserWindowComp
-        BrowserWindow {}
-    }
-
     function openProfile(profile) {
         profileManager.activeProfile = profile;
-        var win = browserWindowComp.createObject(null);
-        win.showMaximized();
+        const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/BrowserWindow.qml");
+        if (component.status !== Component.Ready)
+            return;
+        const w = component.createObject(null);
+        if (!w)
+            return;
+        if (root.savedWin)
+            root.savedWin.deleteLater();
+        root.savedWin = w;
+        w.closing.connect(function () {
+            root.savedWin = null;
+            root.visible = true;
+        });
         root.visible = false;
+        w.showMaximized();
     }
 
     // rounded background (behind content, in front of transparent window)
@@ -75,7 +86,6 @@ ApplicationWindow {
         }
 
         Flickable {
-            id: gridScroll
             Layout.fillWidth: true
             Layout.preferredHeight: Math.min(profileGrid.implicitHeight, root.height * 0.4)
             contentWidth: width
@@ -97,15 +107,16 @@ ApplicationWindow {
                         delegate: Item {
                             id: tileWrapper
                             required property var modelData
-                            Layout.preferredWidth: 120
-                            Layout.preferredHeight: 128
+                            Layout.preferredWidth: profileTile.implicitWidth
+                            Layout.preferredHeight: profileTile.implicitHeight
 
                             ProfileTile {
+                                id: profileTile
                                 anchors.fill: parent
                                 profile: tileWrapper.modelData
                                 avatarColor: root.avatarColorFor(tileWrapper.modelData)
                                 onTileClicked: root.openProfile(tileWrapper.modelData)
-                                 onTileRightClicked: profileContextMenu.open(tileWrapper.modelData, position.x, position.y)
+                                onTileRightClicked: profileContextMenu.open(tileWrapper.modelData, position.x, position.y)
                             }
                         }
                     }
@@ -251,7 +262,9 @@ ApplicationWindow {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
         readonly property string trimmedName: nameField.text.trim()
-        property string selectedColor: root.avatarColors[profileRepeater.count % root.avatarColors.length]
+        // default picked on open(); writing it imperatively kills declarative
+        // bindings, so keep it plain and seed it in onOpened.
+        property string selectedColor: ""
         readonly property color previewColor: selectedColor
 
         function confirm() {

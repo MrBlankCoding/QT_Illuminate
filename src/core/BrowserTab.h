@@ -5,8 +5,6 @@
 #include <QString>
 
 #include <QWebEngineProfile>
-#include <QWebEnginePage>
-#include <QWebChannel>
 
 // represents a tab.
 // tab?
@@ -25,7 +23,6 @@ public:
     QString iconUrl() const;
     int progress() const; // 0–100
     bool loading() const;
-    QUrl pendingUrl() const;
 
     // called by browser controller
     void setUrl(const QUrl &url);
@@ -37,12 +34,10 @@ public:
     QWebEngineProfile *webEngineProfile() const;
 
     // navigate time!
-    // pendingUrl + emits loadRequested.
+    // emits loadRequested.
     void requestLoad(const QUrl &url);
 
-    Q_INVOKABLE void setWebEnginePage(QWebEnginePage *page);
-
-signals:
+    signals:
     void loadRequested(const QUrl &url); // -> QML WebEngineView
     void urlChanged(const QUrl &url);
     void titleChanged(const QString &title);
@@ -56,7 +51,5 @@ private:
     QString m_iconUrl;
     int m_progress = 0;
     bool m_loading = false;
-    QUrl m_pendingUrl;
     QWebEngineProfile *m_webEngineProfile;
-    QWebChannel *m_webChannel;
 };

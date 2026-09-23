@@ -6,8 +6,36 @@
 #include <QCoreApplication>
 #include <QSettings>
 #include <QDir>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QWebEngineSettings>
-#include <algorithm>
+
+void BrowserController::setProfile(Profile *profile)
+{
+    if (m_profile == profile)
+        return;
+
+    // persist the outgoing profile's tabs before swapping to the new one
+    if (m_profile)
+        saveSession();
+
+    m_profile = profile;
+    m_webEngineProfile = profile ? profile->webEngineProfile() : nullptr;
+
+    delete m_settings;
+    m_settings = profile
+                     ? new QSettings(profile->path() + QDir::separator() + "settings.ini",
+                                     QSettings::IniFormat, this)
+                     : nullptr;
+
+    m_model->clear();
+    updateAdaptiveAccent();
+
+    if (m_webEngineProfile)
+        restoreSession();
+}
 
 BrowserController::BrowserController(Profile *profile, QObject *parent)
     : QObject(parent), m_profile(profile), m_webEngineProfile(profile->webEngineProfile()), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_model(new TabModel(this))
@@ -19,7 +47,7 @@ BrowserController::BrowserController(Profile *profile, QObject *parent)
         rewireActiveTab(); });
 
     updateAdaptiveAccent();
-    newTab();
+    restoreSession();
 }
 
 void BrowserController::rewireActiveTab()
@@ -75,11 +103,15 @@ int BrowserController::activeProgress() const
 
 QString BrowserController::newTabBackground() const
 {
+    if (!m_settings)
+        return {};
     return m_settings->value(QStringLiteral("newTabBackground"), QString()).toString();
 }
 
 void BrowserController::setNewTabBackground(const QString &path)
 {
+    if (!m_settings)
+        return;
     if (m_settings->value(QStringLiteral("newTabBackground")).toString() != path)
     {
         m_settings->setValue(QStringLiteral("newTabBackground"), path);
@@ -115,11 +147,15 @@ void BrowserController::updateAdaptiveAccent()
 
 QString BrowserController::themeMode() const
 {
+    if (!m_settings)
+        return QStringLiteral("system");
     return m_settings->value(QStringLiteral("themeMode"), QStringLiteral("system")).toString();
 }
 
 void BrowserController::setThemeMode(const QString &mode)
 {
+    if (!m_settings)
+        return;
     if (m_settings->value(QStringLiteral("themeMode"), QStringLiteral("system")).toString() != mode)
     {
         m_settings->setValue(QStringLiteral("themeMode"), mode);
@@ -127,18 +163,101 @@ void BrowserController::setThemeMode(const QString &mode)
     }
 }
 
+// session persistence (per-profile)
+
+QString BrowserController::sessionFilePath() const
+{
+    if (!m_profile)
+        return {};
+    return m_profile->path() + QDir::separator() + QStringLiteral("session.json");
+}
+
+void BrowserController::saveSession() const
+{
+    const QString path = sessionFilePath();
+    if (path.isEmpty())
+        return;
+
+    QJsonArray tabsArray;
+    for (int i = 0; i < m_model->rowCount(); ++i)
+    {
+        BrowserTab *tab = m_model->tabAt(i);
+        const QUrl url = tab ? tab->url() : QUrl();
+        if (!tab || !url.isValid() || url.isEmpty())
+            continue;
+
+        QJsonObject obj;
+        obj[QStringLiteral("url")] = url.toString();
+        obj[QStringLiteral("title")] = tab->title();
+        tabsArray.append(obj);
+    }
+
+    QJsonObject root;
+    root[QStringLiteral("activeIndex")] = m_model->activeIndex();
+    root[QStringLiteral("tabs")] = tabsArray;
+
+    QFile file(path);
+    if (!file.open(QFile::WriteOnly | QFile::Text | QFile::Truncate))
+    {
+        qWarning() << "Could not open session.json for writing:" << file.errorString();
+        return;
+    }
+    file.write(QJsonDocument(root).toJson());
+}
+
+void BrowserController::restoreSession()
+{
+    const QString path = sessionFilePath();
+    QFile file(path);
+    if (path.isEmpty() || !file.open(QFile::ReadOnly | QFile::Text))
+    {
+        newTab();
+        return;
+    }
+
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+
+    const QJsonArray tabsArray = doc.isObject() ? doc.object()[QStringLiteral("tabs")].toArray() : QJsonArray();
+    for (const QJsonValue &value : tabsArray)
+    {
+        if (!value.isObject())
+            continue;
+        const QJsonObject obj = value.toObject();
+        const QUrl url(obj[QStringLiteral("url")].toString());
+        if (!url.isValid() || m_model->rowCount() >= TabModel::kMaxTabs)
+            continue;
+
+        if (BrowserTab *tab = m_model->addTab(url, m_webEngineProfile))
+            tab->setTitle(obj[QStringLiteral("title")].toString());
+    }
+
+    if (m_model->rowCount() == 0)
+    {
+        newTab();
+        return;
+    }
+
+    int activeIndex = doc.object()[QStringLiteral("activeIndex")].toInt(0);
+    if (activeIndex < 0 || activeIndex >= m_model->rowCount())
+        activeIndex = 0;
+    m_model->setActiveIndex(activeIndex);
+}
+
 // tab managment
 
 void BrowserController::newTab(const QString &urlStr)
 {
+    if (m_model->rowCount() >= TabModel::kMaxTabs || !m_webEngineProfile)
+        return;
+
     const QUrl url = urlStr.isEmpty()
                          ? QUrl(NEW_TAB_URL)
                          : UrlResolver::resolve(urlStr);
 
-    const int newIndex = m_model->rowCount();
-    m_model->addTab(url, m_webEngineProfile);
-    m_model->setActiveIndex(newIndex);
-    rewireActiveTab();
+    if (!m_model->addTab(url, m_webEngineProfile))
+        return;
+    m_model->setActiveIndex(m_model->rowCount() - 1);
 }
 
 void BrowserController::closeTab(int index)
@@ -150,16 +269,12 @@ void BrowserController::closeTab(int index)
         return;
     }
     m_model->removeTab(index);
-    m_model->setActiveIndex(std::min(index, m_model->rowCount() - 1));
 }
 
 void BrowserController::activateTab(int index)
 {
     if (index >= 0 && index < m_model->rowCount())
-    {
         m_model->setActiveIndex(index);
-        rewireActiveTab();
-    }
 }
 
 void BrowserController::cycleTab(int delta)

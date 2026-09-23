@@ -10,6 +10,7 @@ Item {
     signal requestSystemResize(int edges)
 
     MouseArea { // left
+        objectName: "leftGrip"
         height: parent.height - resizeGripsRoot.cornerGrip * 2
         width: resizeGripsRoot.edgeGrip
         anchors.left: parent.left
@@ -18,6 +19,7 @@ Item {
         onPressed: resizeGripsRoot.requestSystemResize(Qt.LeftEdge)
     }
     MouseArea { // right
+        objectName: "rightGrip"
         height: parent.height - resizeGripsRoot.cornerGrip * 2
         width: resizeGripsRoot.edgeGrip
         anchors.right: parent.right
@@ -26,6 +28,7 @@ Item {
         onPressed: resizeGripsRoot.requestSystemResize(Qt.RightEdge)
     }
     MouseArea { // bottom
+        objectName: "bottomGrip"
         width: parent.width - resizeGripsRoot.cornerGrip * 2
         height: resizeGripsRoot.edgeGrip
         anchors.bottom: parent.bottom
@@ -34,6 +37,7 @@ Item {
         onPressed: resizeGripsRoot.requestSystemResize(Qt.BottomEdge)
     }
     MouseArea { // top-left corner
+        objectName: "topLeftGrip"
         width: resizeGripsRoot.cornerGrip
         height: resizeGripsRoot.cornerGrip
         anchors.top: parent.top
@@ -42,6 +46,7 @@ Item {
         onPressed: resizeGripsRoot.requestSystemResize(Qt.TopEdge | Qt.LeftEdge)
     }
     MouseArea { // top-right corner
+        objectName: "topRightGrip"
         width: resizeGripsRoot.cornerGrip
         height: resizeGripsRoot.cornerGrip
         anchors.top: parent.top
@@ -50,6 +55,7 @@ Item {
         onPressed: resizeGripsRoot.requestSystemResize(Qt.TopEdge | Qt.RightEdge)
     }
     MouseArea { // bottom-left corner
+        objectName: "bottomLeftGrip"
         width: resizeGripsRoot.cornerGrip
         height: resizeGripsRoot.cornerGrip
         anchors.bottom: parent.bottom
@@ -58,6 +64,7 @@ Item {
         onPressed: resizeGripsRoot.requestSystemResize(Qt.BottomEdge | Qt.LeftEdge)
     }
     MouseArea { // bottom-right corner
+        objectName: "bottomRightGrip"
         width: resizeGripsRoot.cornerGrip
         height: resizeGripsRoot.cornerGrip
         anchors.bottom: parent.bottom

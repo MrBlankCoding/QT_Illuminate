@@ -5,12 +5,8 @@ import QT_Illuminate.ui
 // pill over active page
 Item {
     id: root
-    anchors.bottom: parent.bottom
-    anchors.right: parent.right
-    anchors.bottomMargin: 16
-    anchors.rightMargin: 16
-    width: row.implicitWidth + 14
-    height: 30
+    implicitWidth: row.implicitWidth + 14
+    implicitHeight: 30
     z: 100
 
     property var webView: null
@@ -44,6 +40,7 @@ Item {
             spacing: 6
 
             LucideIcon {
+                objectName: "zoomOutButton"
                 size: 13
                 source: "qrc:/QT_Illuminate/ui/ui/icons/minus.svg"
                 color: zoomOutHover.hovered ? Theme.text : Theme.textMuted
@@ -58,6 +55,7 @@ Item {
             }
 
             Text {
+                objectName: "zoomResetButton"
                 text: root.zoomPercent + "%"
                 color: resetHover.hovered ? Theme.text : Theme.textMuted
                 font.pixelSize: Theme.fontSizeS
@@ -75,6 +73,7 @@ Item {
             }
 
             LucideIcon {
+                objectName: "zoomInButton"
                 size: 13
                 source: "qrc:/QT_Illuminate/ui/ui/icons/plus.svg"
                 color: zoomInHover.hovered ? Theme.text : Theme.textMuted

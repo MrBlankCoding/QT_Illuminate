@@ -13,23 +13,6 @@ bool InternalPageManager::isInternal(const QString &url)
            trimmed.startsWith(QLatin1String("illuminate://"), Qt::CaseInsensitive);
 }
 
-QUrl InternalPageManager::resolve(const QString &input)
-{
-    const QString t = input.trimmed().toLower();
-    if (t.isEmpty())
-        return {};
-
-    if (t == QLatin1String("newtab") || t == QLatin1String("newtab://newtab"))
-        return QUrl(QStringLiteral("newtab://newtab"));
-
-    if (t.startsWith(QLatin1String("illuminate://")))
-    {
-        return QUrl(t);
-    }
-
-    return {};
-}
-
 QString InternalPageManager::qmlSource(const QString &url)
 {
     const QString t = url.trimmed().toLower();

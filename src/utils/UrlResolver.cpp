@@ -24,7 +24,7 @@ namespace UrlResolver
         if (trimmed.contains(' ') || !trimmed.contains('.'))
             return false;
         const int dot = trimmed.indexOf('.');
-        return dot > 0 && dot < trimmed.length() - 1;
+        return dot > 0 && dot < trimmed.size() - 1;
     }
 
     QUrl resolve(const QString &input)

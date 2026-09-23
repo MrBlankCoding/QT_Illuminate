@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QDebug>
+#include <algorithm>
 
 BrowserLogger &BrowserLogger::instance()
 {
@@ -25,7 +26,6 @@ BrowserLogger::~BrowserLogger()
     QMutexLocker lock(&m_mutex);
     if (m_file.isOpen())
     {
-        m_stream.flush();
         m_file.close();
     }
 }
@@ -45,7 +45,6 @@ void BrowserLogger::openLogFile()
         fprintf(stderr, "[BrowserLogger] Failed to open log file: %s\n",
                 qPrintable(m_logPath));
     }
-    m_stream.setDevice(&m_file);
 }
 
 void BrowserLogger::rotateIfNeeded()
@@ -54,7 +53,6 @@ void BrowserLogger::rotateIfNeeded()
     if (m_file.size() < kMaxFileBytes)
         return;
 
-    m_stream.flush();
     m_file.close();
 
     const QString rotated = m_logPath + QStringLiteral(".1");
@@ -67,19 +65,18 @@ void BrowserLogger::rotateIfNeeded()
         fprintf(stderr, "[BrowserLogger] Failed to open rotated log file: %s\n",
                 qPrintable(m_logPath));
     }
-    m_stream.setDevice(&m_file);
 }
 
 void BrowserLogger::log(Level level, const QString &category, const QString &message)
 {
     static const char *levelStr[] = {"DEBUG", "INFO ", "WARN ", "ERROR"};
 
-    const QString timestamp = QDateTime::currentDateTime()
+    const QString timestamp = QDateTime::currentDateTimeUtc()
                                   .toString(QStringLiteral("yyyy-MM-dd hh:mm:ss.zzz"));
 
     const QString line = QStringLiteral("[%1] [%2] [%3] %4")
                              .arg(timestamp)
-                             .arg(QLatin1String(levelStr[qBound(0, static_cast<int>(level), 3)]))
+                             .arg(QLatin1String(levelStr[std::clamp(static_cast<int>(level), 0, 3)]))
                              .arg(category, -16) // left-align category in 16 chars
                              .arg(message);
 
@@ -89,8 +86,8 @@ void BrowserLogger::log(Level level, const QString &category, const QString &mes
     if (m_file.isOpen())
     {
         rotateIfNeeded();
-        m_stream << line << '\n';
-        m_stream.flush();
+        m_file.write(line.toUtf8() + '\n');
+        m_file.flush();
     }
 
     // mirror to console

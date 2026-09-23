@@ -3,6 +3,8 @@ import QtQuick
 
 // centrla theme
 QtObject {
+    id: root
+
     // theme mode: "system" | "dark" | "light"
     property string mode: (typeof browser !== "undefined" && browser && browser.themeMode) ? browser.themeMode : "system"
 

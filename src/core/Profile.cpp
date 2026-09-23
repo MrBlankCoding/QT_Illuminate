@@ -8,7 +8,7 @@
 
 Profile::Profile(const QString &id, const QString &name, const QString &path,
                  const QString &color, QObject *parent)
-    : QObject(parent), m_id(id), m_name(name), m_color(color), m_path(path), m_settings(nullptr), m_webEngineProfile(nullptr)
+    : QObject(parent), m_id(id), m_name(name), m_color(color), m_path(path), m_webEngineProfile(nullptr)
 {
     QDir profileDir(m_path);
     if (!profileDir.exists())
@@ -56,16 +56,6 @@ void Profile::setColor(const QString &color)
 
     m_color = color;
     emit colorChanged();
-}
-
-QSettings *Profile::settings()
-{
-    if (!m_settings)
-    {
-        QString settingsPath = m_path + QDir::separator() + "settings.ini";
-        m_settings = new QSettings(settingsPath, QSettings::IniFormat, const_cast<Profile *>(this));
-    }
-    return m_settings;
 }
 
 QWebEngineProfile *Profile::webEngineProfile()

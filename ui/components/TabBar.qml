@@ -5,12 +5,19 @@ import QT_Illuminate.ui
 
 Item {
     id: root
+    property bool isDragging: false
     height: Theme.tabBarHeight
     readonly property real availableForTabs: Math.max(0, width - trafficLightSpacer.width - newTabButton.width - (Qt.platform.os === "windows" ? Theme.sysControlW : 0))
 
+    Timer {
+        id: dragSettle
+        interval: 300
+        repeat: false
+        onTriggered: root.isDragging = false
+    }
+
     // background fill color
     Rectangle {
-        id: bg
         anchors.fill: parent
         color: Theme.tabStripBg
     }
@@ -78,6 +85,7 @@ Item {
             readonly property real tabWidth: Math.min(Theme.tabMaxWidth, Math.max(Theme.tabMinWidth, root.availableForTabs / Math.max(count, 1)))
 
             displaced: Transition {
+                enabled: !root.isDragging && tabList.count > 0
                 NumberAnimation {
                     properties: "x"
                     duration: Theme.durationMid
@@ -101,6 +109,7 @@ Item {
                 }
             }
             move: Transition {
+                enabled: !root.isDragging && tabList.count > 0
                 NumberAnimation {
                     properties: "x"
                     duration: Theme.durationMid
@@ -113,9 +122,6 @@ Item {
                 width: tabList.tabWidth
                 tabCount: tabList.count
 
-                tabTitle: model.title
-                tabIconUrl: model.iconUrl
-                tabLoading: model.loading
                 isActive: index === tabModel.activeIndex
 
                 // active tab renders on top
@@ -124,7 +130,11 @@ Item {
                 onActivated: browser.activateTab(index)
                 onCloseClicked: browser.closeTab(index)
 
-                onReorderRequested: targetIndex => tabModel.moveTab(index, targetIndex)
+                onReorderRequested: (targetIndex) => {
+                    root.isDragging = true;
+                    dragSettle.restart();
+                    tabModel.moveTab(index, targetIndex);
+                }
             }
         }
 

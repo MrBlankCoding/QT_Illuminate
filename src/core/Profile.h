@@ -3,7 +3,6 @@
 
 #include <QObject>
 #include <QString>
-#include <QSettings>
 #include <QWebEngineProfile>
 
 class Profile : public QObject
@@ -24,12 +23,11 @@ public:
     void setName(const QString &name);
     QString color() const;
     void setColor(const QString &color);
-    QString path() const;
+QString path() const;
 
-    QSettings *settings();
     QWebEngineProfile *webEngineProfile();
 
-signals:
+    signals:
     void nameChanged();
     void colorChanged();
 
@@ -38,7 +36,6 @@ private:
     QString m_name;
     QString m_color;
     QString m_path;
-    QSettings *m_settings;
     QWebEngineProfile *m_webEngineProfile;
 };
 

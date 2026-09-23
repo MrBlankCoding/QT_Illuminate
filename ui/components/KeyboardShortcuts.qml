@@ -1,7 +1,7 @@
 import QtQuick
 
 Item {
-    id: keyboardShortcutsRoot
+    id: root
 
     required property var toolbar
     required property var findBar

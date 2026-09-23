@@ -2,7 +2,6 @@
 
 #include <QObject>
 #include <QFile>
-#include <QTextStream>
 #include <QMutex>
 #include <QString>
 #include <QDateTime>
@@ -58,11 +57,8 @@ private:
                                  const QString &msg);
 
     QFile m_file;
-    QTextStream m_stream;
     QMutex m_mutex;
     QString m_logPath;
-    int m_unflushedCount = 0;
 
     static constexpr qint64 kMaxFileBytes = 2 * 1024 * 1024; // 2 MB
-    static constexpr int kFlushEvery = 25;                   // Debug/Info batch size
 };

@@ -3,6 +3,8 @@ import QtQuick.Layouts
 import QtWebEngine
 import QT_Illuminate.ui
 
+pragma ComponentBehavior: Bound
+
 // downloads
 // UI shows when one has started
 Item {
@@ -245,7 +247,7 @@ Item {
                         Rectangle {
                             visible: model.state === WebEngineDownloadRequest.DownloadInProgress
                             Layout.fillWidth: true
-                            height: 3
+                            Layout.preferredHeight: 3
                             radius: 1.5
                             color: Theme.progressBg
 

@@ -11,6 +11,7 @@
 ProfileManager::ProfileManager(QObject *parent)
     : QObject(parent), m_activeProfile(nullptr)
 {
+    migrateLegacyProfileData();
     loadProfiles();
     if (m_profiles.isEmpty())
     {
@@ -21,11 +22,6 @@ ProfileManager::ProfileManager(QObject *parent)
     {
         setActiveProfile(m_profiles.first());
     }
-}
-
-ProfileManager::~ProfileManager()
-{
-    qDeleteAll(m_profiles);
 }
 
 QVariantList ProfileManager::profiles() const
@@ -52,11 +48,24 @@ void ProfileManager::setActiveProfile(Profile *profile)
     emit activeProfileChanged();
 }
 
+void ProfileManager::connectProfileSignals(Profile *profile)
+{
+    connect(profile, &Profile::nameChanged, this, &ProfileManager::saveProfiles);
+    connect(profile, &Profile::colorChanged, this, &ProfileManager::saveProfiles);
+}
+
 Profile *ProfileManager::createProfile(const QString &name, const QString &color)
 {
+    if (m_profiles.size() >= kMaxProfiles)
+    {
+        qWarning() << "Profile limit reached, not creating another profile";
+        return nullptr;
+    }
+
     QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     QString profilePath = profilesDirectory() + QDir::separator() + id;
     Profile *profile = new Profile(id, name, profilePath, color, this);
+    connectProfileSignals(profile);
     m_profiles.append(profile);
     m_profileMap.insert(id, profile);
     saveProfiles();
@@ -67,26 +76,24 @@ Profile *ProfileManager::createProfile(const QString &name, const QString &color
 void ProfileManager::deleteProfile(const QString &id)
 {
     Profile *profile = m_profileMap.value(id);
-    if (profile)
+    if (!profile)
+        return;
+
+    if (m_activeProfile == profile)
     {
-        m_profiles.removeOne(profile);
-        m_profileMap.remove(id);
-        QDir profileDir(profile->path());
-        profileDir.removeRecursively();
-        profile->deleteLater();
-        saveProfiles();
-        emit profilesChanged();
-
-        if (m_activeProfile == profile)
-        {
-            setActiveProfile(m_profiles.isEmpty() ? nullptr : m_profiles.first());
-        }
+        qWarning() << "Cannot delete the active profile:" << id
+                   << ". Switch to another profile first.";
+        return;
     }
-}
 
-Profile *ProfileManager::getProfile(const QString &id) const
-{
-    return m_profileMap.value(id);
+    m_profiles.removeOne(profile);
+    m_profileMap.remove(id);
+    QDir profileDir(profile->path());
+    if (!profileDir.removeRecursively())
+        qWarning() << "Failed to remove profile directory:" << profile->path();
+    profile->deleteLater();
+    saveProfiles();
+    emit profilesChanged();
 }
 
 void ProfileManager::loadProfiles()
@@ -115,17 +122,23 @@ void ProfileManager::loadProfiles()
     QJsonArray profileArray = doc.array();
     for (const QJsonValue &value : profileArray)
     {
+        if (m_profiles.size() >= kMaxProfiles)
+            break;
+
         if (value.isObject())
         {
             QJsonObject obj = value.toObject();
             QString id = obj[QStringLiteral("id")].toString();
             QString name = obj[QStringLiteral("name")].toString();
-            QString path = obj[QStringLiteral("path")].toString();
             QString color = obj[QStringLiteral("color")].toString();
+            // Path is always re-derived from the id rather than trusted from disk,
+            // so profiles keep working even if profilesDirectory() ever moves.
+            QString path = profilesDirectory() + QDir::separator() + id;
 
-            if (!id.isEmpty() && !name.isEmpty() && !path.isEmpty())
+            if (!id.isEmpty() && !name.isEmpty())
             {
                 Profile *profile = new Profile(id, name, path, color, this);
+                connectProfileSignals(profile);
                 m_profiles.append(profile);
                 m_profileMap.insert(id, profile);
             }
@@ -158,17 +171,46 @@ void ProfileManager::saveProfiles()
         return;
     }
 
-    file.write(doc.toJson());
+    const QByteArray payload = doc.toJson();
+    if (file.write(payload) != payload.size() || !file.flush())
+        qWarning() << "Failed to write profiles.json:" << file.errorString();
     file.close();
 }
 
 QString ProfileManager::profilesDirectory() const
 {
-    QString dataLocation = QDir::currentPath() + QDir::separator() + ".profiles";
+    QString dataLocation = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+                            QDir::separator() + QStringLiteral("profiles");
     QDir dir(dataLocation);
     if (!dir.exists())
     {
         dir.mkpath(".");
     }
     return dataLocation;
+}
+
+void ProfileManager::migrateLegacyProfileData()
+{
+    // Older builds stored profile data under QDir::currentPath() + "/.profiles",
+    // which resolved to wherever the binary happened to be launched from (often
+    // the developer's project directory) instead of a proper app data location.
+    // Move any such data into the new location so existing profiles aren't lost.
+    const QString newDir = profilesDirectory();
+    if (QFile::exists(newDir + QDir::separator() + QStringLiteral("profiles.json")))
+        return; // already migrated (or already has data of its own)
+
+    const QString legacyDir = QDir::currentPath() + QDir::separator() + QStringLiteral(".profiles");
+    if (!QFile::exists(legacyDir + QDir::separator() + QStringLiteral("profiles.json")))
+        return; // nothing to migrate
+
+    QDir legacy(legacyDir);
+    const QStringList entries = legacy.entryList(QDir::NoDotAndDotDot | QDir::AllEntries);
+    for (const QString &entry : entries)
+    {
+        const QString from = legacyDir + QDir::separator() + entry;
+        const QString to = newDir + QDir::separator() + entry;
+        if (!QDir().rename(from, to))
+            qWarning() << "Failed to migrate legacy profile data:" << from << "->" << to;
+    }
+    QDir().rmdir(legacyDir);
 }

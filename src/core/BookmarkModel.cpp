@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QDebug>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -37,18 +38,18 @@ QVariant BookmarkModel::data(const QModelIndex &index, int role) const
         return b.url;
     case IconUrlRole:
         return b.iconUrl;
-    default:
-        return {};
     }
+    return {};
 }
 
 QHash<int, QByteArray> BookmarkModel::roleNames() const
 {
-    return {
+    static const QHash<int, QByteArray> roles = {
         {TitleRole, "title"},
         {UrlRole, "url"},
         {IconUrlRole, "iconUrl"},
     };
+    return roles;
 }
 
 int BookmarkModel::indexOfUrl(const QString &url) const
@@ -113,7 +114,7 @@ void BookmarkModel::removeBookmark(int index)
     save();
 }
 
-QVariantMap BookmarkModel::get(int index) const
+QVariantMap BookmarkModel::itemAt(int index) const
 {
     if (index < 0 || index >= m_bookmarks.size())
         return {};
@@ -140,16 +141,19 @@ void BookmarkModel::load()
     for (const QJsonValue &v : doc.array())
     {
         const QJsonObject o = v.toObject();
+        const QString url = o.value("url").toString().trimmed();
+        if (url.isEmpty())
+            continue;
         m_bookmarks.append({
             o.value("title").toString(),
-            o.value("url").toString(),
+            url,
             o.value("iconUrl").toString(),
         });
     }
     endResetModel();
 }
 
-void BookmarkModel::save() const
+bool BookmarkModel::save() const
 {
     QJsonArray arr;
     for (const Bookmark &b : m_bookmarks)
@@ -163,6 +167,15 @@ void BookmarkModel::save() const
 
     QFile file(m_storagePath);
     if (!file.open(QIODevice::WriteOnly))
-        return;
-    file.write(QJsonDocument(arr).toJson(QJsonDocument::Compact));
+        return false;
+
+    const QByteArray payload = QJsonDocument(arr).toJson(QJsonDocument::Compact);
+    if (file.write(payload) != payload.size() || !file.flush())
+    {
+        const QString msg = QStringLiteral("Failed to write bookmarks to %1: %2")
+                                .arg(m_storagePath, file.errorString());
+        qWarning("%s", qPrintable(msg));
+        return false;
+    }
+    return true;
 }

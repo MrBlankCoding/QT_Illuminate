@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Layouts
 import QT_Illuminate.ui
 
+pragma ComponentBehavior: Bound
+
 Rectangle {
     id: root
 
@@ -38,6 +40,9 @@ Rectangle {
             model: root.model
 
             delegate: Rectangle {
+                required property int index
+                required property var model
+                objectName: "suggestionRow"
                 width: suggestionsColumn.width
                 height: 32
                 radius: 6

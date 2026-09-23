@@ -1,7 +1,10 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import QtWebEngine
 import QT_Illuminate.ui
+
+pragma ComponentBehavior: Bound
 
 Window {
     id: root
@@ -13,62 +16,51 @@ Window {
     color: Theme.bg
     flags: Qt.platform.os === "windows" ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
 
-    Loader {
-        id: browserWindowLoader
-        active: false
-        source: "qrc:/QT_Illuminate/ui/ui/pages/BrowserWindow.qml"
-    }
-
-    Loader {
-        id: profilePickerLoader
-        active: false
-        source: "qrc:/QT_Illuminate/ui/ui/pages/ProfilePicker.qml"
-    }
-
     function switchProfile(profile) {
         if (!profile)
             return;
         profileManager.activeProfile = profile;
-        browserWindowLoader.active = true;
-        if (browserWindowLoader.item) {
-            browserWindowLoader.item.showMaximized();
-        }
-        root.close();
+        const wv = viewStack.activeWebView;
+        if (wv && wv.url.toString() !== "")
+            wv.reload();
     }
 
     function openProfileSelector() {
-        profilePickerLoader.active = true;
-        if (profilePickerLoader.item) {
-            profilePickerLoader.item.show();
-        }
+        const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/ProfilePicker.qml");
+        if (component.status !== Component.Ready)
+            return;
+        const picker = component.createObject(null);
+        if (!picker)
+            return;
+        picker.show();
         root.close();
     }
 
     Component.onCompleted: {
         logger.info("BrowserWindow", "Window ready, platform=" + Qt.platform.os);
-        Qt.callLater(() => { browser.newTab("https://github.com/"); }, 0);
         if (typeof windowHelper !== "undefined" && typeof windowHelper.applyTitleBarStyle === "function")
             windowHelper.applyTitleBarStyle(root, Theme.tabBarHeight);
     }
 
-    Column {
+    ColumnLayout {
         anchors.fill: parent
+        spacing: 0
 
         // tab strip
         TabBar {
             id: tabBar
-            width: parent.width
+            Layout.fillWidth: true
         }
 
         // toolbar
         Toolbar {
             id: toolbar
-            width: parent.width
+            Layout.fillWidth: true
             z: 100
 
             currentUrl: browser.activeUrl === "newtab://newtab" ? "" : browser.activeUrl
             currentTitle: browser.activeTitle
-            currentIconUrl: tabModel.activeIndex >= 0 ? tabModel.get(tabModel.activeIndex).iconUrl : ""
+            currentIconUrl: tabModel.activeIndex >= 0 ? tabModel.itemAt(tabModel.activeIndex).iconUrl : ""
             isLoading: browser.activeLoading
             loadProgress: browser.activeProgress
             canGoBack: viewStack.activeWebView ? viewStack.activeWebView.canGoBack : false
@@ -87,14 +79,13 @@ Window {
         // content area
         Item {
             id: viewStack
-            width: parent.width
-            height: root.height - tabBar.height - toolbar.height
+            Layout.fillWidth: true
+            Layout.fillHeight: true
 
-            // sync by each tab's Binding below — itemAt() on the
-            // Repeater isn't itself a reactive property, so pushing the
-            // value from the active delegate is what keeps FindBar's
-            // webView from going stale when a tab loads or switches.
-            property var activeWebView: null
+            // tracks the active tab's page. itemAt() isn't reactive on its
+            // own, but tabSlot.webView is an alias to the loader's item, so
+            // the binding re-fires when the page loads or the tab switches.
+            readonly property var activeWebView: viewRepeater.itemAt(tabModel.activeIndex) ? viewRepeater.itemAt(tabModel.activeIndex).webView : null
 
             FindBar {
                 id: findBar
@@ -104,6 +95,9 @@ Window {
             ZoomIndicator {
                 id: zoomIndicator
                 webView: viewStack.activeWebView
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                anchors.margins: 16
             }
 
             DownloadsPanel {
@@ -123,6 +117,8 @@ Window {
 
                 Item {
                     id: tabSlot
+                    required property int index
+                    required property var model
                     anchors.fill: parent
                     visible: index === tabModel.activeIndex
 
@@ -130,18 +126,11 @@ Window {
                     property bool devToolsOpen: false
                     property alias webView: webLoader.item
 
-                    Binding {
-                        target: viewStack
-                        property: "activeWebView"
-                        value: tabSlot.webView
-                        when: tabSlot.visible
-                    }
-
                     Loader {
                         anchors.fill: parent
                         active: tabSlot.isInternalPage
                         visible: tabSlot.isInternalPage
-                        source: tabSlot.isInternalPage ? internalPages.qmlSource(model.url.toString()) : ""
+                        source: tabSlot.isInternalPage ? internalPages.qmlSource(tabSlot.model.url.toString()) : ""
                     }
 
                     Loader {
@@ -154,7 +143,7 @@ Window {
                         visible: !tabSlot.isInternalPage
 
                         onLoaded: {
-                            const u = model.url;
+                            const u = tabSlot.model.url;
                             if (u && u.toString() !== "" && !tabSlot.isInternalPage)
                                 item.url = u;
                         }
@@ -168,7 +157,7 @@ Window {
 
                                 // tied to active state
                                 // this could be for later a place to manage memory of hybernate
-                                visible: index === tabModel.activeIndex
+                                visible: tabSlot.index === tabModel.activeIndex
 
                                 // warnings/errors into the app logger. 0=Info,
                                 // 1=Warning, 2=Error.
@@ -192,7 +181,7 @@ Window {
                                         logger.info("WebView", "Tab " + index + " loading: " + webView.url);
                                 }
 
-                                onUrlChanged: function (url) {
+                                onUrlChanged: function () {
                                     browser.onUrlChanged(index, webView.url.toString());
                                     logger.debug("WebView", "Tab " + index + " url → " + webView.url);
                                 }
@@ -214,7 +203,6 @@ Window {
                                 ContextMenu {
                                     id: contextMenu
                                     webView: webView
-                                    request: request
                                     onToggleDevTools: tabSlot.devToolsOpen = !tabSlot.devToolsOpen
                                 }
 

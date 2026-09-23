@@ -2,16 +2,22 @@ import QtQuick
 import QtQuick.Layouts
 import QT_Illuminate.ui
 
+pragma ComponentBehavior: Bound
+
 // tabs
 // oh tab.
 Item {
     id: root
 
-    property string tabTitle: "New Tab"
-    property string tabIconUrl: ""
-    property bool tabLoading: false
+    required property var model
+    required property int index
+
+    property string tabTitle: model ? model.title : "New Tab"
+    property string tabIconUrl: model ? model.iconUrl : ""
+    property bool tabLoading: model ? model.loading : false
     property bool isActive: false
     property int tabCount: 1      // total tab count, for drag-reorder clamping
+    property bool faviconFailed: false
 
     signal activated
     signal closeClicked
@@ -22,6 +28,8 @@ Item {
     readonly property int inactiveBotInset: 4
     readonly property int shoulderW: Theme.tabCurveW   // width of the curved corner fill
     readonly property bool dragging: dragHandler.active
+    onTabIconUrlChanged: faviconFailed = root.tabIconUrl === ""
+
     transform: Translate {
         id: dragTranslate
     }
@@ -124,28 +132,32 @@ Item {
 
             // favicon & spinner
             Item {
-                width: 16
-                height: 16
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
                 Layout.alignment: Qt.AlignVCenter
 
                 Image {
+                    id: faviconImg
                     anchors.fill: parent
-                    source: root.tabIconUrl
-                    visible: !root.tabLoading && root.tabIconUrl !== ""
+                    sourceSize.width: 32
+                    sourceSize.height: 32
+                    source: root.faviconFailed ? "" : root.tabIconUrl
+                    visible: !root.tabLoading && root.tabIconUrl !== "" && !root.faviconFailed
                     fillMode: Image.PreserveAspectFit
                     smooth: true
+                    onStatusChanged: if (status === Image.Error)
+                        root.faviconFailed = true
                 }
 
                 LucideIcon {
                     anchors.centerIn: parent
-                    visible: !root.tabLoading && root.tabIconUrl === ""
+                    visible: !root.tabLoading && (root.tabIconUrl === "" || root.faviconFailed)
                     source: "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
-                    color: root.isActive ? Theme.textMuted : Theme.textMuted
+                    color: Theme.textMuted
                     size: 13
                 }
 
                 Canvas {
-                    id: spinner
                     anchors.fill: parent
                     visible: root.tabLoading
                     opacity: root.tabLoading ? 1 : 0
@@ -201,8 +213,9 @@ Item {
 
             // close
             Rectangle {
-                width: 18
-                height: 18
+                objectName: "closeButton"
+                Layout.preferredWidth: 18
+                Layout.preferredHeight: 18
                 Layout.alignment: Qt.AlignVCenter
                 radius: 9
                 color: closeHover.hovered ? Qt.rgba(1, 1, 1, 0.15) : "transparent"

@@ -7,6 +7,8 @@
 #include "TabModel.h"
 #include "Profile.h"
 
+class QSettings;
+
 class BrowserController : public QObject
 {
     Q_DISABLE_COPY_MOVE(BrowserController)
@@ -25,6 +27,8 @@ class BrowserController : public QObject
 
 public:
     explicit BrowserController(Profile *profile, QObject *parent = nullptr);
+
+    void setProfile(Profile *profile);
 
     TabModel *tabModel() const;
     int activeIndex() const;
@@ -49,6 +53,9 @@ public:
     Q_INVOKABLE void goForward();
     Q_INVOKABLE void toggleDevTools();
 
+    // session persistence (per-profile)
+    Q_INVOKABLE void saveSession() const;
+
     // state callbacks
     Q_INVOKABLE void onTitleChanged(int tabIndex, const QString &title);
     Q_INVOKABLE void onUrlChanged(int tabIndex, const QString &url);
@@ -69,6 +76,8 @@ signals:
 private:
     void rewireActiveTab();
     void updateAdaptiveAccent();
+    void restoreSession();
+    QString sessionFilePath() const;
 
     TabModel *m_model;
     Profile *m_profile;

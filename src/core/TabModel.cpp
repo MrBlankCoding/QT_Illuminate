@@ -1,6 +1,9 @@
 #include "TabModel.h"
 #include "BrowserTab.h"
 
+#include <algorithm>
+#include <QtAlgorithms>
+
 TabModel::TabModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -31,36 +34,37 @@ QVariant TabModel::data(const QModelIndex &index, int role) const
         return tab->progress();
     case LoadingRole:
         return tab->loading();
-    default:
-        return {};
     }
+    return {};
 }
 
 QHash<int, QByteArray> TabModel::roleNames() const
 {
-    return {
+    static const QHash<int, QByteArray> roles = {
         {TitleRole, "title"},
         {UrlRole, "url"},
         {IconUrlRole, "iconUrl"},
         {ProgressRole, "progress"},
         {LoadingRole, "loading"},
     };
+    return roles;
 }
 
 BrowserTab *TabModel::addTab(const QUrl &url, QWebEngineProfile *profile)
 {
+    if (m_tabs.size() >= kMaxTabs)
+        return nullptr;
+
     const int row = m_tabs.size();
     beginInsertRows({}, row, row);
 
     auto *tab = new BrowserTab(profile, this);
 
-    auto refresh = [this, tab]()
-    { refreshTab(tab); };
-    connect(tab, &BrowserTab::titleChanged, this, refresh);
-    connect(tab, &BrowserTab::urlChanged, this, refresh);
-    connect(tab, &BrowserTab::iconUrlChanged, this, refresh);
-    connect(tab, &BrowserTab::progressChanged, this, refresh);
-    connect(tab, &BrowserTab::loadingChanged, this, refresh);
+    connect(tab, &BrowserTab::titleChanged, this, [this, tab]() { refreshTab(tab, TitleRole); });
+    connect(tab, &BrowserTab::urlChanged, this, [this, tab]() { refreshTab(tab, UrlRole); });
+    connect(tab, &BrowserTab::iconUrlChanged, this, [this, tab]() { refreshTab(tab, IconUrlRole); });
+    connect(tab, &BrowserTab::progressChanged, this, [this, tab]() { refreshTab(tab, ProgressRole); });
+    connect(tab, &BrowserTab::loadingChanged, this, [this, tab]() { refreshTab(tab, LoadingRole); });
 
     // this has to happen before endInsertRows()
     // setting it after would cause the read to see an empty url
@@ -89,8 +93,36 @@ void TabModel::removeTab(int index)
     endRemoveRows();
     emit countChanged();
 
-    if (m_activeIndex >= m_tabs.size())
-        setActiveIndex(qMax(0, m_tabs.size() - 1));
+    const int oldActive = m_activeIndex;
+    if (index < m_activeIndex)
+    {
+        --m_activeIndex;
+    }
+    else if (index == m_activeIndex && m_activeIndex >= m_tabs.size())
+    {
+        m_activeIndex = (std::max)(0, static_cast<int>(m_tabs.size() - 1));
+    }
+
+    if (index <= oldActive)
+        emit activeIndexChanged();
+}
+
+void TabModel::clear()
+{
+    if (m_tabs.isEmpty())
+        return;
+
+    beginRemoveRows({}, 0, m_tabs.size() - 1);
+    qDeleteAll(m_tabs);
+    m_tabs.clear();
+    endRemoveRows();
+    emit countChanged();
+
+    if (m_activeIndex != -1)
+    {
+        m_activeIndex = -1;
+        emit activeIndexChanged();
+    }
 }
 
 void TabModel::moveTab(int from, int to)
@@ -126,6 +158,13 @@ BrowserTab *TabModel::tabAt(int index) const
     return m_tabs.at(index);
 }
 
+BrowserTab *TabModel::tabAt(int index)
+{
+    if (index < 0 || index >= m_tabs.size())
+        return nullptr;
+    return m_tabs.at(index);
+}
+
 int TabModel::activeIndex() const { return m_activeIndex; }
 
 void TabModel::setActiveIndex(int index)
@@ -136,16 +175,16 @@ void TabModel::setActiveIndex(int index)
     emit activeIndexChanged();
 }
 
-void TabModel::refreshTab(BrowserTab *tab)
+void TabModel::refreshTab(BrowserTab *tab, int role)
 {
     const int row = m_tabs.indexOf(tab);
     if (row < 0)
         return;
     const QModelIndex idx = createIndex(row, 0);
-    emit dataChanged(idx, idx);
+    emit dataChanged(idx, idx, {role});
 }
 
-QVariantMap TabModel::get(int index) const
+QVariantMap TabModel::itemAt(int index) const
 {
     if (index < 0 || index >= m_tabs.size())
         return {};

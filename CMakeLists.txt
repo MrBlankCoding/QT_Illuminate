@@ -12,7 +12,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 WebEngineQuick WebChannel WebChannelQuick)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 QuickTest WebEngineQuick WebChannel WebChannelQuick Widgets)
 find_package(Qt6 QUIET COMPONENTS QuickEffects)
 if(Qt6QuickEffects_FOUND)
     set(QUICK_EFFECTS_LIB Qt6::QuickEffects)
@@ -87,6 +87,8 @@ target_link_libraries(QT_Illuminate PRIVATE
     Qt6::WebEngineCore
     Qt6::WebChannel
     Qt6::WebChannelQuick
+    QT_Illuminatemodule
+    QT_Illuminatemoduleplugin
 )
 
 set_source_files_properties(ui/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -95,7 +97,15 @@ if(NOT APPLE)
     set(QT_ILLUMINATE_QML_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/qml")
 endif()
 
-qt_add_qml_module(QT_Illuminate
+qt_add_library(QT_Illuminatemodule STATIC)
+
+target_link_libraries(QT_Illuminatemodule PUBLIC
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+)
+
+qt_add_qml_module(QT_Illuminatemodule
     URI             QT_Illuminate.ui
     VERSION         1.0
     RESOURCE_PREFIX /
@@ -154,3 +164,6 @@ if(UNIX AND NOT APPLE)
     install(FILES packaging/hicolor/index.theme
             DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor")
 endif()
+
+enable_testing()
+add_subdirectory(tests)

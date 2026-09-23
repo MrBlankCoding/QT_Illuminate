@@ -1,11 +1,7 @@
 #include "BrowserTab.h"
-#include "../utils/BrowserLogger.h"
-#include <QWebChannel>
-#include <QWebEnginePage>
 
 BrowserTab::BrowserTab(QWebEngineProfile *profile, QObject *parent) : QObject(parent), m_webEngineProfile(profile)
 {
-    m_webChannel = new QWebChannel(this);
 }
 
 QWebEngineProfile *BrowserTab::webEngineProfile() const
@@ -18,7 +14,6 @@ QString BrowserTab::title() const { return m_title; }
 QString BrowserTab::iconUrl() const { return m_iconUrl; }
 int BrowserTab::progress() const { return m_progress; }
 bool BrowserTab::loading() const { return m_loading; }
-QUrl BrowserTab::pendingUrl() const { return m_pendingUrl; }
 
 void BrowserTab::setUrl(const QUrl &url)
 {
@@ -62,18 +57,5 @@ void BrowserTab::setLoading(bool loading)
 
 void BrowserTab::requestLoad(const QUrl &url)
 {
-    m_pendingUrl = url;
     emit loadRequested(url);
-}
-
-void BrowserTab::setWebEnginePage(QWebEnginePage *page)
-{
-    if (!page)
-    {
-        BrowserLogger::instance().warning("BrowserTab", "setWebEnginePage called with NULL page, will retry");
-        return;
-    }
-    page->setWebChannel(m_webChannel);
-    BrowserLogger::instance().debug("BrowserTab",
-                                    QStringLiteral("WebChannel attached to page %1").arg(reinterpret_cast<quintptr>(page)));
 }

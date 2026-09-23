@@ -15,10 +15,10 @@ Item {
     readonly property bool hovered: hoverHandler.hovered
     readonly property bool pressed: tapHandler.pressed
 
+    signal clicked
+
     implicitWidth: pillText.implicitWidth + leftPadding + rightPadding
     implicitHeight: pillText.implicitHeight + topPadding + bottomPadding
-
-    signal clicked
 
     Rectangle {
         anchors.fill: parent
@@ -37,9 +37,11 @@ Item {
         id: pillText
         anchors.centerIn: parent
         text: root.text
-        font.pixelSize: Theme.fontSizeM
-        font.weight: Font.Medium
-        font.family: Theme.fontFamily
+        font {
+            pixelSize: Theme.fontSizeM
+            weight: Font.Medium
+            family: Theme.fontFamily
+        }
         color: root.textColor
     }
 

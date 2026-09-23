@@ -16,11 +16,6 @@
 
 int main(int argc, char *argv[])
 {
-    // QtWebEngine 6.11 on macOS: Chromium's ScreenCaptureKit machinery (capture
-    // sync, fullscreen probes) hangs worker threads in SCShareableContent on
-    // recent macOS builds unless the app has screen-recording permission, and
-    // can SIGSEGV inside setExtensionEnabled. Disable every SCK feature so
-    // Chromium falls back to the legacy CGWindowList paths.
     const QByteArray kSckFeatures =
         "--disable-features=ScreenCaptureKit,ScreenCaptureKitFullDesktopFallback,UseScreenCaptureKitForSnapshots";
     const QByteArray existingFlags = qgetenv("QTWEBENGINE_CHROMIUM_FLAGS");
@@ -35,11 +30,12 @@ int main(int argc, char *argv[])
     // webengine start before everyting
     QtWebEngineQuick::initialize();
 
+    // must be set before QGuiApplication construction to take effect
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+
     QGuiApplication app(argc, argv);
     app.setApplicationName("QT_Illuminate");
     app.setOrganizationName("QT_Illuminate");
-
-    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
 #if defined(Q_OS_LINUX)
     app.setDesktopFileName(QStringLiteral("qt-illuminate.desktop"));
@@ -54,16 +50,8 @@ int main(int argc, char *argv[])
 
     BrowserLogger::instance().info("Main", QString("Qt %1 — WebEngine ready").arg(qVersion()));
 
-    // QML WebEngineViews all use QQuickWebEngineProfile::defaultProfile(),
-    // which is off-the-record by default (see Qt docs). Switch it to a
-    // persistent, disk-backed profile tied to the active profile so cookies
-    // and site data survive restarts.
     if (auto *defaultProfile = QQuickWebEngineProfile::defaultProfile())
     {
-        // WebEngineViews bind to this default profile, so the Chrome UA must be
-        // set HERE — the UA set on Profile::webEngineProfile() applies to a
-        // different, C++-side profile object and never reaches pages. Without
-        // it Google serves its "I'm not a robot" CAPTCHA on every search.
         defaultProfile->setHttpUserAgent(chromeUserAgent().toUtf8());
         BrowserLogger::instance().info("Main",
                                        QStringLiteral("Default profile UA: ") + defaultProfile->httpUserAgent());
@@ -83,8 +71,16 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Create BrowserController with a dummy profile for initial setup
+    // Dummy profile for initial setup
     BrowserController controller(profileManager.activeProfile());
+    QObject::connect(&profileManager, &ProfileManager::activeProfileChanged, &controller, [&]() {
+        controller.setProfile(profileManager.activeProfile());
+    });
+
+    // persist profiles session on exit
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &controller, [&controller]() {
+        controller.saveSession();
+    });
     LogBridge logBridge;
     BookmarkModel bookmarkModel;
 
@@ -94,7 +90,7 @@ int main(int argc, char *argv[])
     engine.addImportPath("qrc:/");
 
     engine.rootContext()->setContextProperty("browser", QVariant::fromValue(&controller));
-    engine.rootContext()->setContextProperty("tabModel", QVariant::fromValue(controller.tabModel()));
+    engine.rootContext()->setContextProperty("tabModel", controller.tabModel());
     engine.rootContext()->setContextProperty("logger", &logBridge);
     engine.rootContext()->setContextProperty("bookmarks", &bookmarkModel);
     engine.rootContext()->setContextProperty("internalPages", &InternalPageManager::instance());

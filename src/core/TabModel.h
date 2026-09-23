@@ -25,6 +25,8 @@ public:
         LoadingRole,
     };
 
+    static constexpr int kMaxTabs = 500;
+
     explicit TabModel(QObject *parent = nullptr);
 
     // QAbstractListModel interface
@@ -35,7 +37,9 @@ public:
     // tab CRUD
     BrowserTab *addTab(const QUrl &url, QWebEngineProfile *profile);
     void removeTab(int index);
-    Q_INVOKABLE BrowserTab *tabAt(int index) const;
+    void clear();
+    BrowserTab *tabAt(int index) const;
+    Q_INVOKABLE BrowserTab *tabAt(int index);
 
     // QML-invoked reordering
     Q_INVOKABLE void moveTab(int from, int to);
@@ -44,10 +48,10 @@ public:
     void setActiveIndex(int index);
 
     // single row update
-    void refreshTab(BrowserTab *tab);
+    void refreshTab(BrowserTab *tab, int role);
 
-    // QML convenience: tabModel.get(i).title etc.
-    Q_INVOKABLE QVariantMap get(int index) const;
+    // QML convenience: tabModel.itemAt(i).title etc.
+    Q_INVOKABLE QVariantMap itemAt(int index) const;
 
 signals:
     void activeIndexChanged();
