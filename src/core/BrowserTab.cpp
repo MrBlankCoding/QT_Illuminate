@@ -1,34 +1,11 @@
 #include "BrowserTab.h"
-#include "ExtensionService.h"
 #include "../utils/BrowserLogger.h"
 #include <QWebChannel>
 #include <QWebEnginePage>
 
-JsExtensionInstaller::JsExtensionInstaller(ExtensionService *extensionService, QObject *parent)
-    : QObject(parent), m_extensionService(extensionService)
-{
-}
-
-void JsExtensionInstaller::installExtension(const QString &extensionId)
-{
-    BrowserLogger::instance().debug("ExtensionInstaller",
-                                    QStringLiteral("installExtension called from page JS, id=%1 service=%2")
-                                        .arg(extensionId, m_extensionService ? "present" : "NULL"));
-    if (m_extensionService)
-    {
-        m_extensionService->installFromCrxUrl(extensionId, "");
-    }
-    else
-    {
-        BrowserLogger::instance().error("ExtensionInstaller", "m_extensionService is NULL, cannot install " + extensionId);
-    }
-}
-
-BrowserTab::BrowserTab(QWebEngineProfile *profile, ExtensionService *extensionService, QObject *parent) : QObject(parent), m_webEngineProfile(profile)
+BrowserTab::BrowserTab(QWebEngineProfile *profile, QObject *parent) : QObject(parent), m_webEngineProfile(profile)
 {
     m_webChannel = new QWebChannel(this);
-    m_jsExtensionInstaller = new JsExtensionInstaller(extensionService, this);
-    m_webChannel->registerObject(QStringLiteral("extensionInstaller"), m_jsExtensionInstaller);
 }
 
 QWebEngineProfile *BrowserTab::webEngineProfile() const

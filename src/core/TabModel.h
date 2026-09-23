@@ -5,9 +5,6 @@
 #include <QVariantMap>
 #include <QVector>
 #include <QWebEngineProfile>
-#include "ExtensionService.h"
-
-// QUrl and QVariantMap need to be included
 // MOC needs to resolve at compile time.
 class BrowserTab;
 
@@ -28,7 +25,7 @@ public:
         LoadingRole,
     };
 
-    explicit TabModel(ExtensionService *extensionService, QObject *parent = nullptr);
+    explicit TabModel(QObject *parent = nullptr);
 
     // QAbstractListModel interface
     int rowCount(const QModelIndex &parent = {}) const override;
@@ -59,5 +56,4 @@ signals:
 private:
     QVector<BrowserTab *> m_tabs;
     int m_activeIndex = -1;
-    ExtensionService *m_extensionService;
 };

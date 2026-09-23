@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtWebEngine
-import QtWebChannel
 import QT_Illuminate.ui
 
 Window {
@@ -45,54 +44,11 @@ Window {
         root.close();
     }
 
-    // Shared WebChannel for all WebEngineViews. Assigning it to a view's
-    // `webChannel` makes Qt inject qt.webChannelTransport into that page, so
-    // the userscript's qwebchannel.js client can pick up `extensionInstaller`.
-    // Shared WebChannel for all WebEngineViews. Assigning it to a view's
-    // `webChannel` makes Qt inject qt.webChannelTransport into that page, so
-    // the store interceptor userscript can pick up `extensionInstaller`.
-    // QtWebChannel module registers this QML element as `WebChannel` (not the
-    // C++ class name QQmlWebChannel); see plugins.qmltypes exports.
-    WebChannel {
-        id: storeWebChannel
-        Component.onCompleted: registerObject("extensionInstaller", extensionInstaller)
-    }
     Component.onCompleted: {
         logger.info("BrowserWindow", "Window ready, platform=" + Qt.platform.os);
+        Qt.callLater(() => { browser.newTab("https://github.com/"); }, 0);
         if (typeof windowHelper !== "undefined" && typeof windowHelper.applyTitleBarStyle === "function")
             windowHelper.applyTitleBarStyle(root, Theme.tabBarHeight);
-
-        // Chrome Web Store interceptor, injected at document creation into
-        // every page of the shared profile. Registering on the profile avoids
-        // racing per-tab page setup (the webview's page is null at creation).
-            // Qt's qwebchannel.js loads first: it exposes window.QWebChannel, which the
-            // interceptor below uses. Same world (MainWorld) so they share window.
-
-        // Insertion order = execution order at the same injection point.
-        try {
-            const scripts = webProfile.userScripts;
-            if (!scripts) {
-                logger.error("BrowserWindow", "webProfile.userScripts is null — store interceptor NOT registered");
-                return;
-            }
-            const channelScript = WebEngine.script();
-            channelScript.name = "qwebchannelClient";
-            channelScript.sourceUrl = "qrc:///qtwebchannel/qwebchannel.js";
-            channelScript.injectionPoint = WebEngineScript.DocumentCreation;
-            channelScript.worldId = WebEngineScript.MainWorld;
-            channelScript.runsOnSubFrames = false;
-            scripts.insert(channelScript);
-            const script = WebEngine.script();
-            script.name = "extensionsStoreInterceptor";
-            script.sourceUrl = "qrc:/QT_Illuminate/ui/resources/js/extensions_store_intercept.js";
-            script.injectionPoint = WebEngineScript.DocumentCreation;
-            script.worldId = WebEngineScript.MainWorld;
-            script.runsOnSubFrames = false;
-            scripts.insert(script);
-            logger.info("BrowserWindow", "Registered qwebchannelClient + extensionsStoreInterceptor on default profile");
-        } catch (e) {
-            logger.error("BrowserWindow", "Failed to register store interceptor: " + e);
-        }
     }
 
     Column {
@@ -214,29 +170,16 @@ Window {
                                 // this could be for later a place to manage memory of hybernate
                                 visible: index === tabModel.activeIndex
 
-                                // Bind this view's Qt WebChannel to the shared channel so the
-                                // store interceptor userscript can reach extensionInstaller.
-                                // MainWorld matches our user script's worldId.
-                                webChannel: storeWebChannel
-                                webChannelWorld: WebEngineScript.MainWorld
-
                                 // warnings/errors into the app logger. 0=Info,
                                 // 1=Warning, 2=Error.
                                 onJavaScriptConsoleMessage: (level, message, lineNumber, sourceID) => {
                                     const text = String(message)
-                                    const src = String(sourceID)
-                                    if (text.indexOf("StoreIntercept") >= 0 || level >= 1) {
-                                        const line = level + "/" + sourceID + ":" + lineNumber + " " + text
-                                        if (level >= 2)
-                                            logger.error("WebStoreJS", line)
-                                        else if (level === 1)
-                                            logger.warning("WebStoreJS", line)
-                                        else
-                                            logger.debug("WebStoreJS", line)
-                                    }
-                                    // Capture extension-page console output (illum-ext://<extid>/…)
-                                    if (webView.url.scheme === "illum-ext" && webView.url.host !== "")
-                                        extensionLogs.append(webView.url.host, level, text)
+                                    if (level >= 2)
+                                        logger.error("WebView", level + "/" + sourceID + ":" + lineNumber + " " + text)
+                                    else if (level === 1)
+                                        logger.warning("WebView", level + "/" + sourceID + ":" + lineNumber + " " + text)
+                                    else
+                                        logger.debug("WebView", level + "/" + sourceID + ":" + lineNumber + " " + text)
                                 }
 
                                 Component.onCompleted: {

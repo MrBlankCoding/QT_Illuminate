@@ -6,7 +6,6 @@
 #include <QWebEngineProfile>
 #include "TabModel.h"
 #include "Profile.h"
-#include "ExtensionService.h"
 
 class BrowserController : public QObject
 {
@@ -25,7 +24,7 @@ class BrowserController : public QObject
     Q_PROPERTY(QString adaptiveAccent READ adaptiveAccent NOTIFY adaptiveAccentChanged)
 
 public:
-    explicit BrowserController(Profile *profile, ExtensionService *extensionService, QObject *parent = nullptr);
+    explicit BrowserController(Profile *profile, QObject *parent = nullptr);
 
     TabModel *tabModel() const;
     int activeIndex() const;
@@ -74,7 +73,6 @@ private:
     TabModel *m_model;
     Profile *m_profile;
     QWebEngineProfile *m_webEngineProfile;
-    ExtensionService *m_extensionService;
     // deleted and recreated every tab change
     QObject *m_activeTabCtx = nullptr;
     QString m_adaptiveAccent;

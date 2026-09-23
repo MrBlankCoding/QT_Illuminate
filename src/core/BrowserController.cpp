@@ -9,8 +9,8 @@
 #include <QWebEngineSettings>
 #include <algorithm>
 
-BrowserController::BrowserController(Profile *profile, ExtensionService *extensionService, QObject *parent)
-    : QObject(parent), m_profile(profile), m_webEngineProfile(profile->webEngineProfile()), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_extensionService(extensionService), m_model(new TabModel(extensionService, this))
+BrowserController::BrowserController(Profile *profile, QObject *parent)
+    : QObject(parent), m_profile(profile), m_webEngineProfile(profile->webEngineProfile()), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_model(new TabModel(this))
 {
     connect(m_model, &TabModel::activeIndexChanged, this, [this]()
             {

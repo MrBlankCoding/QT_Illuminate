@@ -37,18 +37,6 @@ qt_add_executable(QT_Illuminate
     src/core/BookmarkModel.h
     src/core/BookmarkModel.cpp
 
-    src/core/ExtensionService.h
-    src/core/ExtensionService.cpp
-    src/core/ExtensionServiceInternals.h
-    src/core/ExtensionServiceInstall.cpp
-    src/core/ExtensionServiceData.cpp
-
-    src/core/ExtensionSchemeHandler.h
-    src/core/ExtensionSchemeHandler.cpp
-
-    src/core/ExtensionLogStore.h
-    src/core/ExtensionLogStore.cpp
-
     src/core/InternalPageManager.h
     src/core/InternalPageManager.cpp
 
@@ -122,17 +110,14 @@ qt_add_qml_module(QT_Illuminate
          ui/components/TabBar.qml
          ui/components/TabItem.qml
          ui/components/Toolbar.qml
-         ui/Theme.qml
-         ui/components/LucideIcon.qml
-         ui/pages/NewTabPage.qml
-
-         ui/pages/InstalledExtensionsPage.qml
-         ui/components/ExtensionCard.qml
          ui/components/SuggestionBox.qml
          ui/components/ProfileTile.qml
          ui/components/PillButton.qml
          ui/components/ContextMenu.qml
-    RESOURCES
+         ui/Theme.qml
+         ui/components/LucideIcon.qml
+         ui/pages/NewTabPage.qml
+     RESOURCES
         ui/icons/alert-triangle.svg
         ui/icons/globe.svg
         ui/icons/lock.svg
@@ -150,14 +135,13 @@ qt_add_qml_module(QT_Illuminate
         ui/icons/star-filled.svg
         ui/icons/image.svg
         ui/icons/pin.svg
-        resources/js/extensions_store_intercept.js
     )
 
 # macos
 set_target_properties(QT_Illuminate PROPERTIES
     MACOSX_BUNDLE TRUE
     MACOSX_BUNDLE_BUNDLE_NAME "QT_Illuminate"
-)
+    )
 
 if(UNIX AND NOT APPLE)
     install(TARGETS QT_Illuminate RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

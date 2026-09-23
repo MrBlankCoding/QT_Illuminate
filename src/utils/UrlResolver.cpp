@@ -1,5 +1,4 @@
 #include "UrlResolver.h"
-#include "../core/InternalPageManager.h"
 #include <QRegularExpression>
 
 namespace UrlResolver
@@ -33,21 +32,6 @@ namespace UrlResolver
         const QString t = input.trimmed();
         if (t.isEmpty())
             return {};
-
-        // Check internal pages
-        const QUrl internalUrl = InternalPageManager::resolve(t);
-        if (!internalUrl.isEmpty())
-            return internalUrl;
-
-        // chrome-extension:// URLs can't render (extensions are disabled in Qt
-        // WebEngine 6.11), so rewrite them onto our illum-ext:// scheme.
-        if (t.startsWith(QLatin1String("chrome-extension://"), Qt::CaseInsensitive))
-        {
-            QUrl rewritten(QStringLiteral("illum-ext://") + t.mid(QStringLiteral("chrome-extension://").size()));
-            if (rewritten.isValid())
-                return rewritten;
-            return {};
-        }
 
         if (t.contains("://"))
             return QUrl::fromUserInput(t);

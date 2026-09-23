@@ -8,21 +8,6 @@
 #include <QWebEnginePage>
 #include <QWebChannel>
 
-class ExtensionService;
-
-class JsExtensionInstaller : public QObject
-{
-    Q_OBJECT
-
-public:
-    explicit JsExtensionInstaller(ExtensionService *extensionService, QObject *parent = nullptr);
-
-    Q_INVOKABLE void installExtension(const QString &extensionId);
-
-private:
-    ExtensionService *m_extensionService;
-};
-
 // represents a tab.
 // tab?
 // whats a tab
@@ -33,7 +18,7 @@ class BrowserTab : public QObject
     Q_OBJECT
 
 public:
-    explicit BrowserTab(QWebEngineProfile *profile, ExtensionService *extensionService, QObject *parent = nullptr);
+    explicit BrowserTab(QWebEngineProfile *profile, QObject *parent = nullptr);
 
     QUrl url() const;
     QString title() const;
@@ -74,5 +59,4 @@ private:
     QUrl m_pendingUrl;
     QWebEngineProfile *m_webEngineProfile;
     QWebChannel *m_webChannel;
-    JsExtensionInstaller *m_jsExtensionInstaller;
 };

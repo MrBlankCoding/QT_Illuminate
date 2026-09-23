@@ -1,8 +1,8 @@
 #include "TabModel.h"
 #include "BrowserTab.h"
 
-TabModel::TabModel(ExtensionService *extensionService, QObject *parent)
-    : QAbstractListModel(parent), m_extensionService(extensionService)
+TabModel::TabModel(QObject *parent)
+    : QAbstractListModel(parent)
 {
 }
 
@@ -52,7 +52,7 @@ BrowserTab *TabModel::addTab(const QUrl &url, QWebEngineProfile *profile)
     const int row = m_tabs.size();
     beginInsertRows({}, row, row);
 
-    auto *tab = new BrowserTab(profile, m_extensionService, this);
+    auto *tab = new BrowserTab(profile, this);
 
     auto refresh = [this, tab]()
     { refreshTab(tab); };

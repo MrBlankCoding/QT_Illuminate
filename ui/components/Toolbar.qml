@@ -4,10 +4,10 @@ import QtQuick.Controls
 import QtWebEngine
 import QT_Illuminate.ui
 
-// adress bar pill and loading bar
-Item {
-    id: root
-    height: Theme.toolbarHeight + Theme.progressH
+    // adress bar pill and loading bar
+    Item {
+        id: root
+        height: Theme.toolbarHeight + Theme.progressH
 
     property string currentUrl: ""
     property string currentTitle: ""
@@ -43,25 +43,6 @@ Item {
         addressInput.selectAll();
     }
 
-    // QQC2 Popups create their content lazily on first open. Forcing creation
-    // at startup means the WebEngineView + renderer process exist before the
-    // first extension-popup click; otherwise the first open stalls ~3s while
-    // the engine spins up a fresh view. Preloading the first popup URL also
-    // warms the illum-ext site instance, so the first click never pays for a
-    // cold renderer.
-    Component.onCompleted: {
-        extensionPopup.open();
-        extensionPopup.close();
-        for (let i = 0; i < extensionService.count; ++i) {
-            const id = extensionService.data(extensionService.index(i, 0), Qt.UserRole + 1);
-            const url = extensionService.getPopupUrl(id);
-            if (url !== "") {
-                extensionPopupView.url = url;
-                break;
-            }
-        }
-    }
-
     // called on star and shortcut
     function toggleBookmark() {
         if (root.currentUrl === "" || root.currentUrl === "newtab://newtab")
@@ -86,13 +67,16 @@ Item {
         suggestionsBox.highlighted = -1;
     }
 
-    function acceptSuggestion(i) {
+function acceptSuggestion(i) {
         if (i < 0 || i >= suggestionModel.count)
             return;
         const item = suggestionModel.get(i);
+        // Capture the target before clearing: get()'s object is tied to the
+        // model row and reading it after clearSuggestions() yields empty.
+        const input = (item.isBookmark ? item.url : item.text) || item.text;
         clearSuggestions();
         addressInput.focus = false;
-        root.navigate(item.isBookmark ? item.url : item.text);
+        root.navigate(input);
     }
 
     Timer {
@@ -357,110 +341,6 @@ Item {
                 }
             }
 
-            // extensions list icons — only pinned & enabled show here
-            Repeater {
-                model: extensionService
-
-                delegate: Item {
-                    width: model.enabled && model.pinned ? 28 : 0
-                    height: 28
-                    Layout.alignment: Qt.AlignVCenter
-                    visible: model.enabled && model.pinned
-                    clip: true
-
-                    Behavior on width {
-                        NumberAnimation {
-                            duration: Theme.durationFast
-                        }
-                    }
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 6
-                        color: extHover.hovered ? Theme.surfaceHigh : "transparent"
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: Theme.durationFast
-                            }
-                        }
-                    }
-
-                    Image {
-                        id: extImg
-                        anchors.centerIn: parent
-                        width: 16
-                        height: 16
-                        source: {
-                            const iconPath = extensionService.getInstalledIconPath(model.id);
-                            return iconPath !== "" ? "file://" + iconPath : "";
-                        }
-                        visible: status === Image.Ready
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true
-                    }
-
-                    LucideIcon {
-                        anchors.centerIn: parent
-                        size: 14
-                        source: "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
-                        color: extHover.hovered ? Theme.accent : Theme.textMuted
-                        visible: !extImg.visible
-                    }
-
-                    HoverHandler {
-                        id: extHover
-                    }
-
-                    // left click — open popup or navigate
-                    TapHandler {
-                        acceptedButtons: Qt.LeftButton
-                        onTapped: {
-                            // Toggle: close when the popup is already showing.
-                            if (extensionPopup.opened) {
-                                extensionPopup.close();
-                                return;
-                            }
-                            const popupUrl = extensionService.getPopupUrl(model.id);
-                            if (popupUrl !== "") {
-                                if (extensionPopupView.url.toString() === popupUrl) {
-                                    extensionPopupView.reload();
-                                } else {
-                                    extensionPopupView.url = popupUrl;
-                                }
-                                extensionPopup.open();
-                            } else {
-                                browser.navigate("illuminate://installed-extensions");
-                            }
-                        }
-                    }
-
-                    // right click — pin/unpin context menu
-                    TapHandler {
-                        acceptedButtons: Qt.RightButton
-                        onTapped: extCtxMenu.popup()
-                    }
-
-                    Menu {
-                        id: extCtxMenu
-                        popupType: Popup.Native
-
-                        MenuItem {
-                            text: model.pinned ? "Unpin Extension" : "Pin Extension"
-                            onTriggered: extensionService.togglePin(model.id)
-                        }
-                        MenuSeparator {}
-                        MenuItem {
-                            text: model.enabled ? "Disable" : "Enable"
-                            onTriggered: extensionService.toggleExtension(model.id)
-                        }
-                        MenuItem {
-                            text: "Manage Extensions"
-                            onTriggered: browser.navigate("illuminate://installed-extensions")
-                        }
-                    }
-                }
-            }
-
             // downloads
             LucideIcon {
                 id: downloadsButton
@@ -617,15 +497,6 @@ Item {
                         onTriggered: root.downloadsPanel && root.downloadsPanel.toggle()
                     }
 
-                    MenuItem {
-                        text: "Extensions"
-                        onTriggered: browser.navigate("illuminate://extensions")
-                    }
-                    MenuItem {
-                        text: "Installed Extensions"
-                        onTriggered: browser.navigate("illuminate://installed-extensions")
-                    }
-
                     MenuSeparator {}
 
                     MenuItem {
@@ -637,96 +508,16 @@ Item {
         }
     }
 
-    // search suggestions dropdown (child of root Item, positioned below toolbar)
+    // search suggestions dropdown (child of root Item, positioned below the address bar).
+    // Uses x/width (not anchors) since pill lives inside the RowLayout.
     SuggestionBox {
         id: suggestionsBox
         anchors.top: toolbarBg.bottom
-        anchors.left: toolbarBg.left
-        anchors.right: toolbarBg.right
+        x: pill.x + toolbarBg.x
+        width: pill.width
         model: suggestionModel
         addressFocused: addressInput.activeFocus
-        onSuggestionClicked: root.acceptSuggestion(index)
-    }
-
-    // extension action popup
-    function positionExtensionPopup() {
-        const margin = 12;
-        extensionPopup.x = root.width - extensionPopup.width - margin;
-        extensionPopup.y = root.height + margin;
-    }
-    // Shrink/grow the box to the extension's own popup.html size instead of a
-    // hardcoded 360x520, clamped to sane limits.
-    function sizePopupToContent() {
-        extensionPopupView.runJavaScript(
-            "(function(){try{var d=document.documentElement,b=document.body;" +
-            "return JSON.stringify([(b&&b.scrollWidth)||(d&&d.scrollWidth),(b&&b.scrollHeight)||(d&&d.scrollHeight)]);" +
-            "}catch(e){return '[]';}})()",
-            function (result) {
-                try {
-                    const dims = JSON.parse(result);
-                    if (!dims || dims.length !== 2) return;
-                    const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
-                    extensionPopup.width = clamp(dims[0] + 2, 200, 460);
-                    extensionPopup.height = clamp(dims[1] + 2, 200, 680);
-                    positionExtensionPopup();
-                } catch (e) {
-                    logger.warning("ExtPopup", "sizePopupToContent parse failed: " + e);
-                }
-            });
-    }
-
-    Popup {
-        id: extensionPopup
-        width: 360
-        height: 520
-        x: 0
-        y: 0
-        modal: false
-        focus: true
-        // No CloseOnPressOutside: its press would fire on the icon's same click
-        // and flap (close on press, reopen on release via TapHandler). The icon
-        // toggles and Esc closes, that's it.
-        closePolicy: Popup.CloseOnEscape
-        padding: 0
-        onOpened: positionExtensionPopup()
-        onClosed: extensionPopupView.url = "about:blank"
-
-        background: Rectangle {
-            color: Theme.surface
-            border.color: Theme.border
-            border.width: 1
-            radius: 10
-            clip: true
-        }
-
-        contentItem: Item {
-            anchors.fill: parent
-            WebEngineView {
-                id: extensionPopupView
-                anchors.fill: parent
-                backgroundColor: Theme.surface
-                onJavaScriptConsoleMessage: (level, message, lineNumber, sourceID) => {
-                    logger.debug("ExtPopup", level + " " + sourceID + ":" + lineNumber + " " + message);
-                    extensionLogs.append(extensionPopupView.url.host, level, message);
-                }
-                onLoadingChanged: info => {
-                    logger.debug("ExtPopup", "loadingChanged status=" + info.status + " url=" + extensionPopupView.url.toString() + " error=" + info.errorString);
-                    // 2 == WebEngineView.Succeeded. Skip the about:blank reset page —
-                    // its document.body is null and measuring it is pointless.
-                    if (info.status === 2 && extensionPopupView.url.toString() !== "about:blank")
-                        sizePopupToContent();
-                }
-                // window.open / chrome.tabs.create / chrome.windows.create from the
-                // popup shim land here and open a real tab (mirrors the tab views'
-                // onNewWindowRequested). Close the popup too: the action moved focus
-                // to the new tab.
-                onNewWindowRequested: request => {
-                    logger.debug("ExtPopup", "newWindowRequested url=" + request.requestedUrl);
-                    browser.onNewWindowRequested(-1, request.requestedUrl.toString());
-                    extensionPopup.close();
-                }
-            }
-        }
+        onSuggestionClicked: (index) => root.acceptSuggestion(index)
     }
 
     // load stipe
