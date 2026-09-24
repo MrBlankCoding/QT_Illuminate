@@ -160,6 +160,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/icons/alert-triangle.svg
         ui/icons/chevron-left.svg
         ui/icons/chevron-right.svg
+        ui/icons/copy.svg
         ui/icons/download.svg
         ui/icons/folder.svg
         ui/icons/globe.svg

@@ -173,11 +173,16 @@ function acceptSuggestion(i) {
                     anchors.centerIn: parent
                     spacing: 6
 
+                    // Theme.text (white/black) when usable, muted when not
                     LucideIcon {
                         size: 18
                         source: "qrc:/QT_Illuminate/ui/ui/icons/chevron-left.svg"
-                        color: Theme.textMuted
-                        opacity: root.canGoBack ? 1 : 0.35
+                        color: root.canGoBack ? Theme.text : Theme.textMuted
+                        opacity: root.canGoBack ? (backHover.hovered ? 1 : 0.85) : 0.4
+                        HoverHandler {
+                            id: backHover
+                            enabled: root.canGoBack
+                        }
                         TapHandler {
                             enabled: root.canGoBack
                             onTapped: Browser.goBack()
@@ -187,18 +192,27 @@ function acceptSuggestion(i) {
                     LucideIcon {
                         size: 18
                         source: "qrc:/QT_Illuminate/ui/ui/icons/chevron-right.svg"
-                        color: Theme.textMuted
-                        opacity: root.canGoForward ? 1 : 0.35
+                        color: root.canGoForward ? Theme.text : Theme.textMuted
+                        opacity: root.canGoForward ? (forwardHover.hovered ? 1 : 0.85) : 0.4
+                        HoverHandler {
+                            id: forwardHover
+                            enabled: root.canGoForward
+                        }
                         TapHandler {
                             enabled: root.canGoForward
                             onTapped: Browser.goForward()
                         }
                     }
 
+                    // reload is always available (stop while loading)
                     LucideIcon {
                         size: 15
                         source: root.isLoading ? "qrc:/QT_Illuminate/ui/ui/icons/x.svg" : "qrc:/QT_Illuminate/ui/ui/icons/rotate-cw.svg"
-                        color: Theme.textMuted
+                        color: Theme.text
+                        opacity: reloadHover.hovered ? 1 : 0.85
+                        HoverHandler {
+                            id: reloadHover
+                        }
                         TapHandler {
                             onTapped: Browser.reload()
                         }

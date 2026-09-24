@@ -69,7 +69,7 @@ Item {
 
     function cancelOrRemove(index) {
         const row = downloadsModel.get(index);
-        if (row.state === WebEngineDownloadRequest.DownloadInProgress || row.state === WebEngineDownloadRequest.DownloadRequested)
+        if (row.downloadState === WebEngineDownloadRequest.DownloadInProgress || row.downloadState === WebEngineDownloadRequest.DownloadRequested)
             row.downloadObj.cancel();
         else
             downloadsModel.remove(index);
@@ -97,7 +97,7 @@ Item {
                 directory: download.downloadDirectory,
                 totalBytes: download.totalBytes,
                 receivedBytes: download.receivedBytes,
-                state: download.state
+                downloadState: download.state
             });
 
             download.receivedBytesChanged.connect(function () {
@@ -113,7 +113,7 @@ Item {
             download.stateChanged.connect(function (state) {
                 const i = root.rowIndexFor(download);
                 if (i >= 0)
-                    downloadsModel.setProperty(i, "state", state);
+                    downloadsModel.setProperty(i, "downloadState", state);
                 if (download.isFinished)
                     root.activeCount = Math.max(0, root.activeCount - 1);
             });
@@ -179,6 +179,14 @@ Item {
                 model: downloadsModel
 
                 delegate: Rectangle {
+                    id: row
+                    // ComponentBehavior: Bound needs roles declared, not read off `model`
+                    required property int index
+                    required property string fileName
+                    required property int downloadState
+                    required property real receivedBytes
+                    required property real totalBytes
+
                     width: ListView.view.width
                     height: rowCol.height + 16
                     radius: 6
@@ -197,7 +205,7 @@ Item {
                             spacing: 6
 
                             Text {
-                                text: model.fileName
+                                text: row.fileName
                                 color: Theme.text
                                 font.pixelSize: Theme.fontSizeS
                                 font.family: Theme.fontFamily
@@ -205,13 +213,13 @@ Item {
                                 Layout.fillWidth: true
 
                                 TapHandler {
-                                    enabled: model.state === WebEngineDownloadRequest.DownloadCompleted
-                                    onTapped: root.openFile(index)
+                                    enabled: row.downloadState === WebEngineDownloadRequest.DownloadCompleted
+                                    onTapped: root.openFile(row.index)
                                 }
                             }
 
                             LucideIcon {
-                                visible: model.state === WebEngineDownloadRequest.DownloadCompleted
+                                visible: row.downloadState === WebEngineDownloadRequest.DownloadCompleted
                                 size: 13
                                 source: "qrc:/QT_Illuminate/ui/ui/icons/folder.svg"
                                 color: folderHover.hovered ? Theme.text : Theme.textMuted
@@ -220,7 +228,7 @@ Item {
                                     id: folderHover
                                 }
                                 TapHandler {
-                                    onTapped: root.revealInFolder(index)
+                                    onTapped: root.revealInFolder(row.index)
                                 }
                             }
 
@@ -233,20 +241,20 @@ Item {
                                     id: cancelHover
                                 }
                                 TapHandler {
-                                    onTapped: root.cancelOrRemove(index)
+                                    onTapped: root.cancelOrRemove(row.index)
                                 }
                             }
                         }
 
                         Text {
-                            text: root.statusText(model.state, model.receivedBytes, model.totalBytes)
+                            text: root.statusText(row.downloadState, row.receivedBytes, row.totalBytes)
                             color: Theme.textMuted
                             font.pixelSize: Theme.fontSizeS
                             font.family: Theme.fontFamily
                         }
 
                         Rectangle {
-                            visible: model.state === WebEngineDownloadRequest.DownloadInProgress
+                            visible: row.downloadState === WebEngineDownloadRequest.DownloadInProgress
                             Layout.fillWidth: true
                             Layout.preferredHeight: 3
                             radius: 1.5
@@ -256,7 +264,7 @@ Item {
                                 height: parent.height
                                 radius: parent.radius
                                 color: Theme.accent
-                                width: parent.width * (model.totalBytes > 0 ? model.receivedBytes / model.totalBytes : 0)
+                                width: parent.width * (row.totalBytes > 0 ? row.receivedBytes / row.totalBytes : 0)
                                 Behavior on width {
                                     NumberAnimation {
                                         duration: 120

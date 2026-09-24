@@ -52,8 +52,9 @@ Row {
     }
 
     ControlButton {
-        iconSource: "qrc:/QT_Illuminate/ui/ui/icons/square.svg"
-        iconSize: root.isMaximized ? 11 : 12
+        // overlapping squares = "restore down" while maximised
+        iconSource: root.isMaximized ? "qrc:/QT_Illuminate/ui/ui/icons/copy.svg" : "qrc:/QT_Illuminate/ui/ui/icons/square.svg"
+        iconSize: root.isMaximized ? 13 : 12
         onClicked: root.isMaximized ? root.Window.window.showNormal() : root.Window.window.showMaximized()
     }
 

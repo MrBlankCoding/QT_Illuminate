@@ -72,7 +72,7 @@ QQuickWebEngineProfile *Profile::webProfile()
     m_webProfilePrototype->setStorageName(m_id);
     m_webProfilePrototype->setPersistentStoragePath(m_path + QDir::separator() + "web_data");
     m_webProfilePrototype->setCachePath(m_path + QDir::separator() + "cache");
-    m_webProfilePrototype->setPersistentCookiesPolicy(QQuickWebEngineProfile::AllowPersistentCookies);
+    m_webProfilePrototype->setPersistentCookiesPolicy(QQuickWebEngineProfile::ForcePersistentCookies);
     static_cast<QQmlParserStatus *>(m_webProfilePrototype.get())->componentComplete();
 
     QQuickWebEngineProfile *profile = m_webProfilePrototype->instance();
