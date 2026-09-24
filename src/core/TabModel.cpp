@@ -7,6 +7,12 @@
 TabModel::TabModel(QObject *parent)
     : QAbstractListModel(parent)
 {
+    // first time a restored tab is shown: let QML create its web view.
+    // hooked to the signal since removeTab/moveTab change the index directly
+    connect(this, &TabModel::activeIndexChanged, this, [this]() {
+        if (BrowserTab *tab = tabAt(m_activeIndex))
+            tab->setSuspended(false);
+    });
 }
 
 int TabModel::rowCount(const QModelIndex &parent) const
@@ -34,6 +40,10 @@ QVariant TabModel::data(const QModelIndex &index, int role) const
         return tab->progress();
     case LoadingRole:
         return tab->loading();
+    case RenderPidRole:
+        return tab->renderProcessPid();
+    case SuspendedRole:
+        return tab->suspended();
     }
     return {};
 }
@@ -46,11 +56,13 @@ QHash<int, QByteArray> TabModel::roleNames() const
         {IconUrlRole, "iconUrl"},
         {ProgressRole, "progress"},
         {LoadingRole, "loading"},
+        {RenderPidRole, "renderPid"},
+        {SuspendedRole, "suspended"},
     };
     return roles;
 }
 
-BrowserTab *TabModel::addTab(const QUrl &url, QQuickWebEngineProfile *profile)
+BrowserTab *TabModel::addTab(const QUrl &url, QQuickWebEngineProfile *profile, bool suspended)
 {
     if (m_tabs.size() >= kMaxTabs)
         return nullptr;
@@ -65,12 +77,16 @@ BrowserTab *TabModel::addTab(const QUrl &url, QQuickWebEngineProfile *profile)
     connect(tab, &BrowserTab::iconUrlChanged, this, [this, tab]() { refreshTab(tab, IconUrlRole); });
     connect(tab, &BrowserTab::progressChanged, this, [this, tab]() { refreshTab(tab, ProgressRole); });
     connect(tab, &BrowserTab::loadingChanged, this, [this, tab]() { refreshTab(tab, LoadingRole); });
+    connect(tab, &BrowserTab::renderProcessPidChanged, this, [this, tab]() { refreshTab(tab, RenderPidRole); });
+    connect(tab, &BrowserTab::suspendedChanged, this, [this, tab]() { refreshTab(tab, SuspendedRole); });
 
     // this has to happen before endInsertRows()
     // setting it after would cause the read to see an empty url
     // causing a blank webview
     if (url.isValid() && !url.isEmpty())
         tab->setUrl(url);
+    // same reason: the delegate decides whether to create a web view on insert
+    tab->setSuspended(suspended);
 
     m_tabs.append(tab);
     endInsertRows();
@@ -195,5 +211,7 @@ QVariantMap TabModel::itemAt(int index) const
         {"iconUrl", tab->iconUrl()},
         {"progress", tab->progress()},
         {"loading", tab->loading()},
+        {"renderPid", tab->renderProcessPid()},
+        {"suspended", tab->suspended()},
     };
 }

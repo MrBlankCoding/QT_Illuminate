@@ -22,4 +22,7 @@ public:
 
     // Get QML resource component path for internal page
     Q_INVOKABLE static QString qmlSource(const QString &url);
+
+    // tab title for internal page; empty falls back to "New Tab"
+    Q_INVOKABLE static QString title(const QString &url);
 };

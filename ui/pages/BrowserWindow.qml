@@ -181,6 +181,20 @@ Window {
         visible: index === Browser.tabModel.activeIndex
 
         readonly property bool isInternalPage: InternalPages.isInternal(model.url.toString())
+        // internal pages have no renderer
+        onIsInternalPageChanged: if (isInternalPage) Browser.onRenderProcessPidChanged(index, 0)
+        function syncRenderPid() {
+            Browser.onRenderProcessPidChanged(tabSlot.index, tabSlot.webView ? tabSlot.webView.renderProcessPid : 0)
+        }
+
+        readonly property int discardAfterMs: 10 * 60 * 1000
+        property bool discardable: false
+        onVisibleChanged: if (visible) discardable = false
+        Timer {
+            interval: tabSlot.discardAfterMs
+            running: !tabSlot.visible && tabSlot.webView !== null
+            onTriggered: tabSlot.discardable = true
+        }
         property bool devToolsOpen: false
         readonly property WebEngineView webView: webLoader.item as WebEngineView
         // user could change this
@@ -210,6 +224,7 @@ Window {
             active: tabSlot.isInternalPage
             visible: tabSlot.isInternalPage
             source: tabSlot.isInternalPage ? InternalPages.qmlSource(tabSlot.model.url.toString()) : ""
+            onLoaded: Browser.onTitleChanged(tabSlot.index, InternalPages.title(tabSlot.model.url.toString()))
         }
 
         Loader {
@@ -218,7 +233,8 @@ Window {
             y: 0
             width: tabSlot.devToolsOpen && !tabSlot.devToolsVertical ? parent.width - tabSlot.clampedDevToolsSize : parent.width
             height: tabSlot.devToolsOpen && tabSlot.devToolsVertical ? parent.height - tabSlot.clampedDevToolsSize : parent.height
-            active: !tabSlot.isInternalPage
+            // restored tabs stay suspended (no view, no renderer) until first shown
+            active: !tabSlot.isInternalPage && !tabSlot.model.suspended
             visible: !tabSlot.isInternalPage
 
             onLoaded: {
@@ -237,11 +253,16 @@ Window {
                     devToolsView: tabSlot.devToolsOpen ? devToolsLoader.item as WebEngineView : null
                     visible: tabSlot.index === Browser.tabModel.activeIndex
 
+                    // hidden tabs freeze right away (recommendedState stays Active while
+                    // audio plays or a load is running); Chromium recommends Discarded as
+                    // soon as a page is frozen, so that waits for the discard timer
                     lifecycleState: webView.visible
                         ? WebEngineView.LifecycleState.Active
                         : (webView.recommendedState === WebEngineView.LifecycleState.Discarded
-                            ? WebEngineView.LifecycleState.Frozen
+                            ? (tabSlot.discardable ? WebEngineView.LifecycleState.Discarded : WebEngineView.LifecycleState.Frozen)
                             : webView.recommendedState)
+                    onLifecycleStateChanged: tabSlot.syncRenderPid()
+                    onRenderProcessTerminated: tabSlot.syncRenderPid()
 
                     // avoids a white flash before the first paint
                     backgroundColor: Theme.bg
@@ -306,6 +327,7 @@ Window {
 
                     onLoadingChanged: function (loading) {
                         Browser.onLoadingChanged(tabSlot.index, webView.loading);
+                        tabSlot.syncRenderPid();
                         if (webView.loading)
                             Logger.info("WebView", "Tab " + tabSlot.index + " loading: " + webView.url);
                     }
@@ -316,6 +338,7 @@ Window {
                     }
 
                     onLoadProgressChanged: Browser.onLoadProgressChanged(tabSlot.index, webView.loadProgress)
+                    onRenderProcessPidChanged: tabSlot.syncRenderPid()
                     onTitleChanged: Browser.onTitleChanged(tabSlot.index, webView.title)
                     onIconChanged: Browser.onIconUrlChanged(tabSlot.index, webView.icon.toString())
 

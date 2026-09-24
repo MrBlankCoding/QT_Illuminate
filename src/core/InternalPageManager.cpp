@@ -28,6 +28,15 @@ QString InternalPageManager::qmlSource(const QString &url)
     const QString t = url.trimmed().toLower();
     if (t == QLatin1String("newtab://newtab"))
         return QStringLiteral("qrc:/QT_Illuminate/ui/ui/pages/NewTabPage.qml");
+    if (t == QLatin1String("illuminate://memory"))
+        return QStringLiteral("qrc:/QT_Illuminate/ui/ui/pages/MemoryPage.qml");
 
+    return {};
+}
+
+QString InternalPageManager::title(const QString &url)
+{
+    if (url.trimmed().toLower() == QLatin1String("illuminate://memory"))
+        return QStringLiteral("Memory");
     return {};
 }

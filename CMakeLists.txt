@@ -76,6 +76,8 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/BookmarkModel.cpp
     src/core/InternalPageManager.h
     src/core/InternalPageManager.cpp
+    src/core/MemoryMonitor.h
+    src/core/MemoryMonitor.cpp
     src/core/Profile.h
     src/core/Profile.cpp
     src/core/ProfileManager.h
@@ -103,7 +105,7 @@ if(APPLE)
 endif()
 
 if(WIN32)
-    target_link_libraries(QT_Illuminatemodule PRIVATE dwmapi)
+    target_link_libraries(QT_Illuminatemodule PRIVATE dwmapi psapi)
 endif()
 
 target_include_directories(QT_Illuminatemodule PUBLIC
@@ -139,6 +141,7 @@ qt_add_qml_module(QT_Illuminatemodule
     QML_FILES
         ui/Theme.qml
         ui/pages/BrowserWindow.qml
+        ui/pages/MemoryPage.qml
         ui/pages/NewTabPage.qml
         ui/pages/ProfilePicker.qml
         ui/pages/SettingsWindow.qml
@@ -167,6 +170,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/icons/globe.svg
         ui/icons/image.svg
         ui/icons/lock.svg
+        ui/icons/activity.svg
         ui/icons/minus.svg
         ui/icons/more-vertical.svg
         ui/icons/pin.svg

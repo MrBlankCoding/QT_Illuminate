@@ -26,6 +26,8 @@ public:
         IconUrlRole,
         ProgressRole,
         LoadingRole,
+        RenderPidRole,
+        SuspendedRole,
     };
 
     static constexpr int kMaxTabs = 500;
@@ -38,7 +40,8 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     // tab CRUD
-    BrowserTab *addTab(const QUrl &url, QQuickWebEngineProfile *profile);
+    // suspended: no web view until the tab is first activated (session restore)
+    BrowserTab *addTab(const QUrl &url, QQuickWebEngineProfile *profile, bool suspended = false);
     void removeTab(int index);
     void clear();
     BrowserTab *tabAt(int index) const;

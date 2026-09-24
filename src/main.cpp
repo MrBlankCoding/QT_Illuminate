@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
     // flags
     // need to be tweaked
     const QList<QByteArray> kChromiumFlags = {
-        "--disable-features=ScreenCaptureKit,ScreenCaptureKitFullDesktopFallback,UseScreenCaptureKitForSnapshots",
+        "--disable-features=ScreenCaptureKit,ScreenCaptureKitFullDesktopFallback,UseScreenCaptureKitForSnapshots,SpareRendererForSitePerProcess",
         "--ignore-gpu-blocklist",
         "--enable-gpu-rasterization",
         "--force_high_performance_gpu",

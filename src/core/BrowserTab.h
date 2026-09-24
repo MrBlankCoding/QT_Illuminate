@@ -23,6 +23,9 @@ public:
     QString iconUrl() const;
     int progress() const; // 0–100
     bool loading() const;
+    qint64 renderProcessPid() const; // 0 until Chromium starts the renderer
+    // restored from the session but never shown: no web view exists yet
+    bool suspended() const;
 
     // called by browser controller
     void setUrl(const QUrl &url);
@@ -30,6 +33,8 @@ public:
     void setIconUrl(const QString &iconUrl);
     void setProgress(int progress);
     void setLoading(bool loading);
+    void setRenderProcessPid(qint64 pid);
+    void setSuspended(bool suspended);
 
     QQuickWebEngineProfile *webEngineProfile() const;
 
@@ -44,6 +49,8 @@ public:
     void iconUrlChanged(const QString &iconUrl);
     void progressChanged(int progress);
     void loadingChanged(bool loading);
+    void renderProcessPidChanged(qint64 pid);
+    void suspendedChanged(bool suspended);
 
 private:
     QUrl m_url;
@@ -51,5 +58,7 @@ private:
     QString m_iconUrl;
     int m_progress = 0;
     bool m_loading = false;
+    qint64 m_renderProcessPid = 0;
+    bool m_suspended = false;
     QQuickWebEngineProfile *m_webEngineProfile;
 };

@@ -304,7 +304,9 @@ void BrowserController::restoreSession()
         if (!url.isValid() || m_model->rowCount() >= TabModel::kMaxTabs)
             continue;
 
-        if (BrowserTab *tab = m_model->addTab(url, m_webEngineProfile))
+        // don't spin up a renderer for every restored tab; the active one
+        // wakes in setActiveIndex, the rest when first switched to
+        if (BrowserTab *tab = m_model->addTab(url, m_webEngineProfile, true))
             tab->setTitle(obj[QStringLiteral("title")].toString());
     }
 
@@ -422,6 +424,12 @@ void BrowserController::onIconUrlChanged(int i, const QString &v)
 {
     if (auto *t = m_model->tabAt(i))
         t->setIconUrl(v);
+}
+
+void BrowserController::onRenderProcessPidChanged(int i, qint64 v)
+{
+    if (auto *t = m_model->tabAt(i))
+        t->setRenderProcessPid(v);
 }
 
 void BrowserController::onNewWindowRequested(int i, const QString &url)

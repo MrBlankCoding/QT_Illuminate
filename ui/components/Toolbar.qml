@@ -594,6 +594,11 @@ onActiveFocusChanged: {
                         onTriggered: Browser.toggleDevTools()
                     }
 
+                    MenuItem {
+                        text: "Memory Usage"
+                        onTriggered: Browser.newTab("illuminate://memory")
+                    }
+
                     MenuSeparator {}
 
                     MenuItem {

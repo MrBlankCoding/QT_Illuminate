@@ -76,6 +76,7 @@ public:
     Q_INVOKABLE void onLoadingChanged(int tabIndex, bool loading);
     Q_INVOKABLE void onLoadProgressChanged(int tabIndex, int progress);
     Q_INVOKABLE void onIconUrlChanged(int tabIndex, const QString &iconUrl);
+    Q_INVOKABLE void onRenderProcessPidChanged(int tabIndex, qint64 pid);
     Q_INVOKABLE void onNewWindowRequested(int tabIndex, const QString &url);
 
 signals:

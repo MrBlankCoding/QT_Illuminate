@@ -14,6 +14,8 @@ QString BrowserTab::title() const { return m_title; }
 QString BrowserTab::iconUrl() const { return m_iconUrl; }
 int BrowserTab::progress() const { return m_progress; }
 bool BrowserTab::loading() const { return m_loading; }
+qint64 BrowserTab::renderProcessPid() const { return m_renderProcessPid; }
+bool BrowserTab::suspended() const { return m_suspended; }
 
 void BrowserTab::setUrl(const QUrl &url)
 {
@@ -53,6 +55,22 @@ void BrowserTab::setLoading(bool loading)
         return;
     m_loading = loading;
     emit loadingChanged(loading);
+}
+
+void BrowserTab::setRenderProcessPid(qint64 pid)
+{
+    if (m_renderProcessPid == pid)
+        return;
+    m_renderProcessPid = pid;
+    emit renderProcessPidChanged(pid);
+}
+
+void BrowserTab::setSuspended(bool suspended)
+{
+    if (m_suspended == suspended)
+        return;
+    m_suspended = suspended;
+    emit suspendedChanged(suspended);
 }
 
 void BrowserTab::requestLoad(const QUrl &url)
