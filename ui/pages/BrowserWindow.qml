@@ -306,6 +306,7 @@ Window {
                     }
 
                     onLoadProgressChanged: Browser.onLoadProgressChanged(tabSlot.index, webView.loadProgress)
+                    onTitleChanged: Browser.onTitleChanged(tabSlot.index, webView.title)
                     onIconChanged: Browser.onIconUrlChanged(tabSlot.index, webView.icon.toString())
 
                     onNewWindowRequested: function (request) {
