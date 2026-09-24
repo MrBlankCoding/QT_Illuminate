@@ -154,6 +154,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/components/TabBar.qml
         ui/components/TabItem.qml
         ui/components/Toolbar.qml
+        ui/components/WindowControls.qml
         ui/components/ZoomIndicator.qml
     RESOURCES
         ui/icons/alert-triangle.svg

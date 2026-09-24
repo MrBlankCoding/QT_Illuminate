@@ -14,7 +14,9 @@ Window {
     minimumHeight: 420
     title: (Browser.activeTitle || "New Tab") + " — QT_Illuminate"
     color: Theme.bg
-    flags: Qt.platform.os === "windows" ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
+    // no native title bar on Windows/Linux: the tab bar draws the window controls
+    readonly property bool frameless: Qt.platform.os !== "osx"
+    flags: frameless ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
 
     function switchProfile(profile) {
         if (!profile)
@@ -143,8 +145,13 @@ Window {
         }
     }
 
-    // only used on frameless platforms
-    property int edgeGrip: 6
+    // frameless windows lose the native resize border
+    ResizeGrips {
+        anchors.fill: parent
+        visible: root.frameless && root.visibility === Window.Windowed
+        z: 1000
+        onRequestSystemResize: edges => root.startSystemResize(edges)
+    }
 
     KeyboardShortcuts {
         id: keyboardShortcuts

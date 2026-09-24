@@ -11,8 +11,9 @@ Item {
     height: Theme.tabBarHeight
     // window controls are hidden in fullscreen, so no spacer is needed
     readonly property bool isFullScreen: root.Window.visibility === Window.FullScreen
-    readonly property bool showSysControlSpacer: Qt.platform.os === "windows" && !isFullScreen
-    readonly property real availableForTabs: Math.max(0, width - trafficLightSpacer.width - newTabButton.width - (showSysControlSpacer ? Theme.sysControlW : 0))
+    // Windows and Linux are frameless, so the tab strip draws its own controls
+    readonly property bool showWindowControls: Qt.platform.os !== "osx" && !isFullScreen
+    readonly property real availableForTabs: Math.max(0, width - trafficLightSpacer.width - newTabButton.width - (showWindowControls ? windowControls.width : 0))
 
     Timer {
         id: dragSettle
@@ -183,13 +184,6 @@ Item {
             }
         }
 
-        // system controls spacer (Windows native buttons)
-        Item {
-            Layout.preferredWidth: Theme.sysControlW
-            Layout.fillHeight: true
-            visible: root.showSysControlSpacer
-        }
-
         // drag area
         // need to work on the area itself
         Item {
@@ -199,6 +193,12 @@ Item {
             DragRegion {
                 anchors.fill: parent
             }
+        }
+
+        WindowControls {
+            id: windowControls
+            Layout.fillHeight: true
+            visible: root.showWindowControls
         }
     }
 }
