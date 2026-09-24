@@ -62,6 +62,7 @@ QtObject {
 
     // toolbar
     readonly property int   toolbarHeight: 44
+    readonly property int   bookmarksBarHeight: 34
     readonly property int   pillRadius:    20
     readonly property int   progressH:     3
 

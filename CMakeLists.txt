@@ -142,6 +142,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/pages/NewTabPage.qml
         ui/pages/ProfilePicker.qml
         ui/pages/SettingsWindow.qml
+        ui/components/BookmarksBar.qml
         ui/components/ContextMenu.qml
         ui/components/DownloadsPanel.qml
         ui/components/FindBar.qml

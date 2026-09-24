@@ -97,6 +97,13 @@ Window {
             onOpenSettings: root.openSettings()
         }
 
+        // bookmarks bar
+        BookmarksBar {
+            Layout.fillWidth: true
+            Layout.preferredHeight: implicitHeight
+            visible: Bookmarks.count > 0
+        }
+
         // content area
         Item {
             id: viewStack
