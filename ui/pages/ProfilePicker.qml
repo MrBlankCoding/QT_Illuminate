@@ -8,8 +8,8 @@ pragma ComponentBehavior: Bound
 ApplicationWindow {
     id: root
     readonly property var avatarColors: [
-        Theme.accent, "#2DA7A1", "#F3A43B", "#E86F67",
-        "#8A6CFF", "#4A90E2", "#69B578", "#D96ACF"
+        "#4A90E2", "#2DA7A1", "#F3A43B", "#E86F67",
+        "#8A6CFF", "#69B578", "#D96ACF"
     ]
 
     // keep the last spawned browser window so we can drop it when the

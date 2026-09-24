@@ -14,7 +14,6 @@ Window {
     minimumHeight: 420
     title: (Browser.activeTitle || "New Tab") + " — QT_Illuminate"
     color: Theme.bg
-    // no native title bar on Windows/Linux: the tab bar draws the window controls
     readonly property bool frameless: Qt.platform.os !== "osx"
     flags: frameless ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
 
@@ -22,12 +21,20 @@ Window {
         if (!profile)
             return;
         ProfileManager.activeProfile = profile;
-        const wv = viewStack.activeWebView;
-        if (wv && wv.url.toString() !== "")
-            wv.reload();
+        // each profile gets its own window; show the new one before closing
+        // this one so the app never finds itself without a visible window
+        const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/BrowserWindow.qml");
+        if (component.status !== Component.Ready) {
+            Logger.error("BrowserWindow", "Failed to load window for profile switch: " + component.errorString());
+            return;
+        }
+        const w = component.createObject(null) as Window;
+        if (!w)
+            return;
+        w.show();
+        root.close();
     }
 
-    // one settings window per browser window, created on first use
     property Window settingsWindow: null
 
     function openSettings() {
@@ -97,11 +104,11 @@ Window {
             onOpenSettings: root.openSettings()
         }
 
-        // bookmarks bar
+        // bookmarks bar (new tab page only)
         BookmarksBar {
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
-            visible: Bookmarks.count > 0
+            visible: Bookmarks.count > 0 && Browser.activeUrl === "newtab://newtab"
         }
 
         // content area
@@ -109,10 +116,6 @@ Window {
             id: viewStack
             Layout.fillWidth: true
             Layout.fillHeight: true
-
-            // tracks the active tab's page. itemAt() isn't reactive on its
-            // own, but TabSlot.webView is bound to the loader's item, so the
-            // binding re-fires when the page loads or the tab switches.
             readonly property WebEngineView activeWebView: (viewRepeater.itemAt(Browser.tabModel.activeIndex) as TabSlot)?.webView ?? null
 
             FindBar {
@@ -333,8 +336,6 @@ Window {
                         webView: webView
                         onToggleDevTools: tabSlot.devToolsOpen = !tabSlot.devToolsOpen
                         onInspectElement: {
-                            // InspectElement needs devToolsView set, which happens once
-                            // the devtools loader has created its view
                             tabSlot.devToolsOpen = true
                             Qt.callLater(() => webView.triggerWebAction(WebEngineView.InspectElement))
                         }

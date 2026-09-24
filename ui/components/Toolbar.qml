@@ -25,7 +25,7 @@ pragma ComponentBehavior: Bound
 
     // avatar color helper (mirrors ProfilePicker.avatarColorFor)
     function avatarColorFor(profile) {
-        return profile && profile.color && profile.color.length > 0 ? profile.color : (typeof Theme !== "undefined" && Theme.accent) || "#3b82f6";
+        return profile && profile.color && profile.color.length > 0 ? profile.color : "#4A90E2";
     }
 
     // recheck bookmarks on change
@@ -162,60 +162,76 @@ function acceptSuggestion(i) {
             // nav pill
             Rectangle {
                 Layout.preferredHeight: 32
-                Layout.preferredWidth: navRow.implicitWidth + 24
+                Layout.preferredWidth: navRow.implicitWidth + 16
                 radius: Theme.pillRadius
-                color: "transparent"
-                border.color: Theme.border
-                border.width: 1
+                color: Theme.surfaceHigh
 
                 Row {
                     id: navRow
                     anchors.centerIn: parent
-                    spacing: 6
+                    spacing: 2
 
-                    // Theme.text (white/black) when usable, muted when not
-                    LucideIcon {
-                        size: 18
-                        source: "qrc:/QT_Illuminate/ui/ui/icons/chevron-left.svg"
-                        color: root.canGoBack ? Theme.text : Theme.textMuted
-                        opacity: root.canGoBack ? (backHover.hovered ? 1 : 0.85) : 0.4
+                    // one hoverable round button per nav action
+                    component NavButton: Item {
+                        id: navButton
+                        required property string icon
+                        property bool canUse: true
+                        property int size: 18
+                        width: 28
+                        height: 28
+
+                        signal clicked
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: height / 2
+                            color: navButton.canUse && hoverHandler.hovered ? Theme.tabHover : "transparent"
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: Theme.durationFast
+                                }
+                            }
+                        }
+
+                        LucideIcon {
+                            anchors.centerIn: parent
+                            size: navButton.size
+                            source: navButton.icon
+                            color: navButton.canUse ? Theme.text : Theme.textMuted
+                            opacity: navButton.canUse ? 1 : 0.4
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: Theme.durationFast
+                                }
+                            }
+                        }
+
                         HoverHandler {
-                            id: backHover
-                            enabled: root.canGoBack
+                            id: hoverHandler
+                            enabled: navButton.canUse
+                            cursorShape: Qt.PointingHandCursor
                         }
                         TapHandler {
-                            enabled: root.canGoBack
-                            onTapped: Browser.goBack()
+                            enabled: navButton.canUse
+                            onTapped: navButton.clicked()
                         }
                     }
 
-                    LucideIcon {
-                        size: 18
-                        source: "qrc:/QT_Illuminate/ui/ui/icons/chevron-right.svg"
-                        color: root.canGoForward ? Theme.text : Theme.textMuted
-                        opacity: root.canGoForward ? (forwardHover.hovered ? 1 : 0.85) : 0.4
-                        HoverHandler {
-                            id: forwardHover
-                            enabled: root.canGoForward
-                        }
-                        TapHandler {
-                            enabled: root.canGoForward
-                            onTapped: Browser.goForward()
-                        }
+                    NavButton {
+                        icon: "qrc:/QT_Illuminate/ui/ui/icons/chevron-left.svg"
+                        canUse: root.canGoBack
+                        onClicked: Browser.goBack()
                     }
-
-                    // reload is always available (stop while loading)
-                    LucideIcon {
+                    NavButton {
+                        icon: "qrc:/QT_Illuminate/ui/ui/icons/chevron-right.svg"
+                        canUse: root.canGoForward
+                        onClicked: Browser.goForward()
+                    }
+                    NavButton {
+                        icon: root.isLoading ? "qrc:/QT_Illuminate/ui/ui/icons/x.svg" : "qrc:/QT_Illuminate/ui/ui/icons/rotate-cw.svg"
                         size: 15
-                        source: root.isLoading ? "qrc:/QT_Illuminate/ui/ui/icons/x.svg" : "qrc:/QT_Illuminate/ui/ui/icons/rotate-cw.svg"
-                        color: Theme.text
-                        opacity: reloadHover.hovered ? 1 : 0.85
-                        HoverHandler {
-                            id: reloadHover
-                        }
-                        TapHandler {
-                            onTapped: Browser.reload()
-                        }
+                        canUse: root.currentUrl !== ""
+                        onClicked: Browser.reload()
                     }
                 }
             }
@@ -604,6 +620,13 @@ onActiveFocusChanged: {
         anchors.top: toolbarBg.bottom
         width: parent.width
         height: Theme.progressH
+
+        // keep this strip the toolbar colour so it doesn't read as a
+        // gap between the toolbar and whatever sits below (bookmarks bar)
+        Rectangle {
+            anchors.fill: parent
+            color: Theme.toolbarBg
+        }
 
         Rectangle {
             anchors.left: parent.left

@@ -17,6 +17,7 @@ Item {
     property bool tabLoading: model ? model.loading : false
     property bool isActive: false
     property int tabCount: 1      // total tab count, for drag-reorder clamping
+    property int activeIndex: -1  // active tab's index, so separators skip it
     property bool faviconFailed: false
 
     signal activated
@@ -25,8 +26,7 @@ Item {
 
     readonly property int activeTopInset: 4   // gap above active tab body
     readonly property int inactiveTopInset: 7
-    readonly property int inactiveBotInset: 4
-    readonly property int shoulderW: Theme.tabCurveW   // width of the curved corner fill
+    readonly property int floatInset: 4       // bottom gap so all tabs float over the toolbar
     readonly property bool dragging: dragHandler.active
     onTabIconUrlChanged: faviconFailed = root.tabIconUrl === ""
 
@@ -75,7 +75,7 @@ Item {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.topMargin: root.isActive ? root.activeTopInset : root.inactiveTopInset
-        anchors.bottomMargin: root.isActive ? 0 : root.inactiveBotInset
+        anchors.bottomMargin: root.floatInset
 
         Behavior on anchors.topMargin {
             NumberAnimation {
@@ -95,30 +95,12 @@ Item {
                 return Theme.tabActive;
             if (hoverHandler.hovered)
                 return Theme.tabHover;
-            return Theme.tabInactive;
+            return Theme.tabStripBg;
         }
         Behavior on color {
             ColorAnimation {
                 duration: Theme.durationFast
             }
-        }
-
-        // when active clip onto others
-        Rectangle {
-            visible: root.isActive
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            width: Theme.tabRadius
-            height: Theme.tabRadius
-            color: Theme.tabActive
-        }
-        Rectangle {
-            visible: root.isActive
-            anchors.bottom: parent.bottom
-            anchors.right: parent.right
-            width: Theme.tabRadius
-            height: Theme.tabRadius
-            color: Theme.tabActive
         }
 
         // content row
@@ -251,54 +233,6 @@ Item {
         }
     }
 
-    // curved sholder
-    Item {
-        visible: root.isActive
-        anchors.right: body.left
-        anchors.bottom: body.bottom
-        width: root.shoulderW
-        height: root.shoulderW
-        clip: true
-
-        // bg-colour fill
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.tabStripBg
-        }
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            width: root.shoulderW * 2
-            height: root.shoulderW * 2
-            radius: root.shoulderW
-            color: Theme.tabActive
-        }
-    }
-
-    // right sholder
-    Item {
-        visible: root.isActive
-        anchors.left: body.right
-        anchors.bottom: body.bottom
-        width: root.shoulderW
-        height: root.shoulderW
-        clip: true
-
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.tabStripBg
-        }
-        Rectangle {
-            anchors.right: parent.right
-            anchors.top: parent.top
-            width: root.shoulderW * 2
-            height: root.shoulderW * 2
-            radius: root.shoulderW
-            color: Theme.tabActive
-        }
-    }
-
     // interaction
     // hi lol
     HoverHandler {
@@ -306,5 +240,19 @@ Item {
     }
     TapHandler {
         onTapped: root.activated()
+    }
+
+    // floating 1px vertical separator between tabs (skips the active tab
+    // and its left neighbour so the active tab has no lines beside it)
+    Rectangle {
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        width: 1
+        height: 20
+        color: Theme.border
+        opacity: 0.7
+        visible: root.index < root.tabCount - 1
+                 && root.index !== root.activeIndex
+                 && root.index !== root.activeIndex - 1
     }
 }

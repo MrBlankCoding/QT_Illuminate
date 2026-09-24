@@ -127,6 +127,7 @@ Item {
                 height: tabList.height
                 width: tabList.tabWidth
                 tabCount: tabList.count
+                activeIndex: Browser.tabModel.activeIndex
 
                 isActive: index === Browser.tabModel.activeIndex
 

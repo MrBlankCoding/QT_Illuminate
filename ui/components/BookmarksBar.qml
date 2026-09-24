@@ -45,7 +45,7 @@ Rectangle {
         opacity: overflowed ? 0 : 1
         enabled: !overflowed
 
-        height: 28
+        height: 22
         width: chipContent.implicitWidth + 16
 
         function commitRename(newTitle) {
@@ -181,6 +181,7 @@ Rectangle {
         anchors.leftMargin: 8
         anchors.rightMargin: 4
         anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: -1
         spacing: 2
         clip: true
 
@@ -201,8 +202,9 @@ Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: 8
         anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: -1
         width: root.hasOverflow ? 28 : 0
-        height: 28
+        height: 22
         radius: height / 2
         visible: root.hasOverflow
         color: overflowHover.hovered ? Theme.surfaceHigh : "transparent"
@@ -236,13 +238,5 @@ Rectangle {
                 onObjectRemoved: (index, object) => overflowMenu.removeItem(object)
             }
         }
-    }
-
-    Rectangle {
-        anchors.bottom: parent.bottom
-        width: parent.width
-        height: 1
-        color: Theme.border
-        opacity: 0.6
     }
 }

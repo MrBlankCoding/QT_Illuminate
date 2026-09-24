@@ -52,17 +52,6 @@ Item {
         anchors.centerIn: parent
         width:   Math.min(parent.width * 0.72, 680)
         spacing: 32
-
-        // brand title
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text:           "illuminate"
-            color:          Theme.text
-            font.family:    Theme.fontFamily
-            font.pixelSize: 42
-            font.weight:    Font.DemiBold
-            opacity:        0.95
-        }
     }
 
     // customize background button

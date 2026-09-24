@@ -30,7 +30,6 @@ QtObject {
     // tabs and strips
     readonly property color tabStripBg:  surface
     readonly property color tabActive:   isDark ? adapt("#1e1e2e", "#202033", 0.26) : adapt("#f5f5fa", "#ffffff", 0.08)
-    readonly property color tabInactive: isDark ? adapt("#252538", "#191928", 0.10) : adapt("#e2e3ec", "#e5e7f0", 0.06)
     readonly property color tabHover:    isDark ? adapt("#2e2e45", "#222236", 0.18) : adapt("#ebebf3", "#eeeef7", 0.10)
 
     // toolbar
@@ -62,7 +61,7 @@ QtObject {
 
     // toolbar
     readonly property int   toolbarHeight: 44
-    readonly property int   bookmarksBarHeight: 34
+    readonly property int   bookmarksBarHeight: 24
     readonly property int   pillRadius:    20
     readonly property int   progressH:     3
 
