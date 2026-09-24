@@ -12,8 +12,6 @@ ApplicationWindow {
         "#8A6CFF", "#69B578", "#D96ACF"
     ]
 
-    // keep the last spawned browser window so we can drop it when the
-    // user picks another profile; unparented createObject() leaks otherwise.
     property var savedWin: null
 
     width: 640
@@ -50,7 +48,6 @@ ApplicationWindow {
         w.showMaximized();
     }
 
-    // rounded background (behind content, in front of transparent window)
     Rectangle {
         anchors.fill: parent
         z: -2
@@ -67,6 +64,30 @@ ApplicationWindow {
         cursorShape: Qt.SizeAllCursor
         onPressed: root.startSystemMove()
     }
+
+    Rectangle {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 16
+        anchors.rightMargin: 16
+        width: 28
+        height: 28
+        radius: 14
+        color: pickerClose.hovered ? Qt.alpha(Theme.text, 0.12) : Qt.alpha(Theme.text, 0.06)
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+        Text {
+            anchors.centerIn: parent
+            text: "✕"
+            font.pixelSize: 11
+            color: pickerClose.hovered ? Theme.text : Theme.textMuted
+        }
+
+        HoverHandler { id: pickerClose; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: root.close() }
+    }
+
+    Keys.onEscapePressed: root.close()
 
     ColumnLayout {
         anchors.fill: parent
