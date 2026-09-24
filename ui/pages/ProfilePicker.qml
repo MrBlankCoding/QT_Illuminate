@@ -32,11 +32,11 @@ ApplicationWindow {
     }
 
     function openProfile(profile) {
-        profileManager.activeProfile = profile;
+        ProfileManager.activeProfile = profile;
         const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/BrowserWindow.qml");
         if (component.status !== Component.Ready)
             return;
-        const w = component.createObject(null);
+        const w = component.createObject(null) as Window;
         if (!w)
             return;
         if (root.savedWin)
@@ -102,7 +102,7 @@ ApplicationWindow {
 
                     Repeater {
                         id: profileRepeater
-                        model: profileManager.profiles
+                        model: ProfileManager.profiles
 
                         delegate: Item {
                             id: tileWrapper
@@ -116,7 +116,7 @@ ApplicationWindow {
                                 profile: tileWrapper.modelData
                                 avatarColor: root.avatarColorFor(tileWrapper.modelData)
                                 onTileClicked: root.openProfile(tileWrapper.modelData)
-                                onTileRightClicked: profileContextMenu.open(tileWrapper.modelData, position.x, position.y)
+                                onTileRightClicked: position => profileContextMenu.open(tileWrapper.modelData, position.x, position.y)
                             }
                         }
                     }
@@ -156,7 +156,7 @@ ApplicationWindow {
             text: "Delete"
             onTriggered: {
                 if (profileContextMenu.currentProfile)
-                    profileManager.deleteProfile(profileContextMenu.currentProfile.id)
+                    ProfileManager.deleteProfile(profileContextMenu.currentProfile.id)
             }
         }
     }
@@ -242,7 +242,7 @@ ApplicationWindow {
 
                 PillButton {
                     text: "Save"
-                    textColor: "white"
+                    textColor: Theme.onAccent
                     enabled: renameField.text.trim().length > 0
                     fillColor: enabled ? Theme.accent : Qt.alpha(Theme.text, 0.2)
                     hoverFillColor: Qt.darker(Theme.accent, 1.1)
@@ -270,7 +270,7 @@ ApplicationWindow {
         function confirm() {
             if (trimmedName.length === 0)
                 return;
-            profileManager.createProfile(trimmedName, selectedColor);
+            ProfileManager.createProfile(trimmedName, selectedColor);
             close();
         }
 
@@ -369,6 +369,7 @@ ApplicationWindow {
                 Repeater {
                     model: root.avatarColors
                     delegate: Rectangle {
+                        id: swatch
                         required property var modelData
                         width: 26
                         height: 26
@@ -381,7 +382,7 @@ ApplicationWindow {
 
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: addPopup.selectedColor = modelData
+                            onClicked: addPopup.selectedColor = swatch.modelData
                         }
                     }
                 }

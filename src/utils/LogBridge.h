@@ -2,16 +2,19 @@
 
 #include <QObject>
 #include <QString>
+#include <QtQml/qqmlregistration.h>
 #include "BrowserLogger.h"
 
-//   logger.debug("TabBar",     "Tab activated: " + index)
-//   logger.info ("Navigation", "Navigating to " + url)
-//   logger.warning ("WebView",    "Load failed for " + url)
-//   logger.error("Crash",      "Unexpected null model")
+//   Logger.debug("TabBar",     "Tab activated: " + index)
+//   Logger.info ("Navigation", "Navigating to " + url)
+//   Logger.warning ("WebView",    "Load failed for " + url)
+//   Logger.error("Crash",      "Unexpected null model")
 
 class LogBridge : public QObject
 {
     Q_OBJECT
+    QML_NAMED_ELEMENT(Logger)
+    QML_SINGLETON
     Q_PROPERTY(QString logFilePath READ logFilePath CONSTANT)
 
 public:

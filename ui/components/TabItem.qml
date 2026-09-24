@@ -51,13 +51,13 @@ Item {
             if (!active || root.width <= 0)
                 return;
             let offset = translation.x - committedX;
-            while (offset > root.width / 2 && index < root.tabCount - 1) {
-                root.reorderRequested(index + 1);
+            while (offset > root.width / 2 && root.index < root.tabCount - 1) {
+                root.reorderRequested(root.index + 1);
                 committedX += root.width;
                 offset -= root.width;
             }
-            while (offset < -root.width / 2 && index > 0) {
-                root.reorderRequested(index - 1);
+            while (offset < -root.width / 2 && root.index > 0) {
+                root.reorderRequested(root.index - 1);
                 committedX -= root.width;
                 offset += root.width;
             }
@@ -70,12 +70,12 @@ Item {
         id: body
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: isActive ? 0 : 1
-        anchors.rightMargin: isActive ? 0 : 1
+        anchors.leftMargin: root.isActive ? 0 : 1
+        anchors.rightMargin: root.isActive ? 0 : 1
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.topMargin: isActive ? root.activeTopInset : root.inactiveTopInset
-        anchors.bottomMargin: isActive ? 0 : root.inactiveBotInset
+        anchors.topMargin: root.isActive ? root.activeTopInset : root.inactiveTopInset
+        anchors.bottomMargin: root.isActive ? 0 : root.inactiveBotInset
 
         Behavior on anchors.topMargin {
             NumberAnimation {
@@ -124,10 +124,10 @@ Item {
         // content row
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: isActive ? 12 : 10
+            anchors.leftMargin: root.isActive ? 12 : 10
             anchors.rightMargin: 4
             anchors.topMargin: 2
-            anchors.bottomMargin: isActive ? 0 : 2
+            anchors.bottomMargin: root.isActive ? 0 : 2
             spacing: 6
 
             // favicon & spinner
@@ -256,8 +256,8 @@ Item {
         visible: root.isActive
         anchors.right: body.left
         anchors.bottom: body.bottom
-        width: shoulderW
-        height: shoulderW
+        width: root.shoulderW
+        height: root.shoulderW
         clip: true
 
         // bg-colour fill
@@ -269,9 +269,9 @@ Item {
         Rectangle {
             anchors.left: parent.left
             anchors.top: parent.top
-            width: shoulderW * 2
-            height: shoulderW * 2
-            radius: shoulderW
+            width: root.shoulderW * 2
+            height: root.shoulderW * 2
+            radius: root.shoulderW
             color: Theme.tabActive
         }
     }
@@ -281,8 +281,8 @@ Item {
         visible: root.isActive
         anchors.left: body.right
         anchors.bottom: body.bottom
-        width: shoulderW
-        height: shoulderW
+        width: root.shoulderW
+        height: root.shoulderW
         clip: true
 
         Rectangle {
@@ -292,9 +292,9 @@ Item {
         Rectangle {
             anchors.right: parent.right
             anchors.top: parent.top
-            width: shoulderW * 2
-            height: shoulderW * 2
-            radius: shoulderW
+            width: root.shoulderW * 2
+            height: root.shoulderW * 2
+            radius: root.shoulderW
             color: Theme.tabActive
         }
     }

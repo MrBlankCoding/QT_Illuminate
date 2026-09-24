@@ -2,13 +2,16 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QDebug>
-#include <QWebEngineSettings>
+#include <QWebEngineClientHints>
+#include <QtQml/qqmlparserstatus.h>
+#include <QtWebEngineQuick/private/qquickwebengineprofileprototype_p.h>
+#include "AdBlocker.h"
 #include "../utils/BrowserLogger.h"
 #include "../utils/WebVersion.h"
 
 Profile::Profile(const QString &id, const QString &name, const QString &path,
                  const QString &color, QObject *parent)
-    : QObject(parent), m_id(id), m_name(name), m_color(color), m_path(path), m_webEngineProfile(nullptr)
+    : QObject(parent), m_id(id), m_name(name), m_color(color), m_path(path)
 {
     QDir profileDir(m_path);
     if (!profileDir.exists())
@@ -58,21 +61,38 @@ void Profile::setColor(const QString &color)
     emit colorChanged();
 }
 
-QWebEngineProfile *Profile::webEngineProfile()
-{
-    if (!m_webEngineProfile)
-    {
-        m_webEngineProfile = new QWebEngineProfile(m_id, const_cast<Profile *>(this));
-        m_webEngineProfile->setPersistentStoragePath(m_path + QDir::separator() + "web_data");
-        m_webEngineProfile->setCachePath(m_path + QDir::separator() + "cache");
-        m_webEngineProfile->setPersistentCookiesPolicy(QWebEngineProfile::AllowPersistentCookies);
+Profile::~Profile() = default;
 
-        // Optimization settings
-        QWebEngineSettings *settings = m_webEngineProfile->settings();
-        settings->setAttribute(QWebEngineSettings::Accelerated2dCanvasEnabled, true);
-        settings->setAttribute(QWebEngineSettings::DnsPrefetchEnabled, true);
-        settings->setAttribute(QWebEngineSettings::WebGLEnabled, true);
-        m_webEngineProfile->setHttpUserAgent(chromeUserAgent());
+QQuickWebEngineProfile *Profile::webProfile()
+{
+    if (m_webProfilePrototype)
+        return m_webProfilePrototype->instance();
+
+    m_webProfilePrototype = std::make_unique<QQuickWebEngineProfilePrototype>();
+    m_webProfilePrototype->setStorageName(m_id);
+    m_webProfilePrototype->setPersistentStoragePath(m_path + QDir::separator() + "web_data");
+    m_webProfilePrototype->setCachePath(m_path + QDir::separator() + "cache");
+    m_webProfilePrototype->setPersistentCookiesPolicy(QQuickWebEngineProfile::AllowPersistentCookies);
+    static_cast<QQmlParserStatus *>(m_webProfilePrototype.get())->componentComplete();
+
+    QQuickWebEngineProfile *profile = m_webProfilePrototype->instance();
+    if (!profile)
+    {
+        // Qt returns null when another profile already uses the storage path
+        BrowserLogger::instance().error("Profile", "Could not create web profile for " + m_path);
+        return nullptr;
     }
-    return m_webEngineProfile;
+
+    profile->setHttpUserAgent(chromeUserAgent());
+    if (QWebEngineClientHints *hints = profile->clientHints())
+    {
+        hints->setFullVersion(chromiumVersion());
+        hints->setFullVersionList(chromeBrandVersions());
+    }
+
+    if (AdBlocker *adBlocker = AdBlocker::instance())
+        profile->setUrlRequestInterceptor(adBlocker->interceptor());
+
+    BrowserLogger::instance().info("Profile", QString("Web profile ready: storage=%1").arg(profile->persistentStoragePath()));
+    return profile;
 }

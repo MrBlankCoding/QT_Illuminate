@@ -4,13 +4,16 @@
 #include <QUrl>
 #include <QVariantMap>
 #include <QVector>
-#include <QWebEngineProfile>
+#include <QQuickWebEngineProfile>
+#include <QtQml/qqmlregistration.h>
 // MOC needs to resolve at compile time.
 class BrowserTab;
 
 class TabModel : public QAbstractListModel
 {
     Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("Use Browser.tabModel")
     Q_PROPERTY(int activeIndex READ activeIndex WRITE setActiveIndex
                    NOTIFY activeIndexChanged)
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
@@ -35,7 +38,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     // tab CRUD
-    BrowserTab *addTab(const QUrl &url, QWebEngineProfile *profile);
+    BrowserTab *addTab(const QUrl &url, QQuickWebEngineProfile *profile);
     void removeTab(int index);
     void clear();
     BrowserTab *tabAt(int index) const;

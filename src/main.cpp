@@ -1,31 +1,84 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
-#include <QQmlContext>
 #include <QDir>
-#include <QQuickWebEngineProfile>
+#include <QLocalServer>
+#include <QLocalSocket>
+#include <QWindow>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
-#include "core/BookmarkModel.h"
+#include "core/AdBlocker.h"
 #include "core/BrowserController.h"
-#include "core/InternalPageManager.h"
 #include "core/ProfileManager.h"
 #include "utils/BrowserLogger.h"
-#include "utils/LogBridge.h"
-#include "utils/WebVersion.h"
-#include "utils/WindowHelper.h"
+
+// only one instance
+static bool claimSingleInstance(QLocalServer &server)
+{
+    const QString name = QStringLiteral("QT_Illuminate-") + qEnvironmentVariable("USER");
+
+    QLocalSocket probe;
+    probe.connectToServer(name);
+    if (probe.waitForConnected(500))
+    {
+        probe.write("activate");
+        probe.waitForBytesWritten(500);
+        return false;
+    }
+
+    // clear a socket
+    // it crashed
+    QLocalServer::removeServer(name);
+    if (!server.listen(name))
+        BrowserLogger::instance().warning("Main", "Single-instance server failed: " + server.errorString());
+
+    QObject::connect(&server, &QLocalServer::newConnection, &server, [&server]()
+                     {
+        while (QLocalSocket *client = server.nextPendingConnection())
+            client->deleteLater();
+        // attempt secound launch 
+        // bring windows forward
+        for (QWindow *window : QGuiApplication::topLevelWindows())
+        {
+            if (!window->isVisible())
+                continue;
+            if (window->windowState() & Qt::WindowMinimized)
+                window->showNormal();
+            window->raise();
+            window->requestActivate();
+        } });
+    return true;
+}
+
+#if defined(Q_OS_WIN)
+// whatttttttttt
+extern "C" {
+__declspec(dllexport) unsigned long NvOptimusEnablement = 1;
+__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
+#endif
 
 int main(int argc, char *argv[])
 {
-    const QByteArray kSckFeatures =
-        "--disable-features=ScreenCaptureKit,ScreenCaptureKitFullDesktopFallback,UseScreenCaptureKitForSnapshots";
-    const QByteArray existingFlags = qgetenv("QTWEBENGINE_CHROMIUM_FLAGS");
-    if (!existingFlags.contains("ScreenCaptureKit"))
+    // flags
+    // need to be tweaked
+    const QList<QByteArray> kChromiumFlags = {
+        "--disable-features=ScreenCaptureKit,ScreenCaptureKitFullDesktopFallback,UseScreenCaptureKitForSnapshots",
+        "--ignore-gpu-blocklist",
+        "--enable-gpu-rasterization",
+        "--force_high_performance_gpu",
+    };
+    QByteArray flags = qgetenv("QTWEBENGINE_CHROMIUM_FLAGS");
+    for (const QByteArray &flag : kChromiumFlags)
     {
-        const QByteArray flags = existingFlags.isEmpty()
-            ? kSckFeatures
-            : existingFlags + " " + kSckFeatures;
-        qputenv("QTWEBENGINE_CHROMIUM_FLAGS", flags);
+        const qsizetype eq = flag.indexOf('=');
+        const QByteArray name = eq < 0 ? flag : flag.left(eq);
+        if (flags.contains(name))
+            continue; // respect a user override
+        if (!flags.isEmpty())
+            flags += ' ';
+        flags += flag;
     }
+    qputenv("QTWEBENGINE_CHROMIUM_FLAGS", flags);
 
     // webengine start before everyting
     QtWebEngineQuick::initialize();
@@ -42,34 +95,21 @@ int main(int argc, char *argv[])
 #endif
 
     BrowserLogger::instance().installAsQtHandler();
-    qmlRegisterType<Profile>("QT_Illuminate.Core", 1, 0, "Profile");
 
+    QLocalServer instanceServer;
+    if (!claimSingleInstance(instanceServer))
+    {
+        BrowserLogger::instance().info("Main", "Already running; activated the existing window");
+        return 0;
+    }
+
+    // before any profile exists: each web profile routes its requests through it
+    AdBlocker adBlocker;
     ProfileManager profileManager;
 
     BrowserLogger::instance().info("Main", "QT_Illuminate starting up");
 
     BrowserLogger::instance().info("Main", QString("Qt %1 — WebEngine ready").arg(qVersion()));
-
-    if (auto *defaultProfile = QQuickWebEngineProfile::defaultProfile())
-    {
-        defaultProfile->setHttpUserAgent(chromeUserAgent().toUtf8());
-        BrowserLogger::instance().info("Main",
-                                       QStringLiteral("Default profile UA: ") + defaultProfile->httpUserAgent());
-        if (defaultProfile->isOffTheRecord())
-        {
-            if (Profile *active = profileManager.activeProfile())
-            {
-                defaultProfile->setStorageName(active->id());
-                defaultProfile->setPersistentStoragePath(active->path() + QStringLiteral("/web_data"));
-                defaultProfile->setCachePath(active->path() + QStringLiteral("/cache"));
-                defaultProfile->setPersistentCookiesPolicy(QQuickWebEngineProfile::AllowPersistentCookies);
-            }
-            defaultProfile->setOffTheRecord(false);
-            BrowserLogger::instance().info("Main",
-                                           QString("Configured default profile as persistent: storage=%1")
-                                               .arg(defaultProfile->persistentStoragePath()));
-        }
-    }
 
     // Dummy profile for initial setup
     BrowserController controller(profileManager.activeProfile());
@@ -81,25 +121,15 @@ int main(int argc, char *argv[])
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &controller, [&controller]() {
         controller.saveSession();
     });
-    LogBridge logBridge;
-    BookmarkModel bookmarkModel;
-
     QQmlApplicationEngine engine;
 
     // Point to QML for UI
     engine.addImportPath("qrc:/");
 
-    engine.rootContext()->setContextProperty("browser", QVariant::fromValue(&controller));
-    engine.rootContext()->setContextProperty("tabModel", controller.tabModel());
-    engine.rootContext()->setContextProperty("logger", &logBridge);
-    engine.rootContext()->setContextProperty("bookmarks", &bookmarkModel);
-    engine.rootContext()->setContextProperty("internalPages", &InternalPageManager::instance());
-    engine.rootContext()->setContextProperty("profileManager", &profileManager);
-    engine.rootContext()->setContextProperty("webProfile", QVariant::fromValue(
-                                                               QQuickWebEngineProfile::defaultProfile()));
-
-    WindowHelper windowHelper;
-    engine.rootContext()->setContextProperty("windowHelper", &windowHelper);
+    // singletons
+    BrowserController::setQmlInstance(&controller);
+    ProfileManager::setQmlInstance(&profileManager);
+    AdBlocker::setQmlInstance(&adBlocker);
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::warnings,

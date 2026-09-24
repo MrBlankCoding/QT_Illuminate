@@ -10,6 +10,7 @@ Menu {
     property var request: null
 
     signal toggleDevTools
+    signal inspectElement
 
     MenuItem {
         text: "Back"
@@ -62,7 +63,11 @@ Menu {
     MenuSeparator {}
 
     MenuItem {
+        text: "Inspect"
+        onTriggered: root.inspectElement()
+    }
+    MenuItem {
         text: "Toggle Dev Tools"
-        onTriggered: toggleDevTools()
+        onTriggered: root.toggleDevTools()
     }
 }

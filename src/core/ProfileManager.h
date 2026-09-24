@@ -5,11 +5,15 @@
 #include <QList>
 #include <QVariantList>
 #include <QHash>
+#include <QtQml/qqmlregistration.h>
 #include "Profile.h"
+#include "../utils/ExternalQmlSingleton.h"
 
-class ProfileManager : public QObject
+class ProfileManager : public QObject, public ExternalQmlSingleton<ProfileManager>
 {
     Q_OBJECT
+    QML_ELEMENT
+    QML_SINGLETON
     Q_PROPERTY(QVariantList profiles READ profiles NOTIFY profilesChanged)
     Q_PROPERTY(Profile *activeProfile READ activeProfile WRITE setActiveProfile NOTIFY activeProfileChanged)
 

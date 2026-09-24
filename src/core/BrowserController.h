@@ -3,16 +3,21 @@
 #include <QObject>
 #include <QUrl>
 #include <QString>
-#include <QWebEngineProfile>
+#include <QQuickWebEngineProfile>
+#include <QtQml/qqmlregistration.h>
 #include "TabModel.h"
 #include "Profile.h"
+#include "../utils/ExternalQmlSingleton.h"
+#include "../utils/ColorExtractor.h"
 
 class QSettings;
 
-class BrowserController : public QObject
+class BrowserController : public QObject, public ExternalQmlSingleton<BrowserController>
 {
     Q_DISABLE_COPY_MOVE(BrowserController)
     Q_OBJECT
+    QML_NAMED_ELEMENT(Browser)
+    QML_SINGLETON
 
     // MOC revice tab model
     Q_PROPERTY(TabModel *tabModel READ tabModel CONSTANT)
@@ -23,7 +28,12 @@ class BrowserController : public QObject
     Q_PROPERTY(int activeProgress READ activeProgress NOTIFY activeStateChanged)
     Q_PROPERTY(QString newTabBackground READ newTabBackground WRITE setNewTabBackground NOTIFY newTabBackgroundChanged)
     Q_PROPERTY(QString themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
-    Q_PROPERTY(QString adaptiveAccent READ adaptiveAccent NOTIFY adaptiveAccentChanged)
+    // palette derived from the new tab background; empty accents / -1 luminance when there is none
+    Q_PROPERTY(QString adaptiveAccentDark READ adaptiveAccentDark NOTIFY adaptivePaletteChanged)
+    Q_PROPERTY(QString adaptiveAccentLight READ adaptiveAccentLight NOTIFY adaptivePaletteChanged)
+    Q_PROPERTY(qreal backgroundLuminance READ backgroundLuminance NOTIFY adaptivePaletteChanged)
+    // the active profile's Chromium profile; every tab's WebEngineView uses it
+    Q_PROPERTY(QQuickWebEngineProfile *webProfile READ webProfile NOTIFY webProfileChanged)
 
 public:
     explicit BrowserController(Profile *profile, QObject *parent = nullptr);
@@ -40,7 +50,10 @@ public:
     void setNewTabBackground(const QString &path);
     QString themeMode() const;
     void setThemeMode(const QString &mode);
-    QString adaptiveAccent() const;
+    QString adaptiveAccentDark() const;
+    QString adaptiveAccentLight() const;
+    qreal backgroundLuminance() const;
+    QQuickWebEngineProfile *webProfile() const;
 
     // user actions
     Q_INVOKABLE void newTab(const QString &url = {});
@@ -52,6 +65,7 @@ public:
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goForward();
     Q_INVOKABLE void toggleDevTools();
+    Q_INVOKABLE void copyActiveUrl() const;
 
     // session persistence (per-profile)
     Q_INVOKABLE void saveSession() const;
@@ -69,22 +83,27 @@ signals:
     void activeStateChanged();
     void newTabBackgroundChanged();
     void themeModeChanged();
-    void adaptiveAccentChanged();
+    void adaptivePaletteChanged();
+    void webProfileChanged();
+    void newTabOpened(); // blank new tab page opened, UI focuses the address bar
     void loadRequested(int tabIndex, const QUrl &url);
     void navigationRequested(const QString &action); // "back"|"forward"|"reload"|"devtools"
 
 private:
     void rewireActiveTab();
     void updateAdaptiveAccent();
+    void applyPalette(const ImagePalette &palette);
     void restoreSession();
     QString sessionFilePath() const;
 
     TabModel *m_model;
     Profile *m_profile;
-    QWebEngineProfile *m_webEngineProfile;
+    QQuickWebEngineProfile *m_webEngineProfile;
     // deleted and recreated every tab change
     QObject *m_activeTabCtx = nullptr;
-    QString m_adaptiveAccent;
+    ImagePalette m_palette;
+    // bumped per extraction so a slow result for an old image is dropped
+    int m_paletteGeneration = 0;
     QSettings *m_settings;
 
     static const int MIN_TABS_FOR_CYCLE = 2;

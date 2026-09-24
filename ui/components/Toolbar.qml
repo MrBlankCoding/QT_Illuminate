@@ -21,6 +21,7 @@ pragma ComponentBehavior: Bound
     // emitted when user picks a profile or opens selector
     signal switchToProfile(var profile)
     signal openProfileSelector
+    signal openSettings
 
     // avatar color helper (mirrors ProfilePicker.avatarColorFor)
     function avatarColorFor(profile) {
@@ -28,7 +29,7 @@ pragma ComponentBehavior: Bound
     }
 
     // recheck bookmarks on change
-    readonly property bool isBookmarked: bookmarks.count >= 0 && root.currentUrl !== "" && bookmarks.isBookmarked(root.currentUrl)
+    readonly property bool isBookmarked: Bookmarks.count >= 0 && root.currentUrl !== "" && Bookmarks.isBookmarked(root.currentUrl)
 
     // ⋮ menu can drive find-in-page and zoom.
     property var findBar: null
@@ -48,10 +49,9 @@ pragma ComponentBehavior: Bound
     function toggleBookmark() {
         if (root.currentUrl === "" || root.currentUrl === "newtab://newtab")
             return;
-        bookmarks.toggleBookmark(root.currentTitle, root.currentUrl, root.currentIconUrl);
+        Bookmarks.toggleBookmark(root.currentTitle, root.currentUrl, root.currentIconUrl);
     }
 
-    // --- search suggestions model & helpers ---
     ListModel {
         id: suggestionModel
     }
@@ -97,8 +97,8 @@ function acceptSuggestion(i) {
 
         const q = query.toLowerCase();
         const local = [];
-        for (let i = 0; i < bookmarks.count && local.length < 4; i++) {
-            const bm = bookmarks.itemAt(i);
+        for (let i = 0; i < Bookmarks.count && local.length < 4; i++) {
+            const bm = Bookmarks.itemAt(i);
             if (bm.title.toLowerCase().includes(q) || bm.url.toLowerCase().includes(q))
                 local.push({
                     text: bm.title,
@@ -180,7 +180,7 @@ function acceptSuggestion(i) {
                         opacity: root.canGoBack ? 1 : 0.35
                         TapHandler {
                             enabled: root.canGoBack
-                            onTapped: browser.goBack()
+                            onTapped: Browser.goBack()
                         }
                     }
 
@@ -191,7 +191,7 @@ function acceptSuggestion(i) {
                         opacity: root.canGoForward ? 1 : 0.35
                         TapHandler {
                             enabled: root.canGoForward
-                            onTapped: browser.goForward()
+                            onTapped: Browser.goForward()
                         }
                     }
 
@@ -200,7 +200,7 @@ function acceptSuggestion(i) {
                         source: root.isLoading ? "qrc:/QT_Illuminate/ui/ui/icons/x.svg" : "qrc:/QT_Illuminate/ui/ui/icons/rotate-cw.svg"
                         color: Theme.textMuted
                         TapHandler {
-                            onTapped: browser.reload()
+                            onTapped: Browser.reload()
                         }
                     }
                 }
@@ -306,9 +306,12 @@ onActiveFocusChanged: {
                             if (suggestionsBox.highlighted >= 0) {
                                 root.acceptSuggestion(suggestionsBox.highlighted);
                             } else if (text.trim() !== "") {
+                                // capture before dropping focus: onActiveFocusChanged
+                                // resets text to currentUrl ("" on the new tab page)
+                                const input = text.trim();
                                 root.clearSuggestions();
                                 focus = false;
-                                root.navigate(text.trim());
+                                root.navigate(input);
                             }
                         }
                         Keys.onEscapePressed: {
@@ -388,7 +391,7 @@ onActiveFocusChanged: {
                     anchors.fill: parent
                     anchors.margins: 2
                     radius: 15
-                    color: root.avatarColorFor(profileManager.activeProfile)
+                    color: root.avatarColorFor(ProfileManager.activeProfile)
                     border.color: profileHover.hovered ? Theme.text : "transparent"
                     border.width: profileHover.hovered ? 1 : 0
                     Behavior on border.width {
@@ -400,7 +403,7 @@ onActiveFocusChanged: {
 
                 Text {
                     anchors.centerIn: parent
-                    text: (profileManager.activeProfile && profileManager.activeProfile.name) ? profileManager.activeProfile.name.charAt(0).toUpperCase() : "⊕"
+                    text: (ProfileManager.activeProfile && ProfileManager.activeProfile.name) ? ProfileManager.activeProfile.name.charAt(0).toUpperCase() : "⊕"
                     font.pixelSize: 12
                     font.weight: Font.Medium
                     font.family: Theme.fontFamily
@@ -420,16 +423,16 @@ onActiveFocusChanged: {
                     popupType: Popup.Native
 
                     Repeater {
-                        model: profileManager.profiles
+                        model: ProfileManager.profiles
 
                         MenuItem {
                             required property var modelData
                             width: 200
                             text: {
                                 const nm = modelData.name || "Unnamed";
-                                return modelData === profileManager.activeProfile ? nm + "  ✓" : nm;
+                                return modelData === ProfileManager.activeProfile ? nm + "  ✓" : nm;
                             }
-                            enabled: modelData !== profileManager.activeProfile
+                            enabled: modelData !== ProfileManager.activeProfile
                             onClicked: root.switchToProfile(modelData)
                         }
                     }
@@ -463,7 +466,7 @@ onActiveFocusChanged: {
 
                     MenuItem {
                         text: "New Tab"
-                        onTriggered: browser.newTab()
+                        onTriggered: Browser.newTab()
                     }
 
                     MenuSeparator {}
@@ -505,17 +508,73 @@ onActiveFocusChanged: {
 
                     MenuSeparator {}
 
+                    Menu {
+                        id: adBlockMenu
+                        title: "Ad Blocker"
+                        popupType: Popup.Native
+
+                        // "example.com" for the current page; empty on internal pages
+                        readonly property string site: root.currentUrl.startsWith("http") ? AdBlocker.siteKey(root.currentUrl) : ""
+                        readonly property bool siteAllowed: site !== "" && AdBlocker.allowedSites.indexOf(site) >= 0
+
+                        MenuItem {
+                            enabled: false
+                            text: AdBlocker.ruleCount > 0
+                                ? AdBlocker.blockedCount.toLocaleString(Qt.locale(), "f", 0) + " blocked · "
+                                    + AdBlocker.ruleCount.toLocaleString(Qt.locale(), "f", 0) + " filter rules"
+                                : (AdBlocker.updating ? "Downloading filter lists…" : "No filter lists yet")
+                        }
+
+                        MenuSeparator {}
+
+                        MenuItem {
+                            text: AdBlocker.enabled ? "Turn Off Ad Blocking" : "Turn On Ad Blocking"
+                            onTriggered: {
+                                AdBlocker.enabled = !AdBlocker.enabled;
+                                Browser.reload();
+                            }
+                        }
+                        MenuItem {
+                            text: adBlockMenu.site === "" ? "Allow Ads on This Site"
+                                : (adBlockMenu.siteAllowed ? "Block Ads on " : "Allow Ads on ") + adBlockMenu.site
+                            enabled: AdBlocker.enabled && adBlockMenu.site !== ""
+                            onTriggered: {
+                                AdBlocker.setSiteAllowed(root.currentUrl, !adBlockMenu.siteAllowed);
+                                Browser.reload();
+                            }
+                        }
+
+                        MenuSeparator {}
+
+                        MenuItem {
+                            text: AdBlocker.updating ? "Updating Filters…" : "Update Filters"
+                            enabled: !AdBlocker.updating
+                            onTriggered: AdBlocker.updateFilters()
+                        }
+                        MenuItem {
+                            text: "Edit My Filters…"
+                            onTriggered: AdBlocker.editCustomFilters()
+                        }
+                    }
+
+                    MenuSeparator {}
+
                     MenuItem {
                         text: "Developer Tools"
-                        onTriggered: browser.toggleDevTools()
+                        onTriggered: Browser.toggleDevTools()
+                    }
+
+                    MenuSeparator {}
+
+                    MenuItem {
+                        text: "Settings…"
+                        onTriggered: root.openSettings()
                     }
                 }
             }
         }
     }
 
-    // search suggestions dropdown (child of root Item, positioned below the address bar).
-    // Uses x/width (not anchors) since pill lives inside the RowLayout.
     SuggestionBox {
         id: suggestionsBox
         anchors.top: toolbarBg.bottom

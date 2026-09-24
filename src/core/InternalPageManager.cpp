@@ -1,8 +1,18 @@
 #include "InternalPageManager.h"
 
+#include <QJSEngine>
+
 InternalPageManager &InternalPageManager::instance()
 {
     static InternalPageManager mgr;
+    return mgr;
+}
+
+InternalPageManager *InternalPageManager::create(QQmlEngine *, QJSEngine *)
+{
+    InternalPageManager *mgr = &instance();
+    // function-local static; the engine must never delete it
+    QJSEngine::setObjectOwnership(mgr, QJSEngine::CppOwnership);
     return mgr;
 }
 

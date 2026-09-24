@@ -85,7 +85,8 @@ Item {
     }
 
     Connections {
-        target: WebEngine.defaultProfile
+        // the profile the tabs browse with (see Profile::webProfile)
+        target: Browser.webProfile
         function onDownloadRequested(download) {
             download.accept();
             root.activeCount++;

@@ -50,7 +50,7 @@ QHash<int, QByteArray> TabModel::roleNames() const
     return roles;
 }
 
-BrowserTab *TabModel::addTab(const QUrl &url, QWebEngineProfile *profile)
+BrowserTab *TabModel::addTab(const QUrl &url, QQuickWebEngineProfile *profile)
 {
     if (m_tabs.size() >= kMaxTabs)
         return nullptr;

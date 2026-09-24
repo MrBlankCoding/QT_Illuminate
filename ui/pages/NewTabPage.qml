@@ -17,7 +17,7 @@ Item {
         id: bgFileDialog
         title: "Choose Background Image"
         nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.bmp *.svg)"]
-        onAccepted: browser.newTabBackground = selectedFile.toString()
+        onAccepted: Browser.newTabBackground = selectedFile.toString()
     }
 
     // background
@@ -28,19 +28,20 @@ Item {
         Image {
             id: customBgImage
             anchors.fill: parent
-            source: browser.newTabBackground
+            source: Browser.newTabBackground
             fillMode: Image.PreserveAspectCrop
             visible: status === Image.Ready
             asynchronous: true
             cache: true
         }
 
-        // dim overlay when custom image active for readability
+        // scrim keeps Theme.text readable over the image in either mode
         Rectangle {
             anchors.fill: parent
-            color: "#000000"
-            opacity: 0.4
+            color: Theme.ntpScrim
+            opacity: Theme.ntpScrimOpacity
             visible: customBgImage.visible
+            Behavior on opacity { NumberAnimation { duration: Theme.durationMid } }
         }
 
         TapHandler {
@@ -80,11 +81,13 @@ Item {
 
             Repeater {
                 id: bookmarksRepeater
-                model: bookmarks
+                model: Bookmarks
 
                 // single file line
                 Item {
                     id: tile
+                    required property var model
+                    required property int index
                     width:  92
                     height: 88
 
@@ -97,7 +100,7 @@ Item {
                         renaming = false
                         const t = newTitle.trim()
                         if (t !== "" && t !== model.title)
-                            bookmarks.renameBookmark(index, t)
+                            Bookmarks.renameBookmark(index, t)
                     }
 
                     Rectangle {
@@ -132,7 +135,7 @@ Item {
                                     smooth:   true
                                     asynchronous: true
                                     visible:  status === Image.Ready
-                                    source:   tile.useFallback ? root.faviconFallback(model.url) : model.iconUrl
+                                    source:   tile.useFallback ? root.faviconFallback(tile.model.url) : tile.model.iconUrl
 
                                     onStatusChanged: {
                                         if (status === Image.Error && !tile.useFallback)
@@ -156,7 +159,7 @@ Item {
                                 visible: !tile.renaming
                                 horizontalAlignment: Text.AlignHCenter
                                 elide: Text.ElideRight
-                                text:           model.title
+                                text:           tile.model.title
                                 color:          tile.hovered ? Theme.text : Theme.textMuted
                                 font.family:    Theme.fontFamily
                                 font.pixelSize: Theme.fontSizeS
@@ -176,7 +179,7 @@ Item {
 
                                 onVisibleChanged: {
                                     if (visible) {
-                                        text = model.title
+                                        text = tile.model.title
                                         forceActiveFocus()
                                         selectAll()
                                     }
@@ -203,12 +206,12 @@ Item {
                         }
                         MenuItem {
                             text: "Delete"
-                            onTriggered: bookmarks.removeBookmark(index)
+                            onTriggered: Bookmarks.removeBookmark(tile.index)
                         }
                     }
 
                     HoverHandler { id: tileHover }
-                    TapHandler   { enabled: !tile.renaming; onTapped: browser.navigate(model.url) }
+                    TapHandler   { enabled: !tile.renaming; onTapped: Browser.navigate(tile.model.url) }
                     TapHandler {
                         enabled: !tile.renaming
                         acceptedButtons: Qt.RightButton
@@ -257,24 +260,24 @@ Item {
             }
             MenuItem {
                 text: "Remove Background"
-                visible: browser.newTabBackground !== ""
-                onTriggered: browser.newTabBackground = ""
+                visible: Browser.newTabBackground !== ""
+                onTriggered: Browser.newTabBackground = ""
             }
             MenuSeparator {}
             MenuItem {
-                text: "Theme: System" + (browser.themeMode === "system" ? " ✓" : "")
-                onTriggered: browser.themeMode = "system"
+                text: "Theme: System" + (Browser.themeMode === "system" ? " ✓" : "")
+                onTriggered: Browser.themeMode = "system"
             }
             MenuItem {
-                text: "Theme: Dark" + (browser.themeMode === "dark" ? " ✓" : "")
-                onTriggered: browser.themeMode = "dark"
+                text: "Theme: Dark" + (Browser.themeMode === "dark" ? " ✓" : "")
+                onTriggered: Browser.themeMode = "dark"
             }
             MenuItem {
-                text: "Theme: Light" + (browser.themeMode === "light" ? " ✓" : "")
-                onTriggered: browser.themeMode = "light"
+                text: "Theme: Light" + (Browser.themeMode === "light" ? " ✓" : "")
+                onTriggered: Browser.themeMode = "light"
             }
         }
     }
 
-    Component.onCompleted: logger.info("NewTabPage", "New tab page loaded")
+    Component.onCompleted: Logger.info("NewTabPage", "New tab page loaded")
 }

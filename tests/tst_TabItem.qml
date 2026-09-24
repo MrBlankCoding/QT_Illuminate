@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../ui/components"
+import QT_Illuminate.ui
 
 Item {
     id: root
@@ -12,6 +12,9 @@ Item {
         TabItem {
             width: 200
             height: 34
+            // required; null model means the "New Tab" defaults
+            model: null
+            index: 0
         }
     }
 

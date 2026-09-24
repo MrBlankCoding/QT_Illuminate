@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Layouts
 import QT_Illuminate.ui
 
 Item {

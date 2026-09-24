@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../ui/components"
+import QT_Illuminate.ui
 
 Item {
     id: root
@@ -14,6 +14,11 @@ Item {
         }
     }
 
+    Component {
+        id: listModelComponent
+        ListModel {}
+    }
+
     SignalSpy {
         id: suggestionClickedSpy
         signalName: "suggestionClicked"
@@ -22,6 +27,13 @@ Item {
     TestCase {
         name: "SuggestionBoxTests"
         when: windowShown
+
+        function makeModel(items) {
+            let model = createTemporaryObject(listModelComponent, root)
+            for (let i = 0; i < items.length; i++)
+                model.append(items[i])
+            return model
+        }
 
         function test_componentExists() {
             let box = createTemporaryObject(suggestionBoxComponent, root)
@@ -38,19 +50,20 @@ Item {
         function test_visibleWithItemsAndFocus() {
             let box = createTemporaryObject(suggestionBoxComponent, root)
             verify(!!box, "Component exists")
-            box.model = [
+            box.model = makeModel([
                 { text: qsTr("Alpha"), isBookmark: false },
                 { text: qsTr("Beta"), isBookmark: true }
-            ]
+            ])
             box.addressFocused = true
             tryCompare(box, "visible", true)
-            verify(box.height > 0)
+            // height animates in from 0
+            tryVerify(() => box.height > 0)
         }
 
         function test_hiddenWhenNotFocused() {
             let box = createTemporaryObject(suggestionBoxComponent, root)
             verify(!!box, "Component exists")
-            box.model = [ { text: qsTr("Alpha"), isBookmark: false } ]
+            box.model = makeModel([ { text: qsTr("Alpha"), isBookmark: false } ])
             box.addressFocused = false
             tryCompare(box, "visible", false)
         }
@@ -58,7 +71,7 @@ Item {
         function test_highlightedWritable() {
             let box = createTemporaryObject(suggestionBoxComponent, root)
             verify(!!box, "Component exists")
-            box.model = [ { text: qsTr("Alpha"), isBookmark: false } ]
+            box.model = makeModel([ { text: qsTr("Alpha"), isBookmark: false } ])
             box.highlighted = 0
             compare(box.highlighted, 0)
         }
@@ -66,7 +79,7 @@ Item {
         function test_hoverHighlightsRow() {
             let box = createTemporaryObject(suggestionBoxComponent, root)
             verify(!!box, "Component exists")
-            box.model = [ { text: qsTr("Alpha"), isBookmark: false } ]
+            box.model = makeModel([ { text: qsTr("Alpha"), isBookmark: false } ])
             box.addressFocused = true
             let row = findChild(box, "suggestionRow")
             verify(!!row, "Object exists")
@@ -77,13 +90,16 @@ Item {
         function test_suggestionClicked() {
             let box = createTemporaryObject(suggestionBoxComponent, root)
             verify(!!box, "Component exists")
-            box.model = [
+            box.model = makeModel([
                 { text: qsTr("Alpha"), isBookmark: false },
                 { text: qsTr("Beta"), isBookmark: true }
-            ]
+            ])
             box.addressFocused = true
             suggestionClickedSpy.target = box
             suggestionClickedSpy.clear()
+            // Column positions its rows on the next polish; until then they
+            // all sit at y=0 and a click would land on every row at once
+            waitForRendering(box)
             let row = findChild(box, "suggestionRow")
             verify(!!row, "Object exists")
             mouseClick(row, row.width / 2, row.height / 2)

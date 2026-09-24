@@ -4,12 +4,15 @@
 #include <QString>
 #include <QVariantMap>
 #include <QVector>
+#include <QtQml/qqmlregistration.h>
 
 // stored as JSON under AppLocalDataLocation
 // is this best?
 class BookmarkModel : public QAbstractListModel
 {
     Q_OBJECT
+    QML_NAMED_ELEMENT(Bookmarks)
+    QML_SINGLETON
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
 
 public:

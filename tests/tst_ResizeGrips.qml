@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../ui/components"
+import QT_Illuminate.ui
 
 Item {
     id: root

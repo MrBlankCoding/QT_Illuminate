@@ -12,8 +12,10 @@ Rectangle {
     property bool addressFocused: false
     signal suggestionClicked(int index)
 
-    height: model.count > 0 ? (suggestionsColumn.implicitHeight + 8) : 0
-    visible: model.count > 0 && addressFocused
+    readonly property int count: root.model ? root.model.count : 0
+
+    height: count > 0 ? (suggestionsColumn.implicitHeight + 8) : 0
+    visible: count > 0 && addressFocused
     z: 200
     radius: 8
     color: Theme.surface
@@ -40,6 +42,7 @@ Rectangle {
             model: root.model
 
             delegate: Rectangle {
+                id: row
                 required property int index
                 required property var model
                 objectName: "suggestionRow"
@@ -56,14 +59,14 @@ Rectangle {
 
                     LucideIcon {
                         size: 14
-                        source: model.isBookmark ? "qrc:/QT_Illuminate/ui/ui/icons/star-filled.svg" : "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
-                        color: model.isBookmark ? Theme.accent : Theme.textMuted
+                        source: row.model.isBookmark ? "qrc:/QT_Illuminate/ui/ui/icons/star-filled.svg" : "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
+                        color: row.model.isBookmark ? Theme.accent : Theme.textMuted
                         Layout.alignment: Qt.AlignVCenter
                     }
 
                     Text {
                         Layout.fillWidth: true
-                        text: model.text
+                        text: row.model.text
                         color: Theme.text
                         elide: Text.ElideRight
                         font.family: Theme.fontFamily
@@ -74,10 +77,10 @@ Rectangle {
 
                 HoverHandler {
                     onHoveredChanged: if (hovered)
-                        root.highlighted = index
+                        root.highlighted = row.index
                 }
                 TapHandler {
-                    onTapped: root.suggestionClicked(index)
+                    onTapped: root.suggestionClicked(row.index)
                 }
             }
         }

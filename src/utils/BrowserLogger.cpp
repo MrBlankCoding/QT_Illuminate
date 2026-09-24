@@ -87,7 +87,10 @@ void BrowserLogger::log(Level level, const QString &category, const QString &mes
     {
         rotateIfNeeded();
         m_file.write(line.toUtf8() + '\n');
-        m_file.flush();
+        // flushing every line stalls the GUI thread on chatty pages; warnings
+        // and errors still hit disk immediately so they survive a crash
+        if (level >= Warning)
+            m_file.flush();
     }
 
     // mirror to console

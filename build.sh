@@ -174,6 +174,24 @@ if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then
     fi
 fi
 
+if pgrep -f "$APP_BINARY" >/dev/null 2>&1; then
+    echo "→ Quitting running ${APP_LABEL}…"
+    if (( IS_MAC )); then
+        # a normal quit, so the session is saved on the way out
+        osascript -e 'quit app id "local.qt-illuminate.QT_Illuminate"' >/dev/null 2>&1 || true
+    else
+        pkill -TERM -f "$APP_BINARY" || true
+    fi
+    for _ in $(seq 1 50); do
+        pgrep -f "$APP_BINARY" >/dev/null 2>&1 || break
+        sleep 0.1
+    done
+    if pgrep -f "$APP_BINARY" >/dev/null 2>&1; then
+        echo "  Still running after 5s; killing it."
+        pkill -KILL -f "$APP_BINARY" || true
+    fi
+fi
+
 # remove previous build
 rm -rf "$APP_BUNDLE" 2>/dev/null || true
 
@@ -205,10 +223,10 @@ fi
 
 if (( DO_RUN )) && ! (( DO_DEV )); then
     if (( IS_MAC )); then
-        echo "→ Launching $APP_LABEL (detached)…"
+        echo "→ Launching ${APP_LABEL} (detached)…"
         open "$APP_BUNDLE"
     else
-        echo "→ Launching $APP_LABEL (detached)…"
+        echo "→ Launching ${APP_LABEL} (detached)…"
         nohup "$APP_BINARY" >/dev/null 2>&1 &
         disown
         echo "  PID: $!"

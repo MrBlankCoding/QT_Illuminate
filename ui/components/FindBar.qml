@@ -77,8 +77,8 @@ Item {
     Connections {
         target: root.webView
         function onFindTextFinished(result) {
-            matchCount = result.numberOfMatches;
-            activeMatch = result.numberOfMatches > 0 ? result.activeMatch : 0;
+            root.matchCount = result.numberOfMatches;
+            root.activeMatch = result.numberOfMatches > 0 ? result.activeMatch : 0;
         }
     }
 

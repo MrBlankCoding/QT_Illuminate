@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../ui/components"
+import QT_Illuminate.ui
 
 Item {
     id: root
@@ -12,9 +12,22 @@ Item {
         ZoomIndicator {}
     }
 
+    // stands in for WebEngineView: a plain JS object wouldn't notify the
+    // zoomPercent binding when zoomFactor changes
+    Component {
+        id: webViewStubComponent
+        QtObject {
+            property real zoomFactor: 1.0
+        }
+    }
+
     TestCase {
         name: "ZoomIndicatorTests"
         when: windowShown
+
+        function makeWebView(zoomFactor) {
+            return createTemporaryObject(webViewStubComponent, root, { zoomFactor: zoomFactor })
+        }
 
         function test_componentExists() {
             let indicator = createTemporaryObject(zoomIndicatorComponent, root)
@@ -38,7 +51,7 @@ Item {
         function test_zoomPercentReflectsWebView() {
             let indicator = createTemporaryObject(zoomIndicatorComponent, root)
             verify(!!indicator, "Component exists")
-            indicator.webView = { zoomFactor: 1.5 }
+            indicator.webView = makeWebView(1.5)
             tryCompare(indicator, "zoomPercent", 150)
             tryCompare(indicator, "visible", true)
         }
@@ -46,7 +59,7 @@ Item {
         function test_zoomByIncrements() {
             let indicator = createTemporaryObject(zoomIndicatorComponent, root)
             verify(!!indicator, "Component exists")
-            indicator.webView = { zoomFactor: 1.0 }
+            indicator.webView = makeWebView(1.0)
             indicator.zoomBy(0.1)
             tryCompare(indicator, "zoomPercent", 110)
         }
@@ -54,7 +67,7 @@ Item {
         function test_zoomByClampsMax() {
             let indicator = createTemporaryObject(zoomIndicatorComponent, root)
             verify(!!indicator, "Component exists")
-            indicator.webView = { zoomFactor: 4.9 }
+            indicator.webView = makeWebView(4.9)
             indicator.zoomBy(0.2)
             tryCompare(indicator, "zoomPercent", 500)
         }
@@ -62,7 +75,7 @@ Item {
         function test_zoomByClampsMin() {
             let indicator = createTemporaryObject(zoomIndicatorComponent, root)
             verify(!!indicator, "Component exists")
-            indicator.webView = { zoomFactor: 0.3 }
+            indicator.webView = makeWebView(0.3)
             indicator.zoomBy(-0.1)
             tryCompare(indicator, "zoomPercent", 25)
         }
@@ -70,7 +83,7 @@ Item {
         function test_zoomReset() {
             let indicator = createTemporaryObject(zoomIndicatorComponent, root)
             verify(!!indicator, "Component exists")
-            indicator.webView = { zoomFactor: 1.8 }
+            indicator.webView = makeWebView(1.8)
             indicator.zoomReset()
             tryCompare(indicator, "zoomPercent", 100)
         }
@@ -78,7 +91,7 @@ Item {
         function test_zoomInTap() {
             let indicator = createTemporaryObject(zoomIndicatorComponent, root)
             verify(!!indicator, "Component exists")
-            indicator.webView = { zoomFactor: 1.5 }
+            indicator.webView = makeWebView(1.5)
             let button = findChild(indicator, "zoomInButton")
             verify(!!button, "Object exists")
             mouseClick(button)
@@ -88,7 +101,7 @@ Item {
         function test_zoomOutTap() {
             let indicator = createTemporaryObject(zoomIndicatorComponent, root)
             verify(!!indicator, "Component exists")
-            indicator.webView = { zoomFactor: 1.5 }
+            indicator.webView = makeWebView(1.5)
             let button = findChild(indicator, "zoomOutButton")
             verify(!!button, "Object exists")
             mouseClick(button)

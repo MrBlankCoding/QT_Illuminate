@@ -3,11 +3,16 @@ import QtQuick.Layouts
 import QtQuick.Window
 import QT_Illuminate.ui
 
+pragma ComponentBehavior: Bound
+
 Item {
     id: root
     property bool isDragging: false
     height: Theme.tabBarHeight
-    readonly property real availableForTabs: Math.max(0, width - trafficLightSpacer.width - newTabButton.width - (Qt.platform.os === "windows" ? Theme.sysControlW : 0))
+    // window controls are hidden in fullscreen, so no spacer is needed
+    readonly property bool isFullScreen: root.Window.visibility === Window.FullScreen
+    readonly property bool showSysControlSpacer: Qt.platform.os === "windows" && !isFullScreen
+    readonly property real availableForTabs: Math.max(0, width - trafficLightSpacer.width - newTabButton.width - (showSysControlSpacer ? Theme.sysControlW : 0))
 
     Timer {
         id: dragSettle
@@ -61,7 +66,7 @@ Item {
         // traffic light area
         Item {
             id: trafficLightSpacer
-            Layout.preferredWidth: Qt.platform.os === "osx" ? Theme.trafficLightW : 8
+            Layout.preferredWidth: Qt.platform.os === "osx" && !root.isFullScreen ? Theme.trafficLightW : 8
             Layout.fillHeight: true
 
             DragRegion {
@@ -78,7 +83,7 @@ Item {
             orientation: ListView.Horizontal
             spacing: 0          // tabs share shoulders — no gap between them
             clip: true
-            model: tabModel
+            model: Browser.tabModel
             interactive: false
 
             // avoid binding loop
@@ -122,18 +127,18 @@ Item {
                 width: tabList.tabWidth
                 tabCount: tabList.count
 
-                isActive: index === tabModel.activeIndex
+                isActive: index === Browser.tabModel.activeIndex
 
                 // active tab renders on top
                 z: dragging ? 3 : (isActive ? 2 : 1)
 
-                onActivated: browser.activateTab(index)
-                onCloseClicked: browser.closeTab(index)
+                onActivated: Browser.activateTab(index)
+                onCloseClicked: Browser.closeTab(index)
 
                 onReorderRequested: (targetIndex) => {
                     root.isDragging = true;
                     dragSettle.restart();
-                    tabModel.moveTab(index, targetIndex);
+                    Browser.tabModel.moveTab(index, targetIndex);
                 }
             }
         }
@@ -173,7 +178,7 @@ Item {
                     id: plusHover
                 }
                 TapHandler {
-                    onTapped: browser.newTab()
+                    onTapped: Browser.newTab()
                 }
             }
         }
@@ -182,7 +187,7 @@ Item {
         Item {
             Layout.preferredWidth: Theme.sysControlW
             Layout.fillHeight: true
-            visible: Qt.platform.os === "windows"
+            visible: root.showSysControlSpacer
         }
 
         // drag area

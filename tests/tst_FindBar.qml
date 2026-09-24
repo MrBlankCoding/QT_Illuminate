@@ -1,6 +1,6 @@
 import QtQuick
 import QtTest
-import "../ui/components"
+import QT_Illuminate.ui
 
 Item {
     id: root
@@ -63,14 +63,16 @@ Item {
             compare(bar.activeMatch, 0)
         }
 
-        function test_searchEmptyIsInert() {
+        function test_searchEmptyClearsHighlights() {
             let bar = createTemporaryObject(findBarComponent, root)
             verify(!!bar, "Component exists")
             let webView = makeStubWebView()
             bar.webView = webView
             bar.search(false)
             compare(bar.hasSearched, false)
-            compare(webView.findTextCount, 0)
+            // findText("") is how QtWebEngine clears the previous highlights
+            compare(webView.findTextCount, 1)
+            compare(webView.lastFindText, "")
         }
 
         function test_searchWithText() {

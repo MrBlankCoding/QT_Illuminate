@@ -1,12 +1,20 @@
 #include "BrowserController.h"
 #include "BrowserTab.h"
+#include "AdBlocker.h"
+#include "../utils/BrowserLogger.h"
 #include "../utils/UrlResolver.h"
 #include "../utils/ColorExtractor.h"
 
 #include <QCoreApplication>
+#include <QGuiApplication>
+#include <QClipboard>
 #include <QSettings>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QDateTime>
+#include <QFutureWatcher>
+#include <QtConcurrent/QtConcurrentRun>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -22,7 +30,7 @@ void BrowserController::setProfile(Profile *profile)
         saveSession();
 
     m_profile = profile;
-    m_webEngineProfile = profile ? profile->webEngineProfile() : nullptr;
+    m_webEngineProfile = profile ? profile->webProfile() : nullptr;
 
     delete m_settings;
     m_settings = profile
@@ -30,7 +38,9 @@ void BrowserController::setProfile(Profile *profile)
                                      QSettings::IniFormat, this)
                      : nullptr;
 
+    // the old tabs' views go away here, so the new ones pick up the new profile
     m_model->clear();
+    emit webProfileChanged();
     updateAdaptiveAccent();
 
     if (m_webEngineProfile)
@@ -38,7 +48,7 @@ void BrowserController::setProfile(Profile *profile)
 }
 
 BrowserController::BrowserController(Profile *profile, QObject *parent)
-    : QObject(parent), m_profile(profile), m_webEngineProfile(profile->webEngineProfile()), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_model(new TabModel(this))
+    : QObject(parent), m_profile(profile), m_webEngineProfile(profile->webProfile()), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_model(new TabModel(this))
 {
     connect(m_model, &TabModel::activeIndexChanged, this, [this]()
             {
@@ -82,6 +92,13 @@ QString BrowserController::activeUrl() const
         return t->url().toString();
     return {};
 }
+void BrowserController::copyActiveUrl() const
+{
+    const QString url = activeUrl();
+    if (url.isEmpty() || url == NEW_TAB_URL)
+        return;
+    QGuiApplication::clipboard()->setText(url);
+}
 QString BrowserController::activeTitle() const
 {
     if (auto *t = m_model->tabAt(m_model->activeIndex()))
@@ -120,29 +137,88 @@ void BrowserController::setNewTabBackground(const QString &path)
     }
 }
 
-QString BrowserController::adaptiveAccent() const
+QString BrowserController::adaptiveAccentDark() const
 {
-    return m_adaptiveAccent;
+    return m_palette.hasAccent() ? m_palette.accentDark.name(QColor::HexRgb) : QString();
+}
+
+QString BrowserController::adaptiveAccentLight() const
+{
+    return m_palette.hasAccent() ? m_palette.accentLight.name(QColor::HexRgb) : QString();
+}
+
+qreal BrowserController::backgroundLuminance() const
+{
+    return m_palette.luminance;
+}
+
+namespace
+{
+// bump when ColorExtractor's output changes so stale cached palettes are recomputed
+constexpr int kPaletteCacheVersion = 2;
+
+// identifies one version of the file on disk, so an edited image is re-analysed
+QString paletteCacheKey(const QString &source)
+{
+    const QString local = source.startsWith(QLatin1String("file:")) ? QUrl(source).toLocalFile() : source;
+    const QFileInfo info(local);
+    if (!info.exists())
+        return {};
+    return QStringLiteral("%1|%2|%3|%4")
+        .arg(kPaletteCacheVersion)
+        .arg(source)
+        .arg(info.lastModified().toMSecsSinceEpoch())
+        .arg(info.size());
+}
 }
 
 void BrowserController::updateAdaptiveAccent()
 {
-    const QString bgPath = newTabBackground();
-    QString newAccent;
-    if (!bgPath.isEmpty())
+    const int generation = ++m_paletteGeneration;
+    const QString source = newTabBackground();
+    const QString key = source.isEmpty() ? QString() : paletteCacheKey(source);
+    if (key.isEmpty())
     {
-        QColor extracted = ColorExtractor::extractDominantColor(bgPath);
-        if (extracted.isValid())
-        {
-            newAccent = extracted.name(QColor::HexRgb);
-        }
+        applyPalette({});
+        return;
     }
 
-    if (m_adaptiveAccent != newAccent)
+    // decoding a large image takes long enough to hitch the UI, so the result is
+    // cached per image and only computed off-thread when the image is new
+    if (m_settings && m_settings->value(QStringLiteral("paletteCache/key")).toString() == key)
     {
-        m_adaptiveAccent = newAccent;
-        emit adaptiveAccentChanged();
+        ImagePalette cached;
+        cached.accentDark = QColor(m_settings->value(QStringLiteral("paletteCache/accentDark")).toString());
+        cached.accentLight = QColor(m_settings->value(QStringLiteral("paletteCache/accentLight")).toString());
+        cached.luminance = m_settings->value(QStringLiteral("paletteCache/luminance"), -1.0).toReal();
+        applyPalette(cached);
+        return;
     }
+
+    auto *watcher = new QFutureWatcher<ImagePalette>(this);
+    connect(watcher, &QFutureWatcher<ImagePalette>::finished, this, [this, watcher, generation, key]()
+            {
+        watcher->deleteLater();
+        if (generation != m_paletteGeneration)
+            return;
+        const ImagePalette palette = watcher->result();
+        if (m_settings && palette.isValid())
+        {
+            m_settings->setValue(QStringLiteral("paletteCache/key"), key);
+            m_settings->setValue(QStringLiteral("paletteCache/accentDark"), palette.hasAccent() ? palette.accentDark.name() : QString());
+            m_settings->setValue(QStringLiteral("paletteCache/accentLight"), palette.hasAccent() ? palette.accentLight.name() : QString());
+            m_settings->setValue(QStringLiteral("paletteCache/luminance"), palette.luminance);
+        }
+        applyPalette(palette); });
+    watcher->setFuture(QtConcurrent::run(&ColorExtractor::analyzeFile, source));
+}
+
+void BrowserController::applyPalette(const ImagePalette &palette)
+{
+    if (m_palette.accentDark == palette.accentDark && m_palette.accentLight == palette.accentLight && m_palette.luminance == palette.luminance)
+        return;
+    m_palette = palette;
+    emit adaptivePaletteChanged();
 }
 
 QString BrowserController::themeMode() const
@@ -258,6 +334,8 @@ void BrowserController::newTab(const QString &urlStr)
     if (!m_model->addTab(url, m_webEngineProfile))
         return;
     m_model->setActiveIndex(m_model->rowCount() - 1);
+    if (urlStr.isEmpty())
+        emit newTabOpened();
 }
 
 void BrowserController::closeTab(int index)
@@ -294,6 +372,8 @@ void BrowserController::cycleTab(int delta)
 void BrowserController::navigate(const QString &input)
 {
     const QUrl url = UrlResolver::resolve(input);
+    if (url.isEmpty())
+        return;
     const int idx = m_model->activeIndex();
     if (BrowserTab *tab = m_model->tabAt(idx))
     {
@@ -307,6 +387,8 @@ void BrowserController::navigate(const QString &input)
 void BrowserController::reload() { emit navigationRequested(QStringLiteral("reload")); }
 void BrowserController::goBack() { emit navigationRequested(QStringLiteral("back")); }
 void BrowserController::goForward() { emit navigationRequested(QStringLiteral("forward")); }
+QQuickWebEngineProfile *BrowserController::webProfile() const { return m_webEngineProfile; }
+
 void BrowserController::toggleDevTools() { emit navigationRequested(QStringLiteral("devtools")); }
 
 // qml to cpp
@@ -342,8 +424,16 @@ void BrowserController::onIconUrlChanged(int i, const QString &v)
         t->setIconUrl(v);
 }
 
-void BrowserController::onNewWindowRequested(int /*i*/, const QString &url)
+void BrowserController::onNewWindowRequested(int i, const QString &url)
 {
+    // EasyList's $popup rules: ad networks opening windows
+    const BrowserTab *opener = m_model->tabAt(i);
+    AdBlocker *adBlocker = AdBlocker::instance();
+    if (opener && adBlocker && adBlocker->shouldBlockPopup(QUrl(url), opener->url()))
+    {
+        BrowserLogger::instance().info("AdBlocker", "Blocked popup " + url);
+        return;
+    }
     newTab(url);
 }
 

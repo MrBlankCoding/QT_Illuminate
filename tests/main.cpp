@@ -2,6 +2,7 @@
 #include <QtWebEngineQuick>
 #include <QApplication>
 #include <QObject>
+#include <QQmlEngine>
 
 class Setup : public QObject
 {
@@ -13,6 +14,13 @@ public slots:
         QCoreApplication::setOrganizationDomain("qt-illuminate.local");
         QCoreApplication::setApplicationName("qmltests");
         QtWebEngineQuick::initialize();
+    }
+
+    // the app's QML module is linked in statically; its qmldir lives at
+    // qrc:/QT_Illuminate/ui, so tests can `import QT_Illuminate.ui`
+    void qmlEngineAvailable(QQmlEngine *engine)
+    {
+        engine->addImportPath(QStringLiteral("qrc:/"));
     }
 };
 

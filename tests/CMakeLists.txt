@@ -1,3 +1,5 @@
+find_package(Qt6 REQUIRED COMPONENTS QuickTest Widgets)
+
 qt_add_executable(tst_qmltests main.cpp)
 
 target_compile_definitions(tst_qmltests PRIVATE
@@ -15,3 +17,9 @@ target_link_libraries(tst_qmltests PRIVATE
 )
 
 add_test(NAME tst_qmltests COMMAND tst_qmltests)
+
+find_package(Qt6 REQUIRED COMPONENTS Test)
+
+qt_add_executable(tst_colorextractor tst_ColorExtractor.cpp)
+target_link_libraries(tst_colorextractor PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_colorextractor COMMAND tst_colorextractor)
