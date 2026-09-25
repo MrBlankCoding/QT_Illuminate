@@ -23,13 +23,6 @@ find_package(Qt6 REQUIRED COMPONENTS WebEngineCorePrivate WebEngineQuickPrivate)
 qt_standard_project_setup()
 qt_policy(SET QTP0004 NEW)
 
-find_package(Qt6 QUIET COMPONENTS QuickEffects)
-if(Qt6QuickEffects_FOUND)
-    set(QUICK_EFFECTS_LIB Qt6::QuickEffects)
-else()
-    find_package(Qt6QuickEffectsPrivate REQUIRED)
-    set(QUICK_EFFECTS_LIB Qt6::QuickEffectsPrivate)
-endif()
 qt_add_executable(QT_Illuminate
     src/main.cpp
 )
@@ -126,7 +119,6 @@ target_link_libraries(QT_Illuminatemodule PUBLIC
     Qt6::WebEngineCore
     Qt6::WebChannel
     Qt6::WebChannelQuick
-    ${QUICK_EFFECTS_LIB}
 PRIVATE
     Qt6::WebEngineCorePrivate
     Qt6::WebEngineQuickPrivate

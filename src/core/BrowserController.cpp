@@ -12,6 +12,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QImageReader>
 #include <QDateTime>
 #include <QFutureWatcher>
 #include <QtConcurrent/QtConcurrentRun>
@@ -135,6 +136,12 @@ void BrowserController::setNewTabBackground(const QString &path)
         emit newTabBackgroundChanged();
         updateAdaptiveAccent();
     }
+}
+
+QSize BrowserController::imageSize(const QString &url) const
+{
+    const QUrl u(url);
+    return QImageReader(u.isLocalFile() ? u.toLocalFile() : url).size();
 }
 
 QString BrowserController::adaptiveAccentDark() const

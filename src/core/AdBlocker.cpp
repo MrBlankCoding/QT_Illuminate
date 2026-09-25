@@ -17,8 +17,25 @@
 #include <QThread>
 #include "../utils/BrowserLogger.h"
 
+#if defined(Q_OS_MACOS)
+#include <malloc/malloc.h>
+#elif defined(Q_OS_LINUX) && defined(__GLIBC__)
+#include <malloc.h>
+#endif
+
 namespace
 {
+
+// parsing churns through a few MB of short-lived strings, and swapping frees
+// the previous engine; hand those pages back instead of leaving them in the heap
+void releaseFreedMemory()
+{
+#if defined(Q_OS_MACOS)
+    malloc_zone_pressure_relief(nullptr, 0);
+#elif defined(Q_OS_LINUX) && defined(__GLIBC__)
+    malloc_trim(0);
+#endif
+}
 
 // the lists' own "! Expires: 4 days"
 constexpr qint64 kListMaxAgeSecs = 4 * 24 * 60 * 60;
@@ -423,6 +440,7 @@ void AdBlocker::parseInBackground()
             engine->addList(QString::fromUtf8(file.readAll()));
             anyList = true;
         }
+        engine->finalize();
         const QString script = anyList ? buildCosmeticScript(engine->genericSelectors()) : QString();
         QMetaObject::invokeMethod(QCoreApplication::instance(), [self, engine, anyList, script]() {
             if (!self)
@@ -430,6 +448,7 @@ void AdBlocker::parseInBackground()
             self->m_parsing = false;
             if (anyList)
                 self->setEngine(engine, script);
+            releaseFreedMemory();
             if (self->m_pendingDownloads == 0)
                 self->setUpdating(false);
             if (self->m_parseQueued)

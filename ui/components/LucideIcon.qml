@@ -1,8 +1,10 @@
 import QtQuick
-import QtQuick.Effects
+import QtQuick.Controls.impl
 import QT_Illuminate.ui
 
 // render icons as any color
+// IconImage tints the pixels once when it loads; a MultiEffect per icon
+// cost an offscreen layer and a shader pass for every one on screen
 Item {
     id: root
 
@@ -13,24 +15,15 @@ Item {
     width: size
     height: size
 
-    Image {
-        id: img
+    IconImage {
         anchors.fill: parent
         source: root.source
-        sourceSize.width: root.size * 2
-        sourceSize.height: root.size * 2
-        visible: false
+        sourceSize.width: root.size
+        sourceSize.height: root.size
         fillMode: Image.PreserveAspectFit
-        smooth: true
-    }
+        color: root.color
 
-    MultiEffect {
-        anchors.fill: parent
-        source: img
-        colorization: 1.0
-        colorizationColor: root.color
-
-        Behavior on colorizationColor {
+        Behavior on color {
             ColorAnimation {
                 duration: Theme.durationFast
             }

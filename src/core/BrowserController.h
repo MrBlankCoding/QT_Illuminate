@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QSize>
 #include <QUrl>
 #include <QString>
 #include <QQuickWebEngineProfile>
@@ -66,6 +67,8 @@ public:
     Q_INVOKABLE void goForward();
     Q_INVOKABLE void toggleDevTools();
     Q_INVOKABLE void copyActiveUrl() const;
+    // pixel size from the file header, without decoding; invalid if unreadable
+    Q_INVOKABLE QSize imageSize(const QString &url) const;
 
     // session persistence (per-profile)
     Q_INVOKABLE void saveSession() const;

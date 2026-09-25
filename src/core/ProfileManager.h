@@ -20,7 +20,8 @@ class ProfileManager : public QObject, public ExternalQmlSingleton<ProfileManage
 public:
     static constexpr int kMaxProfiles = 50;
 
-    explicit ProfileManager(QObject *parent = nullptr);
+    // no default: QML would build its own copy instead of calling create()
+    explicit ProfileManager(QObject *parent);
 
     QVariantList profiles() const;
     Profile *activeProfile() const;

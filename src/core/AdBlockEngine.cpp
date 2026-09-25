@@ -2,6 +2,9 @@
 
 #include <QSet>
 #include <QUrl>
+#include <QVarLengthArray>
+
+#include <algorithm>
 
 namespace
 {
@@ -59,17 +62,33 @@ bool globMatch(QStringView pattern, QStringView text, bool anchorEnd)
     }
 }
 
-bool hostMatchesDomain(const QString &host, const QString &domain)
+bool hostMatchesDomain(QStringView host, QStringView domain)
 {
     return host == domain || (host.endsWith(domain) && host.size() > domain.size() && host[host.size() - domain.size() - 1] == u'.');
 }
 
-bool hostInList(const QString &host, const QStringList &domains)
+// FNV-1a; keys are already lowercase
+quint64 hashKey(QStringView s)
 {
-    for (const QString &d : domains)
-        if (hostMatchesDomain(host, d))
-            return true;
-    return false;
+    quint64 h = 14695981039346656037ull;
+    for (QChar c : s)
+    {
+        h ^= c.unicode();
+        h *= 1099511628211ull;
+    }
+    return h;
+}
+
+template <typename Entry>
+auto entriesFor(const std::vector<Entry> &entries, quint64 key)
+{
+    return std::equal_range(entries.begin(), entries.end(), Entry{key, 0});
+}
+
+template <typename T>
+void release(T &container)
+{
+    T().swap(container);
 }
 
 quint32 typeFromOption(QStringView name)
@@ -102,8 +121,30 @@ quint32 typeFromOption(QStringView name)
 
 } // namespace
 
+AdBlockEngine::Span AdBlockEngine::store(QStringView s)
+{
+    const Span span{quint32(m_text.size()), quint32(s.size())};
+    m_text.append(s);
+    return span;
+}
+
+quint32 AdBlockEngine::intern(QStringView s)
+{
+    const quint64 key = hashKey(s);
+    const auto it = m_intern.constFind(key);
+    if (it != m_intern.cend() && string(*it) == s)
+        return *it;
+    const quint32 id = quint32(m_strings.size());
+    m_strings.push_back(store(s));
+    // a 64-bit collision just means this text isn't deduplicated
+    if (it == m_intern.cend())
+        m_intern.insert(key, id);
+    return id;
+}
+
 void AdBlockEngine::addList(QStringView text)
 {
+    Q_ASSERT(!m_finalized);
     qsizetype start = 0;
     while (start < text.size())
     {
@@ -113,6 +154,34 @@ void AdBlockEngine::addList(QStringView text)
         addRule(text.sliced(start, end - start).trimmed());
         start = end + 1;
     }
+}
+
+void AdBlockEngine::finalize()
+{
+    for (RuleSet *set : {&m_block, &m_allow, &m_document, &m_popup, &m_popupAllow, &m_elemHide, &m_genericHide})
+    {
+        std::sort(set->byHost.begin(), set->byHost.end());
+        std::sort(set->byToken.begin(), set->byToken.end());
+        set->byHost.shrink_to_fit();
+        set->byToken.shrink_to_fit();
+        set->generic.shrink_to_fit();
+    }
+    // stable: a site's selectors keep their list order
+    std::stable_sort(m_siteSelectors.begin(), m_siteSelectors.end());
+    std::sort(m_siteExceptions.begin(), m_siteExceptions.end());
+    m_generic.assign(m_genericIds.cbegin(), m_genericIds.cend());
+    std::sort(m_generic.begin(), m_generic.end());
+
+    m_siteSelectors.shrink_to_fit();
+    m_siteExceptions.shrink_to_fit();
+    m_strings.shrink_to_fit();
+    m_rules.shrink_to_fit();
+    m_ruleDomains.shrink_to_fit();
+    m_regexes.squeeze();
+    m_text.squeeze();
+    release(m_intern);
+    release(m_genericIds);
+    m_finalized = true;
 }
 
 void AdBlockEngine::addRule(QStringView line)
@@ -125,6 +194,9 @@ void AdBlockEngine::addRule(QStringView line)
     Rule rule;
     const bool exception = line.startsWith(u"@@");
     QStringView body = exception ? line.sliced(2) : line;
+
+    // views into line; only stored once the rule is known to be usable
+    QVarLengthArray<QStringView, 8> includeDomains, excludeDomains;
 
     // options come after the last "$", unless that "$" is part of a /regex/
     bool documentRule = false, popupRule = false, elemHide = false, genericHide = false;
@@ -155,9 +227,9 @@ void AdBlockEngine::addRule(QStringView line)
                 for (QStringView d : value.split(u'|', Qt::SkipEmptyParts))
                 {
                     if (d.startsWith(u'~'))
-                        rule.excludeDomains.append(d.sliced(1).toString().toLower());
+                        excludeDomains.append(d.sliced(1));
                     else
-                        rule.includeDomains.append(d.toString().toLower());
+                        includeDomains.append(d);
                 }
             }
             else if (name == u"document")
@@ -190,13 +262,14 @@ void AdBlockEngine::addRule(QStringView line)
     if (body.size() > 2 && body.startsWith(u'/') && body.endsWith(u'/'))
     {
         rule.anchor = Anchor::Regex;
-        rule.pattern = body.sliced(1, body.size() - 2).toString();
-        rule.regex.setPattern(rule.pattern);
+        QRegularExpression regex(body.sliced(1, body.size() - 2).toString());
         if (!rule.matchCase)
-            rule.regex.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
-        if (!rule.regex.isValid())
+            regex.setPatternOptions(QRegularExpression::CaseInsensitiveOption);
+        if (!regex.isValid())
             return;
-        rule.regex.optimize();
+        regex.optimize();
+        rule.regex = qint32(m_regexes.size());
+        m_regexes.append(std::move(regex));
     }
     else
     {
@@ -222,11 +295,19 @@ void AdBlockEngine::addRule(QStringView line)
         if (!rule.anchorEnd)
             while (body.endsWith(u'*'))
                 body.chop(1);
-        rule.pattern = rule.matchCase ? body.toString() : body.toString().toLower();
+        rule.pattern = rule.matchCase ? store(body) : store(body.toString().toLower());
     }
 
-    m_rules.append(std::move(rule));
-    const int ruleIndex = int(m_rules.size() - 1);
+    rule.domains = quint32(m_ruleDomains.size());
+    rule.includeCount = quint16(std::min<qsizetype>(includeDomains.size(), 0xffff));
+    rule.excludeCount = quint16(std::min<qsizetype>(excludeDomains.size(), 0xffff));
+    for (qsizetype i = 0; i < rule.includeCount; ++i)
+        m_ruleDomains.push_back(intern(includeDomains[i].toString().toLower()));
+    for (qsizetype i = 0; i < rule.excludeCount; ++i)
+        m_ruleDomains.push_back(intern(excludeDomains[i].toString().toLower()));
+
+    m_rules.push_back(rule);
+    const quint32 ruleIndex = quint32(m_rules.size() - 1);
     if (documentRule || elemHide || genericHide)
     {
         if (documentRule)
@@ -265,46 +346,39 @@ bool AdBlockEngine::addCosmeticRule(QStringView line)
 
         if (selectorStart >= 0)
         {
-            const QString selector = line.sliced(selectorStart).trimmed().toString();
+            const QStringView selector = line.sliced(selectorStart).trimmed();
             if (selector.isEmpty() || selector.contains(u'{') || selector.contains(u'}') || selector.startsWith(u"+js(") || selector.startsWith(u'^') || selector.contains(u":-abp-") || selector.contains(u":has-text(") || selector.contains(u":xpath(")
                 || selector.contains(u":style(") || selector.contains(u":remove(") || selector.contains(u":upward(")
                 || selector.contains(u":matches-") || selector.contains(u":min-text-length("))
                 return true;
 
-            QStringList include, exclude;
+            QVarLengthArray<quint64, 8> include, exclude;
             for (QStringView d : line.first(hash).split(u',', Qt::SkipEmptyParts))
             {
                 d = d.trimmed();
                 if (d.startsWith(u'~'))
-                    exclude.append(d.sliced(1).toString().toLower());
+                    exclude.append(hashKey(d.sliced(1).toString().toLower()));
                 else
-                    include.append(d.toString().toLower());
+                    include.append(hashKey(d.toString().toLower()));
             }
 
             ++m_cosmeticCount;
+            const quint32 id = intern(selector);
             if (exception)
             {
-                if (include.isEmpty() && m_genericSet.remove(selector))
-                    m_genericSelectors.removeAll(selector);
-                for (const QString &d : include)
-                    m_siteExceptions[d].insert(selector);
+                if (include.isEmpty())
+                    m_genericIds.remove(id);
+                for (quint64 d : include)
+                    m_siteExceptions.push_back({d, id});
                 return true;
             }
             if (include.isEmpty())
-            {
-                if (!m_genericSet.contains(selector))
-                {
-                    m_genericSet.insert(selector);
-                    m_genericSelectors.append(selector);
-                }
-            }
+                m_genericIds.insert(id);
             else
-            {
-                for (const QString &d : include)
-                    m_siteSelectors[d].append(selector);
-            }
-            for (const QString &d : exclude)
-                m_siteExceptions[d].insert(selector);
+                for (quint64 d : include)
+                    m_siteSelectors.push_back({d, id});
+            for (quint64 d : exclude)
+                m_siteExceptions.push_back({d, id});
             return true;
         }
         hash = line.indexOf(u'#', hash + 1);
@@ -312,15 +386,15 @@ bool AdBlockEngine::addCosmeticRule(QStringView line)
     return false;
 }
 
-void AdBlockEngine::index(RuleSet &set, int ruleIndex)
+void AdBlockEngine::index(RuleSet &set, quint32 ruleIndex)
 {
     const Rule &rule = m_rules[ruleIndex];
     if (rule.anchor == Anchor::Regex)
     {
-        set.generic.append(ruleIndex);
+        set.generic.push_back(ruleIndex);
         return;
     }
-    const QString pattern = rule.pattern.toLower();
+    const QString pattern = view(rule.pattern).toString().toLower();
 
     // "||ads.example.com^..." : the host is complete when a separator follows it
     if (rule.anchor == Anchor::Host)
@@ -330,7 +404,7 @@ void AdBlockEngine::index(RuleSet &set, int ruleIndex)
             ++end;
         if (end > 0 && end < pattern.size() && pattern[end] != u'*')
         {
-            set.byHost[pattern.first(end)].append(ruleIndex);
+            set.byHost.push_back({hashKey(QStringView(pattern).first(end)), ruleIndex});
             return;
         }
     }
@@ -353,9 +427,9 @@ void AdBlockEngine::index(RuleSet &set, int ruleIndex)
             best = QStringView(pattern).sliced(start, i - start);
     }
     if (best.size() >= 2)
-        set.byToken[best.toString()].append(ruleIndex);
+        set.byToken.push_back({hashKey(best), ruleIndex});
     else
-        set.generic.append(ruleIndex);
+        set.generic.push_back(ruleIndex);
 }
 
 bool AdBlockEngine::shouldBlock(const Request &request) const
@@ -386,8 +460,18 @@ bool AdBlockEngine::shouldBlockPopup(const QUrl &url, const QUrl &openerUrl) con
     return matchesSet(m_popup, request, true) && !matchesSet(m_popupAllow, request, true);
 }
 
+QStringList AdBlockEngine::genericSelectors() const
+{
+    QStringList selectors;
+    selectors.reserve(qsizetype(m_generic.size()));
+    for (quint32 id : m_generic)
+        selectors.append(string(id).toString());
+    return selectors;
+}
+
 AdBlockEngine::Cosmetic AdBlockEngine::cosmeticFor(const QString &pageUrl, const QString &pageHost) const
 {
+    Q_ASSERT(m_finalized);
     Cosmetic result;
     if (matchesPage(m_document, pageUrl, pageHost) || matchesPage(m_elemHide, pageUrl, pageHost))
     {
@@ -397,53 +481,61 @@ AdBlockEngine::Cosmetic AdBlockEngine::cosmeticFor(const QString &pageUrl, const
     result.noGeneric = matchesPage(m_genericHide, pageUrl, pageHost);
 
     // rules for the host and each parent domain
-    QSet<QString> exceptions;
-    QList<const QStringList *> selectorLists;
+    QVarLengthArray<quint64, 8> keys;
+    QVarLengthArray<quint32, 32> exceptions;
     QStringView host(pageHost);
     while (!host.isEmpty())
     {
-        const QString key = host.toString();
-        if (const auto it = m_siteExceptions.constFind(key); it != m_siteExceptions.cend())
-            exceptions.unite(*it);
-        if (const auto it = m_siteSelectors.constFind(key); it != m_siteSelectors.cend())
-            selectorLists.append(&*it);
+        const quint64 key = hashKey(host);
+        keys.append(key);
+        const auto [begin, end] = entriesFor(m_siteExceptions, key);
+        for (auto it = begin; it != end; ++it)
+            exceptions.append(it->value);
         const qsizetype dot = host.indexOf(u'.');
         if (dot < 0)
             break;
         host = host.sliced(dot + 1);
     }
+    std::sort(exceptions.begin(), exceptions.end());
+    exceptions.erase(std::unique(exceptions.begin(), exceptions.end()), exceptions.end());
 
-    for (const QStringList *list : selectorLists)
-        for (const QString &selector : *list)
-            if (!exceptions.contains(selector))
-                result.hide.append(selector);
+    for (quint64 key : keys)
+    {
+        const auto [begin, end] = entriesFor(m_siteSelectors, key);
+        for (auto it = begin; it != end; ++it)
+            if (!std::binary_search(exceptions.cbegin(), exceptions.cend(), it->value))
+                result.hide.append(string(it->value).toString());
+    }
     if (!result.noGeneric)
-        for (const QString &selector : exceptions)
-            if (m_genericSet.contains(selector))
-                result.unhideGeneric.append(selector);
+        for (quint32 id : exceptions)
+            if (std::binary_search(m_generic.cbegin(), m_generic.cend(), id))
+                result.unhideGeneric.append(string(id).toString());
     return result;
 }
 
 bool AdBlockEngine::matchesSet(const RuleSet &set, const Request &request, bool checkOptions) const
 {
-    QStringView host(request.host);
-    while (!host.isEmpty())
+    Q_ASSERT(m_finalized);
+    if (!set.byHost.empty())
     {
-        const auto it = set.byHost.constFind(host.toString());
-        if (it != set.byHost.cend())
-            for (int r : *it)
-                if (matchesRule(m_rules[r], request, checkOptions))
+        QStringView host(request.host);
+        while (!host.isEmpty())
+        {
+            const auto [begin, end] = entriesFor(set.byHost, hashKey(host));
+            for (auto it = begin; it != end; ++it)
+                if (matchesRule(m_rules[it->value], request, checkOptions))
                     return true;
-        const qsizetype dot = host.indexOf(u'.');
-        if (dot < 0)
-            break;
-        host = host.sliced(dot + 1);
+            const qsizetype dot = host.indexOf(u'.');
+            if (dot < 0)
+                break;
+            host = host.sliced(dot + 1);
+        }
     }
 
-    if (!set.byToken.isEmpty())
+    if (!set.byToken.empty())
     {
         const QString &url = request.urlLower;
-        QSet<QStringView> seen;
+        QVarLengthArray<quint64, 64> seen;
         qsizetype i = 0;
         while (i < url.size())
         {
@@ -455,20 +547,29 @@ bool AdBlockEngine::matchesSet(const RuleSet &set, const Request &request, bool 
             const qsizetype start = i;
             while (i < url.size() && isTokenChar(url[i]))
                 ++i;
-            const QStringView token = QStringView(url).sliced(start, i - start);
-            if (token.size() < 2 || seen.contains(token))
+            if (i - start < 2)
                 continue;
-            seen.insert(token);
-            const auto it = set.byToken.constFind(token.toString());
-            if (it != set.byToken.cend())
-                for (int r : *it)
-                    if (matchesRule(m_rules[r], request, checkOptions))
-                        return true;
+            const quint64 key = hashKey(QStringView(url).sliced(start, i - start));
+            if (std::find(seen.cbegin(), seen.cend(), key) != seen.cend())
+                continue;
+            seen.append(key);
+            const auto [begin, end] = entriesFor(set.byToken, key);
+            for (auto it = begin; it != end; ++it)
+                if (matchesRule(m_rules[it->value], request, checkOptions))
+                    return true;
         }
     }
 
-    for (int r : set.generic)
+    for (quint32 r : set.generic)
         if (matchesRule(m_rules[r], request, checkOptions))
+            return true;
+    return false;
+}
+
+bool AdBlockEngine::hostInDomains(quint32 first, quint32 count, QStringView host) const
+{
+    for (quint32 i = first; i < first + count; ++i)
+        if (hostMatchesDomain(host, string(m_ruleDomains[i])))
             return true;
     return false;
 }
@@ -482,9 +583,9 @@ bool AdBlockEngine::matchesRule(const Rule &rule, const Request &request, bool c
         if (rule.thirdParty >= 0 && bool(rule.thirdParty) != request.thirdParty)
             return false;
     }
-    if (!rule.includeDomains.isEmpty() && !hostInList(request.firstPartyHost, rule.includeDomains))
+    if (rule.includeCount && !hostInDomains(rule.domains, rule.includeCount, request.firstPartyHost))
         return false;
-    if (!rule.excludeDomains.isEmpty() && hostInList(request.firstPartyHost, rule.excludeDomains))
+    if (rule.excludeCount && hostInDomains(rule.domains + rule.includeCount, rule.excludeCount, request.firstPartyHost))
         return false;
     return matchesPattern(rule, request);
 }
@@ -492,12 +593,12 @@ bool AdBlockEngine::matchesRule(const Rule &rule, const Request &request, bool c
 bool AdBlockEngine::matchesPattern(const Rule &rule, const Request &request) const
 {
     const QStringView url(rule.matchCase ? request.url : request.urlLower);
-    const QStringView pattern(rule.pattern);
+    const QStringView pattern = view(rule.pattern);
 
     switch (rule.anchor)
     {
     case Anchor::Regex:
-        return rule.regex.matchView(QStringView(request.url)).hasMatch();
+        return m_regexes[rule.regex].matchView(QStringView(request.url)).hasMatch();
 
     case Anchor::Start:
         return globMatch(pattern, url, rule.anchorEnd);

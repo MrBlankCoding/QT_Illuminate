@@ -33,7 +33,8 @@ class AdBlocker : public QObject, public ExternalQmlSingleton<AdBlocker>
     Q_PROPERTY(QString cosmeticMarker READ cosmeticMarker CONSTANT)
 
 public:
-    explicit AdBlocker(QObject *parent = nullptr);
+    // no default: QML would build its own copy instead of calling create()
+    explicit AdBlocker(QObject *parent);
     ~AdBlocker() override;
     static AdBlocker *instance();
 

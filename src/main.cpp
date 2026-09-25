@@ -86,6 +86,13 @@ int main(int argc, char *argv[])
     // must be set before QGuiApplication construction to take effect
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 
+    // Qt Quick sizes its texture atlas from the screen (4096x2048, 32 MB, on a
+    // Retina laptop); here it only ever holds icons and favicons
+    if (!qEnvironmentVariableIsSet("QSG_ATLAS_WIDTH"))
+        qputenv("QSG_ATLAS_WIDTH", "1024");
+    if (!qEnvironmentVariableIsSet("QSG_ATLAS_HEIGHT"))
+        qputenv("QSG_ATLAS_HEIGHT", "1024");
+
     QGuiApplication app(argc, argv);
     app.setApplicationName("QT_Illuminate");
     app.setOrganizationName("QT_Illuminate");
@@ -104,8 +111,8 @@ int main(int argc, char *argv[])
     }
 
     // before any profile exists: each web profile routes its requests through it
-    AdBlocker adBlocker;
-    ProfileManager profileManager;
+    AdBlocker adBlocker(nullptr);
+    ProfileManager profileManager(nullptr);
 
     BrowserLogger::instance().info("Main", "QT_Illuminate starting up");
 

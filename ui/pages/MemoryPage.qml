@@ -274,7 +274,8 @@ Item {
                     value: root.formatBytes(root.tabsTotal)
                 }
                 StatCard {
-                    label: "Browser, GPU & services"
+                    // Qt WebEngine runs the GPU and network services inside the browser process
+                    label: "Browser process & helpers"
                     value: root.formatBytes(root.total - root.tabsTotal)
                 }
                 StatCard {

@@ -28,6 +28,15 @@ Item {
             anchors.fill: parent
             source: Browser.newTabBackground
             fillMode: Image.PreserveAspectCrop
+            // decode no larger than it takes to cover the screen (a 5K wallpaper
+            // is ~60 MB decoded), and never upscale: 0 means natural size
+            readonly property size fileSize: Browser.imageSize(Browser.newTabBackground)
+            readonly property real coverScale: fileSize.width > 0 && fileSize.height > 0
+                ? Math.min(1, Math.max(Screen.width * Screen.devicePixelRatio / fileSize.width,
+                                       Screen.height * Screen.devicePixelRatio / fileSize.height))
+                : 1
+            sourceSize.width: coverScale < 1 ? Math.round(fileSize.width * coverScale) : 0
+            sourceSize.height: coverScale < 1 ? Math.round(fileSize.height * coverScale) : 0
             visible: status === Image.Ready
             asynchronous: true
             cache: true

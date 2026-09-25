@@ -187,7 +187,8 @@ Window {
             Browser.onRenderProcessPidChanged(tabSlot.index, tabSlot.webView ? tabSlot.webView.renderProcessPid : 0)
         }
 
-        readonly property int discardAfterMs: 10 * 60 * 1000
+        // a frozen tab still holds its renderer and a full-size frame on the GPU
+        readonly property int discardAfterMs: 5 * 60 * 1000
         property bool discardable: false
         onVisibleChanged: if (visible) discardable = false
         Timer {
@@ -284,10 +285,12 @@ Window {
                             + "document.addEventListener('pointerlockchange', () => console.debug('"
                             + tabSlot.pointerLockMarker + "' + (document.pointerLockElement ? 1 : 0)));"
                     }].concat(AdBlocker.cosmeticScript === "" ? [] : [{
+                        // ~13k generic selectors: parsing that into every ad iframe cost
+                        // more than it hid; site rules only ever reached the top frame
                         name: "adblock-cosmetic",
                         injectionPoint: WebEngineScript.DocumentCreation,
                         worldId: WebEngineScript.ApplicationWorld,
-                        runsOnSubFrames: true,
+                        runsOnSubFrames: false,
                         sourceCode: AdBlocker.cosmeticScript
                     }])
 
