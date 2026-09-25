@@ -76,6 +76,8 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/Profile.cpp
     src/core/ProfileManager.h
     src/core/ProfileManager.cpp
+    src/core/SystemInfo.h
+    src/core/SystemInfo.cpp
 
     src/utils/UrlResolver.h
     src/utils/UrlResolver.cpp

@@ -338,6 +338,62 @@ Item {
             }
 
             SectionHeader {
+                text: "Hardware profile"
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                StatCard {
+                    label: "Total memory"
+                    value: SystemInfo.totalMemoryMB + " MB"
+                }
+                StatCard {
+                    label: "CPU cores"
+                    value: SystemInfo.cpuCoreCount.toString()
+                }
+                StatCard {
+                    label: "Memory tier"
+                    value: SystemInfo.memoryTier
+                }
+                StatCard {
+                    label: "Max tabs"
+                    value: SystemInfo.maxTabs.toString()
+                }
+                StatCard {
+                    label: "Cache limit"
+                    value: (SystemInfo.httpCacheLimitMB / 1024).toFixed(1) + " GB"
+                }
+            }
+
+            SectionHeader {
+                text: "Chromium flags (" + SystemInfo.memoryTier + " tier)"
+            }
+
+            Repeater {
+                model: SystemInfo.chromiumFlags
+
+                delegate: Rectangle {
+                    required property string modelData
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 28
+                    radius: 8
+                    color: Theme.surface
+
+                    Text {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.margins: 12
+                        text: modelData
+                        color: Theme.textMuted
+                        font.family: "Menlo"
+                        font.pixelSize: 11
+                    }
+                }
+            }
+
+            SectionHeader {
                 text: "Tabs (" + root.tabs.length + ")"
             }
 

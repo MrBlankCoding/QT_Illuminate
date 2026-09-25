@@ -10,8 +10,11 @@
 #include "core/AdBlocker.h"
 #include "core/BrowserController.h"
 #include "core/ProfileManager.h"
+#include "core/SystemInfo.h"
 #include "utils/BrowserLogger.h"
 #include "utils/ChromeVersion.h"
+
+#include <QByteArray>
 
 // only one instance
 static bool claimSingleInstance(QLocalServer &server)
@@ -61,24 +64,21 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 
 int main(int argc, char *argv[])
 {
-    // flags
-    // need to be tweaked
-    const QList<QByteArray> kChromiumFlags = {
-        "--disable-features=ScreenCaptureKit,ScreenCaptureKitFullDesktopFallback,UseScreenCaptureKitForSnapshots,SpareRendererForSitePerProcess",
-        "--ignore-gpu-blocklist",
-        "--enable-gpu-rasterization",
-        "--force_high_performance_gpu",
-    };
-    QByteArray flags = qgetenv("QTWEBENGINE_CHROMIUM_FLAGS");
-    for (const QByteArray &flag : kChromiumFlags)
+    // build chromium flags from detected hardware profile
+    const QStringList flagsList = SystemInfo::instance()->chromiumFlags();
+    QByteArray flags;
+    for (const QString &flag : flagsList)
     {
-        const qsizetype eq = flag.indexOf('=');
-        const QByteArray name = eq < 0 ? flag : flag.left(eq);
-        if (flags.contains(name))
-            continue; // respect a user override
+        const QByteArray ba = flag.toUtf8();
         if (!flags.isEmpty())
             flags += ' ';
-        flags += flag;
+        flags += ba;
+    }
+
+    const QByteArray existing = qgetenv("QTWEBENGINE_CHROMIUM_FLAGS");
+    if (!existing.isEmpty())
+    {
+        flags = existing + ' ' + flags;
     }
     qputenv("QTWEBENGINE_CHROMIUM_FLAGS", flags);
 

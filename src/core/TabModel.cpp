@@ -92,7 +92,7 @@ BrowserTab *TabModel::addTab(const QUrl &url, QQuickWebEngineProfile *profile, b
     endInsertRows();
     emit countChanged();
 
-    if (url.isValid() && !url.isEmpty())
+    if (url.isValid() && !url.isEmpty() && !suspended)
         tab->requestLoad(url);
 
     return tab;

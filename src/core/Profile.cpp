@@ -8,6 +8,7 @@
 #include "AdBlocker.h"
 #include "../utils/BrowserLogger.h"
 #include "../utils/WebVersion.h"
+#include "SystemInfo.h"
 
 Profile::Profile(const QString &id, const QString &name, const QString &path,
                  const QString &color, QObject *parent)
@@ -84,6 +85,8 @@ QQuickWebEngineProfile *Profile::webProfile()
     }
 
     profile->setHttpUserAgent(chromeUserAgent());
+    if (SystemInfo *si = SystemInfo::instance())
+        profile->setHttpCacheMaximumSize(si->httpCacheLimitMB());
     if (QWebEngineClientHints *hints = profile->clientHints())
     {
         hints->setFullVersion(chromiumVersion());
