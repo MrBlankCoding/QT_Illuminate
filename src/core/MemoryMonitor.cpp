@@ -134,9 +134,12 @@ qint64 readKb(const QString &path, const QByteArray &key)
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly))
         return -1;
-    while (!f.atEnd())
+    // /proc pseudo-files report a size of 0, so QFile::atEnd() is true right
+    // after open and a readLine()/atEnd() loop would read nothing; readAll()
+    // still returns the full contents (verified against smaps_rollup/status)
+    const QByteArray all = f.readAll();
+    for (const QByteArray &line : all.split('\n'))
     {
-        const QByteArray line = f.readLine();
         if (line.startsWith(key))
             return line.mid(key.size()).trimmed().split(' ').value(0).toLongLong() * 1024;
     }
