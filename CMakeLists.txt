@@ -15,6 +15,7 @@ include(CTest)
 find_package(Qt6 REQUIRED COMPONENTS
     Core Gui Network Qml Quick QuickControls2 Concurrent
     WebEngineQuick WebEngineCore WebChannel WebChannelQuick
+    Widgets PrintSupport Pdf
 )
 
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
@@ -86,6 +87,11 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/utils/LogBridge.h
     src/utils/PointerLockPermission.h
     src/utils/PointerLockPermission.cpp
+    src/utils/PointerLockEmulation.h
+    src/utils/PrintHelper.h
+    src/utils/PrintHelper.cpp
+    src/utils/ChromeVersion.h
+    src/utils/ChromeVersion.cpp
     src/utils/WebVersion.h
     src/utils/WindowRounding.h
     src/utils/WindowHelper.h
@@ -94,7 +100,12 @@ qt_add_library(QT_Illuminatemodule STATIC
 
 if(APPLE)
     target_sources(QT_Illuminatemodule PRIVATE src/utils/WindowRounding_mac.mm)
+    target_sources(QT_Illuminatemodule PRIVATE src/utils/PointerLockEmulation.mm)
+    set_source_files_properties(src/utils/PointerLockEmulation.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_link_libraries(QT_Illuminatemodule PRIVATE "-framework Cocoa")
+else()
+    # generic Qt event-filter/cursor-warp pointer lock for Linux and Windows
+    target_sources(QT_Illuminatemodule PRIVATE src/utils/PointerLockEmulation.cpp)
 endif()
 
 if(WIN32)
@@ -119,6 +130,9 @@ target_link_libraries(QT_Illuminatemodule PUBLIC
     Qt6::WebEngineCore
     Qt6::WebChannel
     Qt6::WebChannelQuick
+    Qt6::Widgets
+    Qt6::PrintSupport
+    Qt6::Pdf
 PRIVATE
     Qt6::WebEngineCorePrivate
     Qt6::WebEngineQuickPrivate
@@ -144,15 +158,19 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/components/KeyboardShortcuts.qml
         ui/components/LucideIcon.qml
         ui/components/PillButton.qml
+        ui/components/PrintController.qml
         ui/components/ProfileTile.qml
         ui/components/ResizeGrips.qml
         ui/components/SuggestionBox.qml
         ui/components/TabBar.qml
         ui/components/TabItem.qml
+        ui/components/TabSlot.qml
         ui/components/Toolbar.qml
         ui/components/WindowControls.qml
         ui/components/ZoomIndicator.qml
     RESOURCES
+        ui/resources/js/pointer-lock-shim.js
+        ui/resources/js/devtools-bridge.js
         ui/icons/alert-triangle.svg
         ui/icons/chevron-left.svg
         ui/icons/chevron-right.svg

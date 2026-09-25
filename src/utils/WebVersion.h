@@ -1,14 +1,15 @@
 #ifndef WEBVERSION_H
 #define WEBVERSION_H
 
-#include <QString>
 #include <QByteArray>
+#include <QString>
 #include <QVariantMap>
-#include <QtWebEngineCore/qtwebenginecoreglobal.h>
+
+#include "ChromeVersion.h"
 
 inline QString chromiumVersion()
 {
-    return QString::fromLatin1(qWebEngineChromiumVersion());
+    return ChromeVersion::instance().latest();
 }
 // web version
 inline QString chromeUserAgent()

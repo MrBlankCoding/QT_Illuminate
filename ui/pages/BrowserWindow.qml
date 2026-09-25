@@ -21,8 +21,6 @@ Window {
         if (!profile)
             return;
         ProfileManager.activeProfile = profile;
-        // each profile gets its own window; show the new one before closing
-        // this one so the app never finds itself without a visible window
         const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/BrowserWindow.qml");
         if (component.status !== Component.Ready) {
             Logger.error("BrowserWindow", "Failed to load window for profile switch: " + component.errorString());
@@ -62,6 +60,26 @@ Window {
             return;
         picker.show();
         root.close();
+    }
+
+    property bool pointerLockActive: false
+    property PointerLockEmu pointerLockEmu: PointerLockEmu {}
+
+    PrintController {
+        id: printController
+        activeWebView: viewStack.activeWebView
+    }
+
+    function printActivePage() { printController.printActivePage(); }
+    function savePdfActivePage() { printController.savePdfActivePage(); }
+    function openSystemPrintFor(view) { printController.openSystemPrintFor(view); }
+    function onPdfPrintingFinished(filePath, success) { printController.onPdfPrintingFinished(filePath, success); }
+
+    function releasePointerLock() {
+        const tab = viewRepeater.itemAt(Browser.tabModel.activeIndex) as TabSlot;
+        if (tab)
+            tab.releaseLock();
+        pointerLockActive = false;
     }
 
     Component.onCompleted: {
@@ -116,7 +134,14 @@ Window {
             id: viewStack
             Layout.fillWidth: true
             Layout.fillHeight: true
-            readonly property WebEngineView activeWebView: (viewRepeater.itemAt(Browser.tabModel.activeIndex) as TabSlot)?.webView ?? null
+            property WebEngineView activeWebView: null
+
+            function refreshActiveWebView() {
+                const tab = viewRepeater.itemAt(Browser.tabModel.activeIndex) as TabSlot;
+                viewStack.activeWebView = tab ? tab.webView : null;
+            }
+
+            Component.onCompleted: Qt.callLater(viewStack.refreshActiveWebView)
 
             FindBar {
                 id: findBar
@@ -139,6 +164,7 @@ Window {
                 target: Browser
                 function onActiveIndexChanged() {
                     findBar.close();
+                    viewStack.refreshActiveWebView();
                 }
                 function onNewTabOpened() {
                     // defer so the new tab's view doesn't steal focus back
@@ -150,7 +176,13 @@ Window {
                 id: viewRepeater
                 model: Browser.tabModel
 
-                delegate: TabSlot {}
+                delegate: TabSlot {
+                    browserWindow: root
+                    viewStack: viewStack
+                }
+
+                onItemAdded: viewStack.refreshActiveWebView()
+                onItemRemoved: viewStack.refreshActiveWebView()
             }
         }
     }
@@ -170,356 +202,36 @@ Window {
         zoomIndicator: zoomIndicator
         downloadsPanel: downloadsPanel
         onSettingsRequested: root.openSettings()
+        onPrintRequested: root.printActivePage()
+        onSavePdfRequested: root.savePdfActivePage()
     }
 
-    // one per tab: the internal page or the web view (+ devtools)
-    component TabSlot: Item {
-        id: tabSlot
-        required property int index
-        required property var model
-        anchors.fill: parent
-        visible: index === Browser.tabModel.activeIndex
-
-        readonly property bool isInternalPage: InternalPages.isInternal(model.url.toString())
-        // internal pages have no renderer
-        onIsInternalPageChanged: if (isInternalPage) Browser.onRenderProcessPidChanged(index, 0)
-        function syncRenderPid() {
-            Browser.onRenderProcessPidChanged(tabSlot.index, tabSlot.webView ? tabSlot.webView.renderProcessPid : 0)
-        }
-
-        // a frozen tab still holds its renderer and a full-size frame on the GPU
-        readonly property int discardAfterMs: 5 * 60 * 1000
-        property bool discardable: false
-        onVisibleChanged: if (visible) discardable = false
-        Timer {
-            interval: tabSlot.discardAfterMs
-            running: !tabSlot.visible && tabSlot.webView !== null
-            onTriggered: tabSlot.discardable = true
-        }
-        property bool devToolsOpen: false
-        readonly property WebEngineView webView: webLoader.item as WebEngineView
-        // user could change this
-        property string devToolsDock: "right"
-        readonly property bool devToolsVertical: devToolsDock === "bottom"
-        property real devToolsSize: devToolsVertical ? height * 0.35 : Math.min(480, width * 0.4)
-        readonly property real devToolsMinSize: 200
-        readonly property real pageMinSize: 200
-        readonly property real clampedDevToolsSize: Math.max(devToolsMinSize,
-            Math.min(devToolsSize, (devToolsVertical ? height : width) - pageMinSize))
-        readonly property string devToolsDockMarker: "__illuminate_devtools_dock__ "
-        onDevToolsDockChanged: devToolsSize = devToolsVertical ? height * 0.35 : Math.min(480, width * 0.4)
-
-        // console.debug() prefixes used by the frame-bridge user script
-        readonly property string frameOriginMarker: "__illuminate_frame_origin__ "
-        readonly property string pointerLockMarker: "__illuminate_pointer_lock__ "
-        property bool pointerLocked: false
-        onPointerLockedChanged: {
-            if (pointerLocked)
-                pointerLockHint.flash()
-            else
-                pointerLockHint.opacity = 0
-        }
-
-        Loader {
-            anchors.fill: parent
-            active: tabSlot.isInternalPage
-            visible: tabSlot.isInternalPage
-            source: tabSlot.isInternalPage ? InternalPages.qmlSource(tabSlot.model.url.toString()) : ""
-            onLoaded: Browser.onTitleChanged(tabSlot.index, InternalPages.title(tabSlot.model.url.toString()))
-        }
-
-        Loader {
-            id: webLoader
-            x: tabSlot.devToolsOpen && tabSlot.devToolsDock === "left" ? tabSlot.clampedDevToolsSize : 0
-            y: 0
-            width: tabSlot.devToolsOpen && !tabSlot.devToolsVertical ? parent.width - tabSlot.clampedDevToolsSize : parent.width
-            height: tabSlot.devToolsOpen && tabSlot.devToolsVertical ? parent.height - tabSlot.clampedDevToolsSize : parent.height
-            // restored tabs stay suspended (no view, no renderer) until first shown
-            active: !tabSlot.isInternalPage && !tabSlot.model.suspended
-            visible: !tabSlot.isInternalPage
-
-            onLoaded: {
-                const u = tabSlot.model.url;
-                if (u && u.toString() !== "" && !tabSlot.isInternalPage)
-                    item.url = u;
-            }
-
-            sourceComponent: Component {
-                WebEngineView {
-                    id: webView
-                    anchors.fill: parent
-
-                    // set once at creation; a profile switch replaces every tab
-                    profile: Browser.webProfile
-                    devToolsView: tabSlot.devToolsOpen ? devToolsLoader.item as WebEngineView : null
-                    visible: tabSlot.index === Browser.tabModel.activeIndex
-
-                    // hidden tabs freeze right away (recommendedState stays Active while
-                    // audio plays or a load is running); Chromium recommends Discarded as
-                    // soon as a page is frozen, so that waits for the discard timer
-                    lifecycleState: webView.visible
-                        ? WebEngineView.LifecycleState.Active
-                        : (webView.recommendedState === WebEngineView.LifecycleState.Discarded
-                            ? (tabSlot.discardable ? WebEngineView.LifecycleState.Discarded : WebEngineView.LifecycleState.Frozen)
-                            : webView.recommendedState)
-                    onLifecycleStateChanged: tabSlot.syncRenderPid()
-                    onRenderProcessTerminated: tabSlot.syncRenderPid()
-
-                    // avoids a white flash before the first paint
-                    backgroundColor: Theme.bg
-
-                    // gpu shit
-                    userScripts.collection: [{
-                        name: "hide-webgpu",
-                        injectionPoint: WebEngineScript.DocumentCreation,
-                        worldId: WebEngineScript.MainWorld,
-                        runsOnSubFrames: true,
-                        sourceCode: "delete Navigator.prototype.gpu;"
-                    }, {
-                        // pointer lock grant
-                        name: "frame-bridge",
-                        injectionPoint: WebEngineScript.DocumentCreation,
-                        worldId: WebEngineScript.ApplicationWorld,
-                        runsOnSubFrames: true,
-                        sourceCode: "if (location.origin !== 'null') console.debug('" + tabSlot.frameOriginMarker + "' + location.origin);"
-                            + "document.addEventListener('pointerlockchange', () => console.debug('"
-                            + tabSlot.pointerLockMarker + "' + (document.pointerLockElement ? 1 : 0)));"
-                    }].concat(AdBlocker.cosmeticScript === "" ? [] : [{
-                        // ~13k generic selectors: parsing that into every ad iframe cost
-                        // more than it hid; site rules only ever reached the top frame
-                        name: "adblock-cosmetic",
-                        injectionPoint: WebEngineScript.DocumentCreation,
-                        worldId: WebEngineScript.ApplicationWorld,
-                        runsOnSubFrames: false,
-                        sourceCode: AdBlocker.cosmeticScript
-                    }])
-
-                    settings.dnsPrefetchEnabled: true
-                    settings.scrollAnimatorEnabled: true
-
-                    onJavaScriptConsoleMessage: (level, message, lineNumber, sourceID) => {
-                        const msg = String(message)
-                        if (msg.startsWith(tabSlot.frameOriginMarker)) {
-                            PointerLock.allow(webView.profile, msg.slice(tabSlot.frameOriginMarker.length))
-                            return
-                        }
-                        if (msg.startsWith(AdBlocker.cosmeticMarker)) {
-                            const pageUrl = msg.slice(AdBlocker.cosmeticMarker.length)
-                            const host = new URL(pageUrl).hostname
-                            webView.runJavaScript("window.__illuminateAdblock && window.__illuminateAdblock.apply("
-                                + JSON.stringify(host) + ", " + AdBlocker.cosmeticFor(pageUrl) + ")",
-                                WebEngineScript.ApplicationWorld)
-                            return
-                        }
-                        if (msg.startsWith(tabSlot.pointerLockMarker)) {
-                            tabSlot.pointerLocked = msg.slice(tabSlot.pointerLockMarker.length) === "1"
-                            return
-                        }
-                        if (level === 0)
-                            return;
-                        const text = level + "/" + sourceID + ":" + lineNumber + " " + msg
-                        if (level >= 2)
-                            Logger.error("WebView", text)
-                        else
-                            Logger.warning("WebView", text)
-                    }
-
-                    Component.onCompleted: {
-                        Logger.info("WebView", "Tab " + tabSlot.index + " created, url=" + tabSlot.model.url);
-                    }
-
-                    onLoadingChanged: function (loading) {
-                        Browser.onLoadingChanged(tabSlot.index, webView.loading);
-                        tabSlot.syncRenderPid();
-                        if (webView.loading)
-                            Logger.info("WebView", "Tab " + tabSlot.index + " loading: " + webView.url);
-                    }
-
-                    onUrlChanged: function () {
-                        Browser.onUrlChanged(tabSlot.index, webView.url.toString());
-                        Logger.debug("WebView", "Tab " + tabSlot.index + " url → " + webView.url);
-                    }
-
-                    onLoadProgressChanged: Browser.onLoadProgressChanged(tabSlot.index, webView.loadProgress)
-                    onRenderProcessPidChanged: tabSlot.syncRenderPid()
-                    onTitleChanged: Browser.onTitleChanged(tabSlot.index, webView.title)
-                    onIconChanged: Browser.onIconUrlChanged(tabSlot.index, webView.icon.toString())
-
-                    onNewWindowRequested: function (request) {
-                        // not calling request.openIn() leaves the request ignored;
-                        // the controller opens the url in a new tab instead
-                        Browser.onNewWindowRequested(tabSlot.index, request.requestedUrl.toString());
-                    }
-
-                    onContextMenuRequested: function (request) {
-                        request.accepted = true;
-                        contextMenu.request = request;
-                        contextMenu.popup();
-                    }
-
-                    ContextMenu {
-                        id: contextMenu
-                        webView: webView
-                        onToggleDevTools: tabSlot.devToolsOpen = !tabSlot.devToolsOpen
-                        onInspectElement: {
-                            tabSlot.devToolsOpen = true
-                            Qt.callLater(() => webView.triggerWebAction(WebEngineView.InspectElement))
-                        }
-                    }
-
-                    Connections {
-                        target: Browser
-                        function onLoadRequested(tabIndex, url) {
-                            if (tabIndex !== tabSlot.index)
-                                return;
-                            if (webLoader.item)
-                                webLoader.item.url = url;
-                        }
-                        function onNavigationRequested(action) {
-                            if (tabSlot.index !== Browser.tabModel.activeIndex)
-                                return;
-                            if (action === "back")
-                                webView.goBack();
-                            else if (action === "forward")
-                                webView.goForward();
-                            else if (action === "reload")
-                                webView.reload();
-                            else if (action === "devtools")
-                                tabSlot.devToolsOpen = !tabSlot.devToolsOpen;
-                        }
-                    }
-                }
+    Connections {
+        target: root.pointerLockEmu
+        function onActiveChanged(a) {
+            if (!a) {
+                const tab = viewRepeater.itemAt(Browser.tabModel.activeIndex) as TabSlot;
+                if (tab && tab.pointerLocked)
+                    tab.releaseLock();
             }
         }
+        function onMovementReady(dx, dy) {
+            const wv = viewStack.activeWebView;
+            if (!wv)
+                return;
 
-        Loader {
-            id: devToolsLoader
-            x: tabSlot.devToolsDock === "right" ? parent.width - width : 0
-            y: tabSlot.devToolsVertical ? parent.height - height : 0
-            width: tabSlot.devToolsVertical ? parent.width : tabSlot.clampedDevToolsSize
-            height: tabSlot.devToolsVertical ? tabSlot.clampedDevToolsSize : parent.height
-            active: tabSlot.devToolsOpen
-            visible: tabSlot.devToolsOpen
-
-            sourceComponent: Component {
-                WebEngineView {
-                    id: devToolsView
-                    anchors.fill: parent
-                    profile: Browser.webProfile
-                    backgroundColor: Theme.bg
-
-                    // the frontend's close (X) button asks its page to close
-                    onWindowCloseRequested: tabSlot.devToolsOpen = false
-                    userScripts.collection: [{
-                        name: "devtools-bridge",
-                        injectionPoint: WebEngineScript.DocumentCreation,
-                        worldId: WebEngineScript.MainWorld,
-                        sourceCode: "(function () {"
-                            + "const host = window.DevToolsHost;"
-                            + "if (!host || !host.sendMessageToEmbedder) return;"
-                            + "const send = host.sendMessageToEmbedder.bind(host);"
-                            + "host.sendMessageToEmbedder = function (json) {"
-                            + "  try {"
-                            + "    const m = JSON.parse(json);"
-                            + "    if (m.method === 'setPreference' && m.params && m.params[0] === 'currentDockState')"
-                            + "      console.debug('" + tabSlot.devToolsDockMarker + "' + JSON.parse(m.params[1]));"
-                            + "  } catch (e) {}"
-                            + "  return send(json);"
-                            + "};"
-                            + "})();"
-                    }]
-
-                    onJavaScriptConsoleMessage: (level, message, lineNumber, sourceID) => {
-                        const msg = String(message)
-                        if (!msg.startsWith(tabSlot.devToolsDockMarker))
-                            return
-                        const side = msg.slice(tabSlot.devToolsDockMarker.length)
-                        // a separate devtools window isn't supported; keep it docked
-                        if (side === "left" || side === "bottom" || side === "right")
-                            tabSlot.devToolsDock = side
-                        else if (side === "undocked")
-                            tabSlot.devToolsDock = "right"
-                    }
-                }
-            }
+            const rx = Math.round(dx);
+            const ry = Math.round(dy);
+            if (rx === 0 && ry === 0)
+                return;
+            wv.runJavaScript("window.__illuminate__onLockDelta && window.__illuminate__onLockDelta("
+                + rx + "," + ry + ")");
         }
+    }
 
-        // drag handle between the page and devtools
-        Rectangle {
-            id: devToolsSplitter
-            visible: tabSlot.devToolsOpen
-            z: 10
-            color: splitterArea.pressed || splitterArea.containsMouse ? Theme.accent : Theme.border
-            x: tabSlot.devToolsDock === "right" ? devToolsLoader.x - width / 2
-             : tabSlot.devToolsDock === "left" ? devToolsLoader.width - width / 2 : 0
-            y: tabSlot.devToolsVertical ? devToolsLoader.y - height / 2 : 0
-            width: tabSlot.devToolsVertical ? parent.width : 1
-            height: tabSlot.devToolsVertical ? 1 : parent.height
-
-            MouseArea {
-                id: splitterArea
-                // wider than the 1px line so it's easy to grab
-                anchors.fill: parent
-                anchors.margins: -3
-                hoverEnabled: true
-                cursorShape: tabSlot.devToolsVertical ? Qt.SizeVerCursor : Qt.SizeHorCursor
-                preventStealing: true
-
-                onPositionChanged: function (mouse) {
-                    if (!pressed)
-                        return
-                    const p = mapToItem(tabSlot, mouse.x, mouse.y)
-                    if (tabSlot.devToolsDock === "right")
-                        tabSlot.devToolsSize = tabSlot.width - p.x
-                    else if (tabSlot.devToolsDock === "left")
-                        tabSlot.devToolsSize = p.x
-                    else
-                        tabSlot.devToolsSize = tabSlot.height - p.y
-                }
-            }
-        }
-
-        // like Chrome: tell the user how to get their cursor back
-        Rectangle {
-            id: pointerLockHint
-            anchors.top: parent.top
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.topMargin: 24
-            width: hintText.implicitWidth + 32
-            height: 36
-            radius: height / 2
-            color: Theme.surface
-            border.color: Theme.border
-            border.width: 1
-            opacity: 0
-            visible: opacity > 0
-            z: 50
-
-            function flash() {
-                opacity = 1
-                hintTimer.restart()
-            }
-
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: Theme.durationFast
-                }
-            }
-
-            Timer {
-                id: hintTimer
-                interval: 3000
-                onTriggered: pointerLockHint.opacity = 0
-            }
-
-            Text {
-                id: hintText
-                anchors.centerIn: parent
-                text: "Press Esc to show your cursor"
-                color: Theme.text
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeS
-            }
-        }
+    Shortcut {
+        sequence: "Esc"
+        enabled: root.pointerLockActive
+        onActivated: root.releasePointerLock()
     }
 }

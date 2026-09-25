@@ -1,3 +1,4 @@
+#include <QApplication>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QDir>
@@ -10,6 +11,7 @@
 #include "core/BrowserController.h"
 #include "core/ProfileManager.h"
 #include "utils/BrowserLogger.h"
+#include "utils/ChromeVersion.h"
 
 // only one instance
 static bool claimSingleInstance(QLocalServer &server)
@@ -82,18 +84,13 @@ int main(int argc, char *argv[])
 
     // webengine start before everyting
     QtWebEngineQuick::initialize();
-
-    // must be set before QGuiApplication construction to take effect
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
-
-    // Qt Quick sizes its texture atlas from the screen (4096x2048, 32 MB, on a
-    // Retina laptop); here it only ever holds icons and favicons
     if (!qEnvironmentVariableIsSet("QSG_ATLAS_WIDTH"))
         qputenv("QSG_ATLAS_WIDTH", "1024");
     if (!qEnvironmentVariableIsSet("QSG_ATLAS_HEIGHT"))
         qputenv("QSG_ATLAS_HEIGHT", "1024");
 
-    QGuiApplication app(argc, argv);
+    QApplication app(argc, argv);
     app.setApplicationName("QT_Illuminate");
     app.setOrganizationName("QT_Illuminate");
 
@@ -102,6 +99,7 @@ int main(int argc, char *argv[])
 #endif
 
     BrowserLogger::instance().installAsQtHandler();
+    ChromeVersion::instance().start();
 
     QLocalServer instanceServer;
     if (!claimSingleInstance(instanceServer))
@@ -110,15 +108,12 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    // before any profile exists: each web profile routes its requests through it
     AdBlocker adBlocker(nullptr);
     ProfileManager profileManager(nullptr);
 
     BrowserLogger::instance().info("Main", "QT_Illuminate starting up");
 
     BrowserLogger::instance().info("Main", QString("Qt %1 — WebEngine ready").arg(qVersion()));
-
-    // Dummy profile for initial setup
     BrowserController controller(profileManager.activeProfile());
     QObject::connect(&profileManager, &ProfileManager::activeProfileChanged, &controller, [&]() {
         controller.setProfile(profileManager.activeProfile());
@@ -129,8 +124,6 @@ int main(int argc, char *argv[])
         controller.saveSession();
     });
     QQmlApplicationEngine engine;
-
-    // Point to QML for UI
     engine.addImportPath("qrc:/");
 
     // singletons

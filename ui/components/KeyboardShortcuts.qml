@@ -9,6 +9,8 @@ Item {
     required property var downloadsPanel
 
     signal settingsRequested
+    signal printRequested
+    signal savePdfRequested
 
     // tabs
     Shortcut {
@@ -136,6 +138,18 @@ Item {
     Shortcut {
         sequence: "Ctrl+,"
         onActivated: root.settingsRequested()
+    }
+
+    // print: Cmd+P on macOS, Ctrl+P elsewhere
+    Shortcut {
+        sequences: [StandardKey.Print]
+        onActivated: root.printRequested()
+    }
+
+    // save a copy as PDF: Cmd+S on macOS, Ctrl+S elsewhere
+    Shortcut {
+        sequences: [StandardKey.Save]
+        onActivated: root.savePdfRequested()
     }
 
     // downloads

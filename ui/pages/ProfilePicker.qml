@@ -87,7 +87,10 @@ ApplicationWindow {
         TapHandler { onTapped: root.close() }
     }
 
-    Keys.onEscapePressed: root.close()
+    Shortcut {
+        sequence: "Esc"
+        onActivated: root.close()
+    }
 
     ColumnLayout {
         anchors.fill: parent
