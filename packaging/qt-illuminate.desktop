@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=QT_Illuminate
+GenericName=Web Browser
+Comment=Browse the web
+Exec=QT_Illuminate %U
+Icon=qt-illuminate
+Terminal=false
+Categories=Network;WebBrowser;
+MimeType=text/html;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;
+StartupWMClass=QT_Illuminate

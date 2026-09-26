@@ -1,10 +1,46 @@
 # Created by https://www.toptal.com/developers/gitignore/api/c++,qt,qml,cmake
 # Edit at https://www.toptal.com/developers/gitignore?templates=c++,qt,qml,cmake
+#
+# Project-specific rules live ABOVE the generated block. Regenerating rewrites
+# everything from "### C++ ###" down, so keep custom entries up here.
 
-build
+# build output
+/build/
+__cmake_systeminformation/
+
+# local dev state
 .profiles
 .vscode
-packaging
+.cache/
+
+# packaged output from ./build.sh --package
+/dist/
+*.dmg
+*.tar.gz
+
+# crash dumps and logs from running the app or tooling in-tree.
+# anchored: src/core/ is a source directory, not a dump
+/core
+/core.*
+*.log
+
+# macOS metadata; otherwise gets committed alongside packaging/ assets
+.DS_Store
+._*
+.AppleDouble/
+.LSOverride
+# NB: no rule for Finder's Icon<CR> custom-icon file — matching it would also
+# match AppIcon.icns and every file under icons/, and git cannot match a literal CR
+
+# Linux/Windows cruft
+Thumbs.db
+desktop.ini
+
+# merge and editor leftovers
+*.orig
+*.rej
+*.swp
+*.swo
 
 ### C++ ###
 # Prerequisites
@@ -109,5 +145,3 @@ CMakeLists.txt.user*
 *_qmlcache.qrc
 
 # End of https://www.toptal.com/developers/gitignore/api/c++,qt,qml,cmake
-# packaged output from ./build.sh --package
-dist/

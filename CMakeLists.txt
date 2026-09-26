@@ -49,8 +49,24 @@ set_target_properties(QT_Illuminate PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER "local.qt-illuminate.QT_Illuminate"
     MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_ICON_FILE "AppIcon"
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/Info.plist.in"
 )
+
+if(APPLE)
+    # MACOSX_BUNDLE_ICON_FILE only fills in CFBundleIconFile; the .icns itself
+    # has to land in Contents/Resources for Finder/Dock to pick it up
+    set(APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/packaging/icons/AppIcon.icns")
+    if(NOT EXISTS "${APP_ICON}")
+        message(FATAL_ERROR "Missing app icon: ${APP_ICON}")
+    endif()
+    add_custom_command(TARGET QT_Illuminate POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${APP_ICON}"
+                "$<TARGET_BUNDLE_DIR:QT_Illuminate>/Contents/Resources/AppIcon.icns"
+        COMMENT "Installing AppIcon.icns into the bundle"
+    )
+endif()
 
 set_source_files_properties(ui/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 

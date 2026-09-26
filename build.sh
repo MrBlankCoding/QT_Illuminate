@@ -14,6 +14,25 @@
 
 set -euo pipefail
 
+# ── snapshot self, then re-exec the copy ─────────────────────────────────────
+# Bash reads a script incrementally by byte offset, so saving this file while
+# it runs (a 115MB DMG step gives plenty of time) makes bash resume at a stale
+# offset and die on a bogus syntax error in an unrelated line. Re-execing a
+# byte-identical snapshot makes mid-run edits harmless; line numbers still match
+# because the copy is byte-for-byte. The real project dir travels in
+# QT_ILLUMINATE_ROOT, since BASH_SOURCE[0] would otherwise point at the temp
+# file and send SCRIPT_DIR to /tmp.
+if [[ -z "${QT_ILLUMINATE_ROOT:-}" ]]; then
+    _qt_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+    _qt_snap="$(mktemp "${TMPDIR:-/tmp}/qt_illuminate_build.XXXXXX")"
+    cat -- "${BASH_SOURCE[0]}" > "$_qt_snap"
+    chmod +x "$_qt_snap"
+    export QT_ILLUMINATE_ROOT="$_qt_root"
+    export QT_ILLUMINATE_SNAPSHOT="$_qt_snap"
+    exec bash "$_qt_snap" "$@"
+fi
+trap 'rm -f "${QT_ILLUMINATE_SNAPSHOT:-/dev/null}"' EXIT
+
 # ── detect OS ────────────────────────────────────────────────────────────────
 
 IS_MAC=0
@@ -125,7 +144,7 @@ for arg in "$@"; do
         --package) DO_PACKAGE=1 ;;
         *)
             echo "Unknown argument: $arg"
-            echo "Usage: $0 [--clean [--keep-data]] [--run | --dev] [--package]"
+            echo "Usage: ./build.sh [--clean [--keep-data]] [--run | --dev] [--package]"
             exit 1
             ;;
     esac
@@ -356,6 +375,139 @@ prune_release_payload() {
     (( pruned )) || echo "  no development payload to prune"
 }
 
+prune_release_macpayload() {
+    local app="$1"
+    local qml="$app/Contents/Resources/qml"
+    local fw="$app/Contents/Frameworks"
+    local quick="$app/Contents/PlugIns/quick"
+    local before after
+    before="$(du -sk "$app" | cut -f1)"
+
+    # 1. Chromium locale packs (~44MB). English strings live in
+    #    qtwebengine_resources.pak; only the en-* overrides are separate files.
+    local locales="$fw/QtWebEngineCore.framework/Versions/A/Resources/qtwebengine_locales"
+    if [[ -d "$locales" ]]; then
+        local keep_locales="${QT_ILLUMINATE_KEEP_LOCALES:-en-US en-GB}"
+        local -a keep=($keep_locales)
+        local pak name
+        for pak in "$locales"/*.pak; do
+            [[ -e "$pak" ]] || continue
+            name="$(basename "$pak")"
+            local wanted=0 k
+            for k in "${keep[@]}"; do
+                [[ "$name" == "$k.pak" ]] && { wanted=1; break; }
+            done
+            if (( ! wanted )); then
+                rm -f "$pak"
+                echo "  pruned locale $name"
+            fi
+        done
+    fi
+
+    local -a styles=(Imagine Material Universal FluentWinUI3 iOS)
+    local style lower
+    for style in "${styles[@]}"; do
+        lower="$(printf '%s' "$style" | tr '[:upper:]' '[:lower:]')"
+        rm -rf "${qml:?}/QtQuick/Controls/$style"
+        rm -f  "$quick"/libqtquickcontrols2"$lower"style*plugin.dylib
+        rm -rf "$fw"/QtQuickControls2"$style"*.framework
+    done
+    echo "  pruned ${#styles[@]} unused Quick Controls styles"
+
+    rm -rf "${qml:?}/QtQuick/Particles" "${qml:?}/QtQuick/VectorImage"
+    rm -f "$quick"/libparticlesplugin.dylib \
+          "$quick"/libqquickvectorimageplugin.dylib \
+          "$quick"/libqquickvectorimagehelpersplugin.dylib
+    rm -rf "$fw"/QtQuickParticles.framework "$fw"/QtQuickVectorImage.framework \
+           "$fw"/QtQuickVectorImageHelpers.framework "$fw"/QtQuickVectorImageGenerator.framework
+    echo "  pruned 2 unimported QtQuick modules"
+
+    rm -f "$quick"/libq*vkb*plugin.dylib "$quick"/libvirtualkeyboardplugin.dylib \
+          "$app/Contents/PlugIns/platforminputcontexts/libqtvirtualkeyboardplugin.dylib"
+    rm -rf "$app/Contents/PlugIns/multimedia" "${fw:?}/QtMultimedia.framework"
+    echo "  pruned VirtualKeyboard + Multimedia"
+
+    rm -f "$quick"/libqtquicktimeline*.dylib "$quick"/libqtquickscene2dplugin.dylib \
+          "$quick"/libqtquickscene3dplugin.dylib "$quick"/libquicktoolingplugin.dylib \
+          "$quick"/libqtqmlstatemachineplugin.dylib
+    # The QML module dirs must go too: their qmldir/plugin dylib symlinks point
+    # at the plugins just removed, leaving dangling symlinks that fail the
+    # dangling-link check below.
+    rm -rf "${qml:?}/QtQml/StateMachine" "${qml:?}/QtQml/Timeline" \
+           "${qml:?}/QtQuick/Scene2D" "${qml:?}/QtQuick/Scene3D"
+    echo "  pruned timeline/scene2d/scene3d/tooling/statemachine plugins"
+
+    rm -f "$app/Contents/PlugIns/position/libqtposition_nmea.dylib"
+    rm -rf "${fw:?}/QtSerialPort.framework"
+    echo "  pruned NMEA positioning + QtSerialPort"
+
+    after="$(du -sk "$app" | cut -f1)"
+    printf '  bundle %.0fMB → %.0fMB (-%.0fMB)\n' \
+        "$(awk "BEGIN{print $before/1024}")" \
+        "$(awk "BEGIN{print $after/1024}")" \
+        "$(awk "BEGIN{print ($before-$after)/1024}")"
+}
+
+dep_resolves() {
+    local dir="$1" dep="$2"
+    [[ -e "$dir/$dep" ]] && return 0
+    [[ -e "$dir/$dep.framework/Versions/A/$dep" ]] && return 0
+    [[ -e "$dir/$dep.framework/Versions/Current/$dep" ]] && return 0
+    [[ -e "$dir/$dep.framework/$dep" ]] && return 0
+    return 1
+}
+
+verify_bundle_deps() {
+    local app="$1"
+    local fw_dir; fw_dir="$(cd "$app/Contents/Frameworks" && pwd -P)"
+    local missing=0 bin dep rest rpath dir found base
+    while IFS= read -r bin; do
+        file -b "$bin" 2>/dev/null | grep -q "Mach-O" || continue
+        base="$(dirname "$bin")"
+        while IFS= read -r dep; do
+            case "$dep" in
+                @rpath/*) rest="${dep#@rpath/}" ;;
+                *) continue ;;
+            esac
+            dep_resolves "$fw_dir" "$rest" && continue
+            found=0
+            while IFS= read -r rpath; do
+                case "$rpath" in
+                    @loader_path/*)     dir="$base/${rpath#@loader_path/}" ;;
+                    @executable_path/*) dir="$base/${rpath#@executable_path/}" ;;
+                    /*)                 dir="$rpath" ;;
+                    *)                  continue ;;
+                esac
+                if dep_resolves "$dir" "$rest"; then found=1; break; fi
+            done < <(bundle_rpaths "$bin")
+            if (( ! found )); then
+                echo "  ${bin#"$app"/} → $dep"
+                missing=1
+            fi
+        done < <(otool -L "$bin" 2>/dev/null | tail -n +2 | awk 'NF { print $1 }')
+    done < <(find "$app" -type f)
+    (( missing )) && return 1
+    return 0
+}
+
+verify_qml_modules() {
+    local qml="$1"
+    local missing=0 ref f
+    local -a files=()
+    while IFS= read -r f; do
+        files+=("$f")
+    done < <(find "$qml" -name 'qmldir' 2>/dev/null)
+    (( ${#files[@]} )) || return 0
+    while IFS= read -r ref; do
+        [[ -d "$qml/$(printf '%s' "$ref" | tr '.' '/')" ]] && continue
+        echo "  missing QML module: $ref"
+        missing=1
+    done < <(grep -hoE "^[[:space:]]*(optional[[:space:]]+)?(import|depends)[[:space:]]+QtQuick\.[A-Za-z0-9_.]+" \
+                  "${files[@]}" 2>/dev/null | awk '$1 != "optional" { print $NF }' | sort -u)
+    (( missing )) && return 1
+    return 0
+}
+
 has_compiler() {
     if (( IS_MAC )); then
         xcode-select -p >/dev/null 2>&1
@@ -409,7 +561,7 @@ fi
 BUILD_TYPE="Release"
 (( DO_DEV )) && BUILD_TYPE="Debug"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${QT_ILLUMINATE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 BUILD_DIR="$SCRIPT_DIR/build"
 
 APP_LABEL="QT_Illuminate"
@@ -547,6 +699,23 @@ if (( DO_PACKAGE )); then
         echo "→ Pruning development payload…"
         prune_release_payload "$STAGED_APP"
 
+        echo "→ Pruning unused Qt payload…"
+        prune_release_macpayload "$STAGED_APP"
+
+        echo "→ Verifying no pruned library is still linked…"
+        if ! BROKEN_DEPS="$(verify_bundle_deps "$STAGED_APP")"; then
+            echo "✗ Deployed bundle has unresolvable dependencies:"
+            echo "$BROKEN_DEPS" | head -20
+            exit 1
+        fi
+
+        echo "→ Verifying no pruned QML module is still imported…"
+        if ! MISSING_QML="$(verify_qml_modules "$STAGED_APP/Contents/Resources/qml")"; then
+            echo "✗ Deployed bundle is missing QML modules still imported:"
+            echo "$MISSING_QML" | head -20
+            exit 1
+        fi
+
         BROKEN_LINKS="$(find "$STAGED_APP" -type l ! -exec test -e {} \; -print)"
         if [[ -n "$BROKEN_LINKS" ]]; then
             echo "✗ Deployed bundle has dangling symlinks:"
@@ -555,6 +724,10 @@ if (( DO_PACKAGE )); then
         fi
         [[ -d "$STAGED_APP/Contents/Frameworks/QtWebEngineCore.framework" ]] || {
             echo "✗ Deployed bundle is missing QtWebEngineCore.framework"
+            exit 1
+        }
+        [[ -f "$STAGED_APP/Contents/Resources/AppIcon.icns" ]] || {
+            echo "✗ Deployed bundle is missing Contents/Resources/AppIcon.icns"
             exit 1
         }
 
@@ -576,8 +749,13 @@ if (( DO_PACKAGE )); then
         echo "→ Creating disk image…"
         ln -s /Applications "$STAGE_DIR/Applications"
         rm -f "$DMG_PATH"
-        hdiutil create -volname "QT_Illuminate" -srcfolder "$STAGE_DIR" \
-                -format UDZO -ov "$DMG_PATH" >/dev/null
+        # hdiutil create is deprecated in favour of diskutil's image create
+        DMG_LOG="$(diskutil image create from "$STAGE_DIR" "$DMG_PATH" \
+                --volumeName "QT_Illuminate" --format UDZO 2>&1 >/dev/null)" || {
+            echo "✗ diskutil image create failed:"
+            echo "$DMG_LOG"
+            exit 1
+        }
         rm -rf "$DIST_DIR/QT_Illuminate.app"
         mv "$STAGED_APP" "$DIST_DIR/"
         rm -rf "$STAGE_DIR"
