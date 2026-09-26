@@ -4,6 +4,7 @@
 build
 .profiles
 .vscode
+packaging
 
 ### C++ ###
 # Prerequisites
@@ -108,3 +109,5 @@ CMakeLists.txt.user*
 *_qmlcache.qrc
 
 # End of https://www.toptal.com/developers/gitignore/api/c++,qt,qml,cmake
+# packaged output from ./build.sh --package
+dist/

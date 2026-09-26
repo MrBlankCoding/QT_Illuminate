@@ -11,7 +11,6 @@
 ProfileManager::ProfileManager(QObject *parent)
     : QObject(parent), m_activeProfile(nullptr)
 {
-    migrateLegacyProfileData();
     loadProfiles();
     if (m_profiles.isEmpty())
     {
@@ -189,28 +188,3 @@ QString ProfileManager::profilesDirectory() const
     return dataLocation;
 }
 
-void ProfileManager::migrateLegacyProfileData()
-{
-    // Older builds stored profile data under QDir::currentPath() + "/.profiles",
-    // which resolved to wherever the binary happened to be launched from (often
-    // the developer's project directory) instead of a proper app data location.
-    // Move any such data into the new location so existing profiles aren't lost.
-    const QString newDir = profilesDirectory();
-    if (QFile::exists(newDir + QDir::separator() + QStringLiteral("profiles.json")))
-        return; // already migrated (or already has data of its own)
-
-    const QString legacyDir = QDir::currentPath() + QDir::separator() + QStringLiteral(".profiles");
-    if (!QFile::exists(legacyDir + QDir::separator() + QStringLiteral("profiles.json")))
-        return; // nothing to migrate
-
-    QDir legacy(legacyDir);
-    const QStringList entries = legacy.entryList(QDir::NoDotAndDotDot | QDir::AllEntries);
-    for (const QString &entry : entries)
-    {
-        const QString from = legacyDir + QDir::separator() + entry;
-        const QString to = newDir + QDir::separator() + entry;
-        if (!QDir().rename(from, to))
-            qWarning() << "Failed to migrate legacy profile data:" << from << "->" << to;
-    }
-    QDir().rmdir(legacyDir);
-}

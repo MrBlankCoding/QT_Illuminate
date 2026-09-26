@@ -12,6 +12,12 @@ QtObject {
     readonly property bool hasAdaptiveColor: adaptiveAccent !== ""
     readonly property real backgroundLuminance: Browser ? Browser.backgroundLuminance : -1
 
+    // profile avatar choices, shared by the profile picker and onboarding
+    readonly property var avatarColors: [
+        "#4A90E2", "#2DA7A1", "#F3A43B", "#E86F67",
+        "#8A6CFF", "#69B578", "#D96ACF"
+    ]
+
     readonly property color defaultAccent: isDark ? "#89b4fa" : "#3b82f6"
     readonly property color accent:       hasAdaptiveColor ? adaptiveAccent : defaultAccent
     readonly property color accentDim:    Qt.tint(accent, isDark ? "#40000000" : "#40ffffff")

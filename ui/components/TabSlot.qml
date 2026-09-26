@@ -1,4 +1,6 @@
 import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 import QtWebEngine
 import QT_Illuminate.ui
 
@@ -216,6 +218,10 @@ Item {
                     contextMenu.popup();
                 }
 
+                onPermissionRequested: function (permission) {
+                    tabSlot.handlePermission(permission)
+                }
+
                 ContextMenu {
                     id: contextMenu
                     webView: webView
@@ -377,6 +383,124 @@ Item {
             color: Theme.text
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeS
+        }
+    }
+
+    // ── permission prompt ─────────────────────────────────────────────
+    // decisions and OS access checks live in Permissions (PermissionHandler);
+    // this only shows the prompt when nothing was remembered
+    property var pendingPermission: null
+    property string pendingPermissionLabel: ""
+    // OS resource blocking the pending request (Permissions.SystemResource), or -1
+    property int pendingBlockedResource: -1
+
+    function handlePermission(permission) {
+        if (Permissions.resolve(permission))
+            return
+        const type = permission.permissionType
+        tabSlot.pendingPermission = permission
+        tabSlot.pendingPermissionLabel = Permissions.labelForType(type)
+        tabSlot.pendingBlockedResource = Permissions.blockedResourceForType(type)
+        rememberChk.checked = false
+        permissionPopup.open()
+    }
+
+    function applyPermission(allow) {
+        const p = tabSlot.pendingPermission
+        if (!p)
+            return
+        Permissions.respond(p, allow, rememberChk.checked)
+        tabSlot.pendingPermission = null
+        permissionPopup.close()
+    }
+
+    Connections {
+        target: Permissions
+        enabled: tabSlot.pendingPermission !== null
+        function onSystemAccessChanged() {
+            tabSlot.pendingBlockedResource =
+                Permissions.blockedResourceForType(tabSlot.pendingPermission.permissionType)
+        }
+    }
+
+    Popup {
+        id: permissionPopup
+        modal: true
+        focus: true
+        padding: 0
+        width: 320
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.35) }
+        background: Rectangle {
+            radius: 16
+            color: Theme.bg
+            border.color: Theme.border
+            border.width: 1
+        }
+
+        ColumnLayout {
+            anchors.margins: 20
+            anchors.fill: parent
+            spacing: 16
+
+            Text {
+                Layout.fillWidth: true
+                text: (tabSlot.pendingPermission ? tabSlot.pendingPermission.origin.host : "") + " " + tabSlot.pendingPermissionLabel + "?"
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeM
+                color: Theme.text
+                wrapMode: Text.WordWrap
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: tabSlot.pendingBlockedResource >= 0
+                text: Permissions.labelForResource(tabSlot.pendingBlockedResource)
+                      + " access is turned off for Illuminate in your system settings."
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeS
+                color: Theme.danger
+                wrapMode: Text.WordWrap
+            }
+
+            PillButton {
+                visible: tabSlot.pendingBlockedResource >= 0
+                text: "Open System Settings"
+                textColor: Theme.text
+                fillColor: Theme.surfaceHigh
+                hoverFillColor: Theme.surface
+                onClicked: Permissions.openSystemSettings(tabSlot.pendingBlockedResource)
+            }
+
+            CheckBox {
+                id: rememberChk
+                text: "Remember this choice"
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeS
+                palette.windowText: Theme.textMuted
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+
+                Item { Layout.fillWidth: true }
+
+                PillButton {
+                    text: "Allow"
+                    textColor: "white"
+                    fillColor: Theme.accent
+                    hoverFillColor: Qt.darker(Theme.accent, 1.1)
+                    onClicked: tabSlot.applyPermission(true)
+                }
+                PillButton {
+                    text: "Deny"
+                    textColor: Theme.textMuted
+                    fillColor: Theme.surfaceHigh
+                    hoverFillColor: Theme.surface
+                    onClicked: tabSlot.applyPermission(false)
+                }
+            }
         }
     }
 }

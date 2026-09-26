@@ -49,8 +49,7 @@ set_target_properties(QT_Illuminate PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER "local.qt-illuminate.QT_Illuminate"
     MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-    # For camera/mic/screen-capture usage strings, point this at a custom plist:
-    # MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/Info.plist.in"
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/Info.plist.in"
 )
 
 set_source_files_properties(ui/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -68,11 +67,13 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/BrowserController.cpp
     src/core/BookmarkModel.h
     src/core/BookmarkModel.cpp
-    src/core/InternalPageManager.h
-    src/core/InternalPageManager.cpp
-    src/core/MemoryMonitor.h
-    src/core/MemoryMonitor.cpp
-    src/core/Profile.h
+     src/core/InternalPageManager.h
+     src/core/InternalPageManager.cpp
+     src/core/MemoryMonitor.h
+     src/core/MemoryMonitor.cpp
+    src/core/PermissionHandler.h
+    src/core/PermissionHandler.cpp
+     src/core/Profile.h
     src/core/Profile.cpp
     src/core/ProfileManager.h
     src/core/ProfileManager.cpp
@@ -103,8 +104,10 @@ qt_add_library(QT_Illuminatemodule STATIC
 if(APPLE)
     target_sources(QT_Illuminatemodule PRIVATE src/utils/WindowRounding_mac.mm)
     target_sources(QT_Illuminatemodule PRIVATE src/utils/PointerLockEmulation.mm)
+    target_sources(QT_Illuminatemodule PRIVATE src/core/PermissionHandler_mac.mm)
     set_source_files_properties(src/utils/PointerLockEmulation.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
-    target_link_libraries(QT_Illuminatemodule PRIVATE "-framework Cocoa")
+    target_link_libraries(QT_Illuminatemodule PRIVATE
+        "-framework Cocoa" "-framework AVFoundation" "-framework CoreLocation")
 else()
     # generic Qt event-filter/cursor-warp pointer lock for Linux and Windows
     target_sources(QT_Illuminatemodule PRIVATE src/utils/PointerLockEmulation.cpp)
@@ -153,6 +156,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/pages/NewTabPage.qml
         ui/pages/ProfilePicker.qml
         ui/pages/SettingsWindow.qml
+        ui/pages/SetupPage.qml
         ui/components/BookmarksBar.qml
         ui/components/ContextMenu.qml
         ui/components/DownloadsPanel.qml
@@ -161,6 +165,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/components/LucideIcon.qml
         ui/components/PillButton.qml
         ui/components/PrintController.qml
+        ui/components/ProfileEditor.qml
         ui/components/ProfileTile.qml
         ui/components/ResizeGrips.qml
         ui/components/SuggestionBox.qml
@@ -204,8 +209,6 @@ if(UNIX AND NOT APPLE)
             DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
     install(FILES packaging/icons/qt-illuminate.svg
             DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps")
-    install(FILES packaging/hicolor/index.theme
-            DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor")
 else()
     qt_generate_deploy_qml_app_script(
         TARGET QT_Illuminate

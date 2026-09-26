@@ -29,11 +29,11 @@ class BrowserController : public QObject, public ExternalQmlSingleton<BrowserCon
     Q_PROPERTY(int activeProgress READ activeProgress NOTIFY activeStateChanged)
     Q_PROPERTY(QString newTabBackground READ newTabBackground WRITE setNewTabBackground NOTIFY newTabBackgroundChanged)
     Q_PROPERTY(QString themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
-    // palette derived from the new tab background; empty accents / -1 luminance when there is none
+    // true until page has been dismissed
+    Q_PROPERTY(bool firstRun READ isFirstRun NOTIFY firstRunChanged)
     Q_PROPERTY(QString adaptiveAccentDark READ adaptiveAccentDark NOTIFY adaptivePaletteChanged)
     Q_PROPERTY(QString adaptiveAccentLight READ adaptiveAccentLight NOTIFY adaptivePaletteChanged)
     Q_PROPERTY(qreal backgroundLuminance READ backgroundLuminance NOTIFY adaptivePaletteChanged)
-    // the active profile's Chromium profile; every tab's WebEngineView uses it
     Q_PROPERTY(QQuickWebEngineProfile *webProfile READ webProfile NOTIFY webProfileChanged)
 
 public:
@@ -51,6 +51,7 @@ public:
     void setNewTabBackground(const QString &path);
     QString themeMode() const;
     void setThemeMode(const QString &mode);
+    bool isFirstRun() const;
     QString adaptiveAccentDark() const;
     QString adaptiveAccentLight() const;
     qreal backgroundLuminance() const;
@@ -58,6 +59,7 @@ public:
 
     // user actions
     Q_INVOKABLE void newTab(const QString &url = {});
+    Q_INVOKABLE void completeFirstRun();
     Q_INVOKABLE void closeTab(int index);
     Q_INVOKABLE void activateTab(int index);
     Q_INVOKABLE void cycleTab(int delta);
@@ -67,13 +69,8 @@ public:
     Q_INVOKABLE void goForward();
     Q_INVOKABLE void toggleDevTools();
     Q_INVOKABLE void copyActiveUrl() const;
-    // pixel size from the file header, without decoding; invalid if unreadable
     Q_INVOKABLE QSize imageSize(const QString &url) const;
-
-    // session persistence (per-profile)
     Q_INVOKABLE void saveSession() const;
-
-    // state callbacks
     Q_INVOKABLE void onTitleChanged(int tabIndex, const QString &title);
     Q_INVOKABLE void onUrlChanged(int tabIndex, const QString &url);
     Q_INVOKABLE void onLoadingChanged(int tabIndex, bool loading);
@@ -85,6 +82,7 @@ public:
 signals:
     void activeIndexChanged();
     void activeStateChanged();
+    void firstRunChanged();
     void newTabBackgroundChanged();
     void themeModeChanged();
     void adaptivePaletteChanged();
@@ -98,19 +96,22 @@ private:
     void updateAdaptiveAccent();
     void applyPalette(const ImagePalette &palette);
     void restoreSession();
+    void openInitialTab();
     QString sessionFilePath() const;
 
     TabModel *m_model;
     Profile *m_profile;
     QQuickWebEngineProfile *m_webEngineProfile;
-    // deleted and recreated every tab change
     QObject *m_activeTabCtx = nullptr;
     ImagePalette m_palette;
     // bumped per extraction so a slow result for an old image is dropped
     int m_paletteGeneration = 0;
     QSettings *m_settings;
+    QSettings *m_appSettings = nullptr;
+    bool m_isFirstRun = true;
 
     static const int MIN_TABS_FOR_CYCLE = 2;
     static const int NO_TAB_CYCLE_DELTA = 0;
     static const QString NEW_TAB_URL;
+    static const QString SETUP_URL;
 };

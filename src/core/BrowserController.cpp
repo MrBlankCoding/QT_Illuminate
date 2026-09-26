@@ -49,8 +49,10 @@ void BrowserController::setProfile(Profile *profile)
 }
 
 BrowserController::BrowserController(Profile *profile, QObject *parent)
-    : QObject(parent), m_profile(profile), m_webEngineProfile(profile->webProfile()), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_model(new TabModel(this))
+    : QObject(parent), m_profile(profile), m_webEngineProfile(profile->webProfile()), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_model(new TabModel(this)), m_appSettings(new QSettings(this))
 {
+    m_isFirstRun = !m_appSettings->value("setup/completed", false).toBool();
+
     connect(m_model, &TabModel::activeIndexChanged, this, [this]()
             {
         emit activeIndexChanged();
@@ -294,7 +296,7 @@ void BrowserController::restoreSession()
     QFile file(path);
     if (path.isEmpty() || !file.open(QFile::ReadOnly | QFile::Text))
     {
-        newTab();
+        openInitialTab();
         return;
     }
 
@@ -319,7 +321,7 @@ void BrowserController::restoreSession()
 
     if (m_model->rowCount() == 0)
     {
-        newTab();
+        openInitialTab();
         return;
     }
 
@@ -327,6 +329,38 @@ void BrowserController::restoreSession()
     if (activeIndex < 0 || activeIndex >= m_model->rowCount())
         activeIndex = 0;
     m_model->setActiveIndex(activeIndex);
+}
+
+void BrowserController::openInitialTab()
+{
+    newTab(m_isFirstRun ? SETUP_URL : QString());
+}
+
+bool BrowserController::isFirstRun() const
+{
+    return m_isFirstRun;
+}
+
+void BrowserController::completeFirstRun()
+{
+    if (!m_appSettings)
+        return;
+    m_appSettings->setValue("setup/completed", true);
+    if (m_isFirstRun)
+    {
+        m_isFirstRun = false;
+        emit firstRunChanged();
+        // hand the user a normal new tab once setup is accepted
+        if (BrowserTab *tab = m_model->tabAt(m_model->activeIndex()))
+        {
+            if (tab->url() == QUrl(SETUP_URL))
+            {
+                tab->setUrl(QUrl(NEW_TAB_URL));
+                tab->requestLoad(QUrl(NEW_TAB_URL));
+                emit activeStateChanged();
+            }
+        }
+    }
 }
 
 // tab managment
@@ -453,3 +487,4 @@ void BrowserController::onNewWindowRequested(int i, const QString &url)
 }
 
 const QString BrowserController::NEW_TAB_URL = "newtab://newtab";
+const QString BrowserController::SETUP_URL = "illuminate://setup";

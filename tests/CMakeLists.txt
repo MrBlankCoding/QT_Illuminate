@@ -23,3 +23,7 @@ find_package(Qt6 REQUIRED COMPONENTS Test)
 qt_add_executable(tst_colorextractor tst_ColorExtractor.cpp)
 target_link_libraries(tst_colorextractor PRIVATE Qt6::Test QT_Illuminatemodule)
 add_test(NAME tst_colorextractor COMMAND tst_colorextractor)
+
+qt_add_executable(tst_permissionhandler tst_PermissionHandler.cpp)
+target_link_libraries(tst_permissionhandler PRIVATE Qt6::Test QT_Illuminatemodule Qt6::WebEngineCore)
+add_test(NAME tst_permissionhandler COMMAND tst_permissionhandler)

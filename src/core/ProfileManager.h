@@ -39,7 +39,6 @@ private:
     void loadProfiles();
     void saveProfiles();
     QString profilesDirectory() const;
-    void migrateLegacyProfileData();
 
     QList<Profile *> m_profiles;
     QHash<QString, Profile *> m_profileMap;

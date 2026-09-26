@@ -1,24 +1,27 @@
 #!/usr/bin/env bash
 #
-#
 # Usage:
 #   ./build.sh              # configure (if needed) + build
 #   ./build.sh --run        # build + launch detached (no logs)
 #   ./build.sh --dev        # build Debug + run with live logs in terminal
-#   ./build.sh --clean      # wipe build dir and reconfigure
+#   ./build.sh --clean      # wipe build dir AND app data (cookies, sessions,
+#                           # profiles, caches, prefs/flags such as first-run
+#                           # setup) for a true clean slate, then reconfigure
+#   ./build.sh --clean --keep-data  # wipe build dir only, keep app data
+#   ./build.sh --package    # Release build + distributable package in dist/
+#                           # (macOS: deployed .app + .dmg, Linux: .tar.gz)
 #   ./build.sh --yes        # install missing dependencies without prompting
-#
 #
 
 set -euo pipefail
 
-# detect OS
+# ── detect OS ────────────────────────────────────────────────────────────────
 
 IS_MAC=0
 IS_LINUX=0
 case "$(uname -s)" in
-    Darwin*) IS_MAC=1    ;;
-    Linux)   IS_LINUX=1  ;;
+    Darwin*) IS_MAC=1   ;;
+    Linux)   IS_LINUX=1 ;;
     *)
         echo "✗ Unsupported platform: $(uname -s)"
         exit 1
@@ -42,7 +45,7 @@ find_qt() {
     fi
 
     if command -v qmake6 &>/dev/null; then
-        echo "$(qmake6 -query QT_INSTALL_PREFIX)"
+        qmake6 -query QT_INSTALL_PREFIX
         return
     fi
     if command -v qmake &>/dev/null; then
@@ -87,38 +90,79 @@ find_qt() {
                     | sort -u)
     fi
 
-    if [[ -n "$best" ]]; then
-        echo "$best"
-        return
-    fi
-
-    echo ""
+    echo "$best"
 }
 
 # ── args ─────────────────────────────────────────────────────────────────────
 
 DO_CLEAN=0
+DO_KEEP_DATA=0
 DO_RUN=0
 DO_DEV=0
+DO_PACKAGE=0
 ASSUME_YES=0
 for arg in "$@"; do
     case "$arg" in
-        --clean)   DO_CLEAN=1   ;;
-        --run)     DO_RUN=1     ;;
-        --dev)     DO_DEV=1     ;;
-        -y|--yes)  ASSUME_YES=1 ;;
+        --clean)     DO_CLEAN=1     ;;
+        --keep-data) DO_KEEP_DATA=1 ;;
+        --run)    DO_RUN=1     ;;
+        --dev)    DO_DEV=1     ;;
+        --package) DO_PACKAGE=1 ;;
+        -y|--yes) ASSUME_YES=1 ;;
         *)
             echo "Unknown argument: $arg"
-            echo "Usage: $0 [--clean] [--run | --dev] [--yes]"
+            echo "Usage: $0 [--clean [--keep-data]] [--run | --dev] [--package] [--yes]"
             exit 1
             ;;
     esac
 done
 
-# ── Dependencies ─────────────────────────────────────────────────────────────
+if (( DO_PACKAGE )) && (( DO_DEV )); then
+    echo "✗ --package builds Release; it can't be combined with --dev."
+    exit 1
+fi
 
-# y/N prompt; defaults to yes. without a terminal (CI, pipes) it declines
-# unless --yes was passed.
+if (( DO_KEEP_DATA )) && (( ! DO_CLEAN )); then
+    echo "Note: --keep-data has no effect without --clean."
+fi
+
+clean_app_data() {
+    (( DO_CLEAN )) || return 0
+    (( DO_KEEP_DATA )) && { echo "→ Keeping app data (--keep-data)."; return 0; }
+    echo "→ Removing app data (cookies, sessions, profiles, caches, prefs)…"
+    if (( IS_MAC )); then
+        if pgrep -f "QT_Illuminate.app/Contents/MacOS/QT_Illuminate" >/dev/null 2>&1; then
+            echo "  Quitting other running copies…"
+            pkill -KILL -f "QT_Illuminate.app/Contents/MacOS/QT_Illuminate" || true
+        fi
+        rm -rf \
+            "$HOME/Library/Application Support/QT_Illuminate" \
+            "$HOME/Library/Caches/QT_Illuminate" \
+            "$HOME/Library/Application Support/logs/browser.log" \
+            "$HOME/Library/Application Support/logs/browser.log.1"
+        local plist domain
+        for plist in "$HOME/Library/Preferences/"*[Ii]lluminate*.plist \
+                     "$HOME/Library/Preferences/ByHost/"*[Ii]lluminate*.plist; do
+            [[ -e "$plist" ]] || continue
+            domain="$(basename "$plist" .plist)"
+            echo "  Clearing prefs: $domain"
+            if [[ "$plist" == */ByHost/* ]]; then
+                defaults -currentHost delete "${domain%.*}" >/dev/null 2>&1 || true
+            else
+                defaults delete "$domain" >/dev/null 2>&1 || true
+            fi
+            rm -f "$plist"
+        done
+    else
+        rm -rf \
+            "${XDG_DATA_HOME:-$HOME/.local/share}/QT_Illuminate" \
+            "${XDG_CACHE_HOME:-$HOME/.cache}/QT_Illuminate" \
+            "${XDG_CONFIG_HOME:-$HOME/.config}/QT_Illuminate" \
+            "${XDG_CONFIG_HOME:-$HOME/.config}/qt-illuminate.local"
+    fi
+}
+
+# ── Dependencies ─────────────────────────────────────────────────────────────
 confirm() {
     (( ASSUME_YES )) && return 0
     [[ -t 0 ]] || return 1
@@ -188,40 +232,86 @@ apt_available() {
     done
 }
 
+# true if any MISSING entry contains all of the given substrings
+missing_has() {
+    local item match s
+    for item in "${MISSING[@]}"; do
+        match=1
+        for s in "$@"; do
+            [[ "$item" == *"$s"* ]] || { match=0; break; }
+        done
+        (( match )) && return 0
+    done
+    return 1
+}
+
 install_command() {
-    case "$1" in
+    local pm="$1" pkgs=()
+    case "$pm" in
         brew)
-            echo "brew install cmake qt"
+            missing_has cmake && pkgs+=("cmake")
+            { missing_has "Qt 6" || missing_has "Qt WebEngine"; } && pkgs+=("qt")
+            [[ ${#pkgs[@]} -gt 0 ]] && echo "brew install ${pkgs[*]}" || echo ""
             ;;
         apt-get)
-            local pkgs
-            pkgs="$(apt_available \
-                build-essential cmake ninja-build \
-                qt6-base-dev qt6-base-private-dev \
-                qt6-declarative-dev qt6-declarative-private-dev \
-                qt6-webengine-dev qt6-webengine-private-dev qt6-webengine-dev-tools \
-                qt6-webchannel-dev qt6-tools-dev \
-                qml6-module-qtquick qml6-module-qtquick-controls \
-                qml6-module-qtquick-dialogs qml6-module-qtquick-layouts \
-                qml6-module-qtquick-templates qml6-module-qtquick-window \
-                qml6-module-qtquick-effects qml6-module-qtqml-workerscript \
-                qml6-module-qtwebengine qml6-module-qtwebchannel \
-                | tr '\n' ' ')"
-            echo "sudo apt-get install -y $pkgs"
+            missing_has "C++ compiler" && pkgs+=("build-essential")
+            missing_has cmake && pkgs+=("cmake")
+            missing_has ninja && pkgs+=("ninja-build")
+            if missing_has "Qt 6"; then
+                pkgs+=(qt6-base-dev qt6-base-private-dev \
+                    qt6-declarative-dev qt6-declarative-private-dev \
+                    qt6-webengine-dev qt6-webengine-private-dev qt6-webengine-dev-tools \
+                    qt6-webchannel-dev qt6-tools-dev \
+                    qml6-module-qtquick qml6-module-qtquick-controls \
+                    qml6-module-qtquick-dialogs qml6-module-qtquick-layouts \
+                    qml6-module-qtquick-templates qml6-module-qtquick-window \
+                    qml6-module-qtquick-effects qml6-module-qtqml-workerscript \
+                    qml6-module-qtwebengine qml6-module-qtwebchannel)
+            elif missing_has "Qt WebEngine"; then
+                pkgs+=(qt6-webengine-dev qt6-webengine-private-dev qt6-webengine-dev-tools \
+                    qt6-webchannel-dev \
+                    qml6-module-qtwebengine qml6-module-qtwebchannel)
+            fi
+            # apt package names vary by release; filter out anything apt-cache
+            # doesn't recognize instead of using it below and failing wholesale
+            local pkgs_str
+            pkgs_str="$(apt_available "${pkgs[@]}" | tr '\n' ' ')"
+            echo "sudo apt-get install -y $pkgs_str"
             ;;
         dnf)
-            echo "sudo dnf install -y gcc-c++ cmake ninja-build" \
-                 "qt6-qtbase-devel qt6-qtbase-private-devel" \
-                 "qt6-qtdeclarative-devel qt6-qtwebengine-devel qt6-qtwebchannel-devel"
+            missing_has "C++ compiler" && pkgs+=("gcc-c++")
+            missing_has cmake && pkgs+=("cmake")
+            missing_has ninja && pkgs+=("ninja-build")
+            if missing_has "Qt 6"; then
+                pkgs+=(qt6-qtbase-devel qt6-qtbase-private-devel \
+                    qt6-qtdeclarative-devel qt6-qtwebengine-devel qt6-qtwebchannel-devel)
+            elif missing_has "Qt WebEngine"; then
+                pkgs+=(qt6-qtwebengine-devel qt6-qtwebchannel-devel)
+            fi
+            [[ ${#pkgs[@]} -gt 0 ]] && echo "sudo dnf install -y ${pkgs[*]}" || echo ""
             ;;
         pacman)
-            echo "sudo pacman -S --needed --noconfirm base-devel cmake ninja" \
-                 "qt6-base qt6-declarative qt6-webengine qt6-webchannel"
+            missing_has "C++ compiler" && pkgs+=("base-devel")
+            missing_has cmake && pkgs+=("cmake")
+            missing_has ninja && pkgs+=("ninja")
+            if missing_has "Qt 6"; then
+                pkgs+=(qt6-base qt6-declarative qt6-webengine qt6-webchannel)
+            elif missing_has "Qt WebEngine"; then
+                pkgs+=(qt6-webengine qt6-webchannel)
+            fi
+            [[ ${#pkgs[@]} -gt 0 ]] && echo "sudo pacman -S --needed --noconfirm ${pkgs[*]}" || echo ""
             ;;
         zypper)
-            echo "sudo zypper install -y gcc-c++ cmake ninja" \
-                 "qt6-base-devel qt6-base-private-devel qt6-declarative-devel" \
-                 "qt6-webengine-devel qt6-webchannel-devel"
+            missing_has "C++ compiler" && pkgs+=("gcc-c++")
+            missing_has cmake && pkgs+=("cmake")
+            missing_has ninja && pkgs+=("ninja")
+            if missing_has "Qt 6"; then
+                pkgs+=(qt6-base-devel qt6-base-private-devel qt6-declarative-devel \
+                    qt6-webengine-devel qt6-webchannel-devel)
+            elif missing_has "Qt WebEngine"; then
+                pkgs+=(qt6-webengine-devel qt6-webchannel-devel)
+            fi
+            [[ ${#pkgs[@]} -gt 0 ]] && echo "sudo zypper install -y ${pkgs[*]}" || echo ""
             ;;
     esac
 }
@@ -267,6 +357,10 @@ install_deps() {
     [[ "$pm" == "apt-get" ]] && sudo apt-get update
     local cmd
     cmd="$(install_command "$pm")"
+    if [[ -z "${cmd// }" ]]; then
+        echo "✗ Nothing translatable to a package-manager command is missing."
+        exit 1
+    fi
     echo "→ Running: $cmd"
     eval "$cmd"
 }
@@ -288,8 +382,6 @@ if (( ${#MISSING[@]} )); then
         exit 1
     fi
 
-    # WebEngine detection is path-based and can miss unusual layouts, so a
-    # lingering WebEngine miss is left for cmake to confirm.
     if (( QT_NEEDS_WEBENGINE )) && (( ${#MISSING[@]} == 1 )); then
         echo "⚠ Couldn't confirm Qt WebEngine under $QT_PREFIX; continuing anyway."
     elif (( ${#MISSING[@]} )); then
@@ -300,7 +392,6 @@ if (( ${#MISSING[@]} )); then
         echo "✓ Dependencies installed."
     fi
 fi
-
 
 # --dev implies a Debug build; plain --run keeps Release.
 BUILD_TYPE="Release"
@@ -325,14 +416,16 @@ if (( DO_CLEAN )) && [[ -d "$BUILD_DIR" ]]; then
 fi
 
 # qt location (resolved by check_deps)
-
 echo "→ Using Qt at: $QT_PREFIX"
 
-
 # ── Configure ────────────────────────────────────────────────────────────────
+CONFIGURED_TYPE=""
+if [[ -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+    CONFIGURED_TYPE="$(sed -n 's/^CMAKE_BUILD_TYPE:[A-Z]*=//p' "$BUILD_DIR/CMakeCache.txt")"
+fi
 
-if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]]; then
-    echo "→ Configuring…"
+if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]] || [[ "$CONFIGURED_TYPE" != "$BUILD_TYPE" ]]; then
+    echo "→ Configuring ($BUILD_TYPE)…"
     if (( IS_LINUX )); then
         cmake -S "$SCRIPT_DIR" \
               -B "$BUILD_DIR"  \
@@ -365,6 +458,9 @@ if pgrep -f "$APP_BINARY" >/dev/null 2>&1; then
     fi
 fi
 
+# quit above re-saves session on the way out, so wipe app data after it
+clean_app_data
+
 # remove previous build
 rm -rf "$APP_BUNDLE" 2>/dev/null || true
 
@@ -392,14 +488,81 @@ else
     exit 1
 fi
 
+# ── package ──────────────────────────────────────────────────────────────────
+
+if (( DO_PACKAGE )); then
+    APP_VERSION="$(sed -n 's/^project(QT_Illuminate VERSION \([0-9.]*\).*/\1/p' "$SCRIPT_DIR/CMakeLists.txt")"
+    DIST_DIR="$SCRIPT_DIR/dist"
+    STAGE_DIR="$DIST_DIR/stage"
+    rm -rf "$STAGE_DIR"
+    mkdir -p "$DIST_DIR"
+
+    if (( IS_MAC )); then
+        echo "→ Deploying Qt into the app bundle…"
+        MACDEPLOYQT="$QT_PREFIX/bin/macdeployqt"
+        [[ -x "$MACDEPLOYQT" ]] || MACDEPLOYQT="$(command -v macdeployqt || true)"
+        [[ -n "$MACDEPLOYQT" ]] || { echo "✗ macdeployqt not found under $QT_PREFIX/bin"; exit 1; }
+        QT_QML_DIR="$("$QT_PREFIX/bin/qtpaths6" --query QT_INSTALL_QML 2>/dev/null \
+                      || "$QT_PREFIX/bin/qmake" -query QT_INSTALL_QML)"
+
+        QML_IMPORTS="$BUILD_DIR/deploy-qml"
+        rm -rf "$QML_IMPORTS"
+        cp -RL "$QT_QML_DIR" "$QML_IMPORTS"
+
+        STAGED_APP="$STAGE_DIR/QT_Illuminate.app"
+        mkdir -p "$STAGE_DIR"
+        cp -R "$APP_BUNDLE" "$STAGED_APP"
+        "$MACDEPLOYQT" "$STAGED_APP" -qmldir="$SCRIPT_DIR/ui" -qmlimport="$QML_IMPORTS"
+        rm -rf "$QML_IMPORTS"
+
+        BROKEN_LINKS="$(find "$STAGED_APP" -type l ! -exec test -e {} \; -print)"
+        if [[ -n "$BROKEN_LINKS" ]]; then
+            echo "✗ Deployed bundle has dangling symlinks:"
+            echo "$BROKEN_LINKS" | head -10
+            exit 1
+        fi
+        [[ -d "$STAGED_APP/Contents/Frameworks/QtWebEngineCore.framework" ]] || {
+            echo "✗ Deployed bundle is missing QtWebEngineCore.framework"
+            exit 1
+        }
+
+        # deployment rewrites install names, which invalidates signatures;
+        # re-sign (ad-hoc unless CODESIGN_IDENTITY names a real identity)
+        echo "→ Signing (${CODESIGN_IDENTITY:-ad-hoc})…"
+        codesign --force --deep --sign "${CODESIGN_IDENTITY:--}" "$STAGED_APP"
+
+        DMG_PATH="$DIST_DIR/QT_Illuminate-${APP_VERSION}-macos-$(uname -m).dmg"
+        echo "→ Creating disk image…"
+        ln -s /Applications "$STAGE_DIR/Applications"
+        rm -f "$DMG_PATH"
+        hdiutil create -volname "QT_Illuminate" -srcfolder "$STAGE_DIR" \
+                -ov -format UDZO "$DMG_PATH" >/dev/null
+        rm -rf "$DIST_DIR/QT_Illuminate.app"
+        mv "$STAGED_APP" "$DIST_DIR/"
+        rm -rf "$STAGE_DIR"
+        echo "✓ Package: $DMG_PATH"
+        echo "  App:     $DIST_DIR/QT_Illuminate.app"
+    else
+        # FHS tree (bin/, share/applications, share/icons) against system Qt
+        echo "→ Installing into staging tree…"
+        cmake --install "$BUILD_DIR" --config "$BUILD_TYPE" --prefix "$STAGE_DIR/usr"
+        TAR_PATH="$DIST_DIR/QT_Illuminate-${APP_VERSION}-linux-$(uname -m).tar.gz"
+        tar -C "$STAGE_DIR" -czf "$TAR_PATH" usr
+        rm -rf "$STAGE_DIR"
+        echo "✓ Package: $TAR_PATH"
+        echo "  Extract to / (or a prefix) — requires the distro's Qt 6 WebEngine packages."
+    fi
+fi
+
 # ── run (detached) ───────────────────────────────────────────────────────────
 
-if (( DO_RUN )) && ! (( DO_DEV )); then
+if (( DO_RUN )) && (( ! DO_DEV )); then
+    echo "→ Launching ${APP_LABEL} (detached)…"
+    export QTWEBENGINE_DISABLE_SANDBOX=1
     if (( IS_MAC )); then
-        echo "→ Launching ${APP_LABEL} (detached)…"
-        open "$APP_BUNDLE"
+        # open goes through launchd, which doesn't inherit our environment
+        open --env QTWEBENGINE_DISABLE_SANDBOX=1 "$APP_BUNDLE"
     else
-        echo "→ Launching ${APP_LABEL} (detached)…"
         nohup "$APP_BINARY" >/dev/null 2>&1 &
         disown
         echo "  PID: $!"
@@ -424,9 +587,10 @@ if (( DO_DEV )); then
 
     echo "  Log file: $LOG_FILE"
 
-    trap 'kill "$APP_PID" 2>/dev/null; exit 0' INT TERM
-
+    # dev builds are unsigned; see the detached-run block above
+    export QTWEBENGINE_DISABLE_SANDBOX=1
     "$APP_BINARY" 2>&1 | tee -a "$LOG_FILE" &
     APP_PID=$!
+    trap 'kill "$APP_PID" 2>/dev/null; exit 0' INT TERM
     wait "$APP_PID"
 fi

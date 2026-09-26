@@ -7,18 +7,16 @@ pragma ComponentBehavior: Bound
 
 ApplicationWindow {
     id: root
-    readonly property var avatarColors: [
-        "#4A90E2", "#2DA7A1", "#F3A43B", "#E86F67",
-        "#8A6CFF", "#69B578", "#D96ACF"
-    ]
 
     property var savedWin: null
+    property bool autoOpenSingleProfile: false
+    property bool autoOpened: false
 
     width: 640
     height: 480
     minimumWidth: 520
     minimumHeight: 400
-    visible: true
+    visible: false
     title: "Select Profile"
     flags: Qt.FramelessWindowHint | Qt.Window
     color: "transparent"
@@ -26,26 +24,46 @@ ApplicationWindow {
     function avatarColorFor(profile) {
         return profile && profile.color && profile.color.length > 0
             ? profile.color
-            : root.avatarColors[0]
+            : Theme.avatarColors[0]
     }
 
     function openProfile(profile) {
         ProfileManager.activeProfile = profile;
         const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/BrowserWindow.qml");
-        if (component.status !== Component.Ready)
+        if (component.status !== Component.Ready) {
+            Logger.error("ProfilePicker", "BrowserWindow failed to load: " + component.errorString());
+            root.visible = true;
             return;
+        }
         const w = component.createObject(null) as Window;
-        if (!w)
+        if (!w) {
+            Logger.error("ProfilePicker", "BrowserWindow failed to create: " + component.errorString());
+            root.visible = true;
             return;
+        }
         if (root.savedWin)
             root.savedWin.deleteLater();
         root.savedWin = w;
         w.closing.connect(function () {
             root.savedWin = null;
-            root.visible = true;
+            // no picker was ever shown, so closing the browser quits
+            if (root.autoOpened)
+                Qt.quit();
+            else
+                root.visible = true;
         });
         root.visible = false;
         w.showMaximized();
+    }
+
+    Component.onCompleted: {
+        const profiles = ProfileManager.profiles;
+        if (root.autoOpenSingleProfile && profiles.length === 1) {
+            root.autoOpened = true;
+            root.openProfile(profiles[0]);
+        } else if (root.autoOpenSingleProfile) {
+            root.visible = true;
+        }
     }
 
     Rectangle {
@@ -285,27 +303,20 @@ ApplicationWindow {
         padding: 0
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
-        readonly property string trimmedName: nameField.text.trim()
-        // default picked on open(); writing it imperatively kills declarative
-        // bindings, so keep it plain and seed it in onOpened.
-        property string selectedColor: ""
-        readonly property color previewColor: selectedColor
+        readonly property color previewColor: profileEditor.selectedColor
 
         function confirm() {
-            if (trimmedName.length === 0)
+            if (profileEditor.trimmedName.length === 0)
                 return;
-            ProfileManager.createProfile(trimmedName, selectedColor);
+            ProfileManager.createProfile(profileEditor.trimmedName, profileEditor.selectedColor);
             close();
         }
 
         onOpened: {
-            selectedColor = root.avatarColors[profileRepeater.count % root.avatarColors.length]
-            nameField.forceActiveFocus()
+            profileEditor.selectedColor = Theme.avatarColors[profileRepeater.count % Theme.avatarColors.length]
+            profileEditor.focusName()
         }
-        onClosed: {
-            nameField.text = ""
-            selectedColor = ""
-        }
+        onClosed: profileEditor.name = ""
 
         Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.35) }
 
@@ -354,91 +365,14 @@ ApplicationWindow {
                 }
             }
 
-            Rectangle {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.preferredWidth: 80
-                Layout.preferredHeight: 80
-                Layout.topMargin: 12
-                Layout.bottomMargin: 20
-                radius: 40
-                color: addPopup.previewColor
-
-                Text {
-                    anchors.centerIn: parent
-                    text: addPopup.trimmedName.length > 0
-                          ? addPopup.trimmedName.charAt(0).toUpperCase()
-                          : "+"
-                    font.pixelSize: 32
-                    font.weight: Font.Medium
-                    font.family: Theme.fontFamily
-                    color: "white"
-                }
-            }
-
-            Text {
-                text: "Profile color"
-                font.pixelSize: 11
-                font.family: Theme.fontFamily
-                color: Theme.textMuted
-                Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 8
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.bottomMargin: 8
-                spacing: 8
-                Layout.margins: 20
-
-                Repeater {
-                    model: root.avatarColors
-                    delegate: Rectangle {
-                        id: swatch
-                        required property var modelData
-                        width: 26
-                        height: 26
-                        radius: 13
-                        color: modelData
-                        border.color: addPopup.selectedColor === modelData ? Theme.text : "transparent"
-                        border.width: addPopup.selectedColor === modelData ? 2 : 0
-                        Behavior on border.width { NumberAnimation { duration: Theme.durationFast } }
-                        Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: addPopup.selectedColor = swatch.modelData
-                        }
-                    }
-                }
-            }
-
-            ColumnLayout {
+            ProfileEditor {
+                id: profileEditor
                 Layout.fillWidth: true
                 Layout.leftMargin: 20
                 Layout.rightMargin: 20
+                Layout.topMargin: 12
                 Layout.bottomMargin: 20
-                spacing: 4
-
-                TextField {
-                    id: nameField
-                    Layout.fillWidth: true
-                    placeholderText: "Profile name"
-                    placeholderTextColor: Theme.textMuted
-                    font.pixelSize: Theme.fontSizeM
-                    font.family: Theme.fontFamily
-                    color: Theme.text
-                    leftPadding: 0
-                    rightPadding: 0
-                    background: null
-                    onAccepted: addPopup.confirm()
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 2
-                    color: nameField.text.length === 0 ? Theme.border : addPopup.previewColor
-                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                }
+                onAccepted: addPopup.confirm()
             }
 
             RowLayout {
@@ -456,7 +390,7 @@ ApplicationWindow {
                 PillButton {
                     text: "Add"
                     textColor: "white"
-                    enabled: addPopup.trimmedName.length > 0
+                    enabled: profileEditor.trimmedName.length > 0
                     fillColor: enabled ? addPopup.previewColor : Qt.alpha(Theme.text, 0.2)
                     hoverFillColor: Qt.darker(addPopup.previewColor, 1.1)
                     onClicked: addPopup.confirm()
