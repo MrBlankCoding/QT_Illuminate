@@ -6,7 +6,6 @@
 class PointerLockEmulation : public QObject
 {
     Q_OBJECT
-    QML_ELEMENT
     QML_NAMED_ELEMENT(PointerLockEmu)
     Q_PROPERTY(bool active READ active NOTIFY activeChanged)
 

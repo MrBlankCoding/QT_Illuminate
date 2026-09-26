@@ -28,11 +28,7 @@ PermissionHandler::SystemAccess mediaAccess(AVMediaType type)
 PermissionHandler::SystemAccess locationAccess()
 {
     CLAuthorizationStatus status;
-    if (@available(macOS 11.0, *))
-        status = locationManager().authorizationStatus;
-    else
-        status = [CLLocationManager authorizationStatus];
-
+    status = locationManager().authorizationStatus;
     if (status == kCLAuthorizationStatusNotDetermined)
         return PermissionHandler::NotDetermined;
     if (status == kCLAuthorizationStatusDenied || status == kCLAuthorizationStatusRestricted)
