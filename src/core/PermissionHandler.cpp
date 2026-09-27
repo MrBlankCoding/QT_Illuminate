@@ -237,7 +237,13 @@ QString PermissionHandler::labelForResource(int resource) const
 bool PermissionHandler::isDefaultBrowser() const
 {
     if (!m_defaultBrowserChecked)
-        const_cast<PermissionHandler *>(this)->refreshDefaultBrowser();
+    {
+        auto *self = const_cast<PermissionHandler *>(this);
+        self->m_defaultBrowserChecked = true;
+        // seed the value without notifying: this runs while QML is evaluating
+        // a binding on the property, and a notify here reads as a binding loop
+        self->m_isDefaultBrowser = platformIsDefaultBrowser();
+    }
     return m_isDefaultBrowser;
 }
 

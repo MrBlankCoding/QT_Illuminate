@@ -3,8 +3,9 @@
 #include <include/cef_client.h>
 #include <include/cef_keyboard_handler.h>
 #include <include/cef_life_span_handler.h>
-#include <atomic>
 #include <QPointer>
+
+#include "CefMainBrowserId.h"
 
 class CefBrowserWrapper;
 class CefLoadHandlerImpl;
@@ -58,10 +59,29 @@ public:
                        CefEventHandle os_event,
                        bool *is_keyboard_shortcut) override;
 
+    // The item the DevTools browser should be adopted by. CEF creates that
+    // browser itself (ShowDevTools) and reuses this client, so OnAfterCreated
+    // needs somewhere to hand it to. Cleared by closeDevTools().
+    //
+    // Must be set *before* ShowDevTools(): OnAfterCreated can fire inside that
+    // call, so it cannot be posted to the CEF UI thread the way other
+    // cross-thread work here is. Reading it from OnAfterCreated is only safe
+    // because the CEF UI thread is the Qt main thread on macOS, the platform
+    // the docked view is wired up for.
+    void setDevToolsView(CefBrowserWrapper *view) { m_devToolsView = view; }
+
+    // Identifies the page's own browser; the DevTools browser shares the
+    // client but must not be mistaken for it.
+    bool isMainBrowser(const CefRefPtr<CefBrowser> &browser) const
+    {
+        return m_mainBrowser.matches(browser);
+    }
+
 private:
     QPointer<CefBrowserWrapper> m_wrapper;
-    // the tab's own browser; DevTools browsers share this client
-    std::atomic<int> m_mainBrowserId{0};
+    QPointer<CefBrowserWrapper> m_devToolsView;
+    // the tab's own browser; shared with the handlers below
+    CefMainBrowserId m_mainBrowser;
 
     CefRefPtr<CefLoadHandlerImpl> m_loadHandler;
     CefRefPtr<CefDisplayHandlerImpl> m_displayHandler;

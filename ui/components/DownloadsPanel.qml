@@ -84,8 +84,8 @@ Item {
     }
 
     Connections {
-        // the profile the tabs browse with (see Profile::webProfile)
-        target: Browser.webProfile
+        // session-wide: any tab's CefBrowser can start a download
+        target: Browser
         function onDownloadRequested(download) {
             download.accept();
             root.activeCount++;
@@ -212,13 +212,13 @@ Item {
                                 Layout.fillWidth: true
 
                                 TapHandler {
-                                    enabled: row.downloadState === WebEngineDownloadRequest.DownloadCompleted
+                                    enabled: row.downloadState === CefDownloadItem.DownloadCompleted
                                     onTapped: root.openFile(row.index)
                                 }
                             }
 
                             LucideIcon {
-                                visible: row.downloadState === WebEngineDownloadRequest.DownloadCompleted
+                                visible: row.downloadState === CefDownloadItem.DownloadCompleted
                                 size: 13
                                 source: "qrc:/QT_Illuminate/ui/ui/icons/folder.svg"
                                 color: folderHover.hovered ? Theme.text : Theme.textMuted
@@ -253,7 +253,7 @@ Item {
                         }
 
                         Rectangle {
-                            visible: row.downloadState === WebEngineDownloadRequest.DownloadInProgress
+                            visible: row.downloadState === CefDownloadItem.DownloadInProgress
                             Layout.fillWidth: true
                             Layout.preferredHeight: 3
                             radius: 1.5

@@ -9,14 +9,18 @@
 #include "CefPermissionHandler.h"
 #include "CefRequestHandler.h"
 #include "../utils/cef_helpers.h"
+#include "../utils/ShortcutBridge.h"
 
 #include <QMetaObject>
+#include <QQuickWindow>
 
 CefTabClient::CefTabClient(CefBrowserWrapper *wrapper)
     : m_wrapper(wrapper),
-      m_loadHandler(new CefLoadHandlerImpl(wrapper)),
-      m_displayHandler(new CefDisplayHandlerImpl(wrapper)),
-      m_contextMenuHandler(new CefContextMenuHandlerImpl(wrapper)),
+      // DevTools reuses this client, so the handlers need the page's browser id
+      // to tell the two apart
+      m_loadHandler(new CefLoadHandlerImpl(wrapper, &m_mainBrowser)),
+      m_displayHandler(new CefDisplayHandlerImpl(wrapper, &m_mainBrowser)),
+      m_contextMenuHandler(new CefContextMenuHandlerImpl(wrapper, &m_mainBrowser)),
       m_downloadHandler(new CefDownloadHandlerImpl(wrapper)),
       m_findHandler(new CefFindHandlerImpl(wrapper)),
       m_permissionHandler(new CefPermissionHandlerImpl(wrapper)),
@@ -75,9 +79,21 @@ void CefTabClient::OnAfterCreated(CefRefPtr<CefBrowser> browser)
 {
     CefManager::instance().browserCreated(browser);
 
-    int expected = 0;
-    if (!m_mainBrowserId.compare_exchange_strong(expected, browser->GetIdentifier()))
-        return; // DevTools
+    if (!m_mainBrowser.claim(browser->GetIdentifier()))
+    {
+        qInfo() << "[DevTools] OnAfterCreated id=" << browser->GetIdentifier()
+                << "url=" << qUtf8Printable(QString::fromStdString(browser->GetMainFrame()->GetURL().ToString()));
+        // DevTools: it reuses this client, so adopt it into the dock view
+        if (auto *view = m_devToolsView.data())
+        {
+            QPointer<CefBrowserWrapper> guard = view;
+            QMetaObject::invokeMethod(view, [guard, browser]() {
+                if (guard)
+                    guard->setBrowser(browser);
+            }, Qt::QueuedConnection);
+        }
+        return;
+    }
 
     if (m_wrapper)
     {
@@ -98,9 +114,19 @@ void CefTabClient::OnBeforeClose(CefRefPtr<CefBrowser> browser)
 {
     CefManager::instance().browserClosed(browser);
 
-    int expected = browser->GetIdentifier();
-    if (!m_mainBrowserId.compare_exchange_strong(expected, 0))
-        return; // DevTools
+    if (!m_mainBrowser.release(browser))
+    {
+        // DevTools: drop it from the dock so it does not keep a closed browser
+        if (auto *view = m_devToolsView.data())
+        {
+            QPointer<CefBrowserWrapper> guard = view;
+            QMetaObject::invokeMethod(view, [guard]() {
+                if (guard)
+                    guard->setBrowser(nullptr);
+            }, Qt::QueuedConnection);
+        }
+        return;
+    }
 
     if (m_wrapper)
     {
@@ -119,6 +145,11 @@ bool CefTabClient::OnPreKeyEvent(CefRefPtr<CefBrowser> browser,
     Q_UNUSED(os_event);
     Q_UNUSED(is_keyboard_shortcut);
 
+    // the DevTools browser shares this client; it handles its own shortcuts
+    // (Cmd+W in the console must not close the tab)
+    if (!isMainBrowser(browser))
+        return false;
+
     // key events go to the native CEF view, so Qt never sees Esc here
     constexpr int kVkeyEscape = 0x1B;
     if (event.type == KEYEVENT_RAWKEYDOWN && event.windows_key_code == kVkeyEscape
@@ -127,5 +158,17 @@ bool CefTabClient::OnPreKeyEvent(CefRefPtr<CefBrowser> browser,
         browser->GetHost()->ExitFullscreen(true);
         return true;
     }
+
+    // ...which also means QML `Shortcut` items never fire. Replay the key
+    // through Qt's shortcut map and swallow it only if one matched, so
+    // Chromium still sees everything else (typing, page shortcuts).
+    if (event.type == KEYEVENT_RAWKEYDOWN && m_wrapper)
+    {
+        if (ShortcutBridge::dispatchKeyPress(m_wrapper->window(),
+                                             event.windows_key_code,
+                                             event.modifiers))
+            return true;
+    }
+
     return false;
 }

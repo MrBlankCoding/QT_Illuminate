@@ -71,6 +71,8 @@ public:
     Q_INVOKABLE void copyActiveUrl() const;
     Q_INVOKABLE QSize imageSize(const QString &url) const;
     Q_INVOKABLE void saveSession() const;
+    // true when closing the window should ask first (preference + tab count)
+    Q_INVOKABLE bool confirmCloseRequired() const;
     Q_INVOKABLE void onTitleChanged(int tabIndex, const QString &title);
     Q_INVOKABLE void onUrlChanged(int tabIndex, const QString &url);
     Q_INVOKABLE void onLoadingChanged(int tabIndex, bool loading);
@@ -78,6 +80,8 @@ public:
     Q_INVOKABLE void onIconUrlChanged(int tabIndex, const QString &iconUrl);
     Q_INVOKABLE void onRenderProcessPidChanged(int tabIndex, qint64 pid);
     Q_INVOKABLE void onNewWindowRequested(int tabIndex, const QString &url);
+    // CefDownloadWrapper, owned by the tab that started it
+    Q_INVOKABLE void onDownloadRequested(QObject *download);
 
 signals:
     void activeIndexChanged();
@@ -90,6 +94,10 @@ signals:
     void newTabOpened(); // blank new tab page opened, UI focuses the address bar
     void loadRequested(int tabIndex, const QUrl &url);
     void navigationRequested(const QString &action); // "back"|"forward"|"reload"|"devtools"
+    void downloadRequested(QObject *download);
+    // the last tab is gone: the window should close, asking first if the
+    // preference wants it. QML owns the window, so QML has to do the closing.
+    void closeWindowRequested();
 
 private:
     void rewireActiveTab();

@@ -9,6 +9,7 @@ CefContextMenuParamsWrapper::CefContextMenuParamsWrapper(CefRefPtr<CefContextMen
     : QObject(parent)
 {
     m_linkUrl = cefStringToQUrl(params->GetLinkUrl());
+    m_sourceUrl = cefStringToQUrl(params->GetSourceUrl());
     m_selectedText = cefStringToQString(params->GetSelectionText());
     m_isContentEditable = params->IsEditable();
     m_mediaType = static_cast<int>(params->GetMediaType());
@@ -16,8 +17,8 @@ CefContextMenuParamsWrapper::CefContextMenuParamsWrapper(CefRefPtr<CefContextMen
     m_y = params->GetYCoord();
 }
 
-CefContextMenuHandlerImpl::CefContextMenuHandlerImpl(CefBrowserWrapper *wrapper)
-    : m_wrapper(wrapper)
+CefContextMenuHandlerImpl::CefContextMenuHandlerImpl(CefBrowserWrapper *wrapper, CefMainBrowserId *mainBrowser)
+    : m_wrapper(wrapper), m_mainBrowser(mainBrowser)
 {
 }
 
@@ -26,13 +27,13 @@ void CefContextMenuHandlerImpl::OnBeforeContextMenu(CefRefPtr<CefBrowser> browse
                                                     CefRefPtr<CefContextMenuParams> params,
                                                     CefRefPtr<CefMenuModel> model)
 {
-    Q_UNUSED(browser);
     Q_UNUSED(frame);
+    // the DevTools browser reuses this client but has its own menus
+    if (!m_wrapper || !m_mainBrowser || !m_mainBrowser->matches(browser))
+        return;
+
     // Clear default CEF context menu so custom QML menu displays
     model->Clear();
-
-    if (!m_wrapper)
-        return;
 
     auto *paramsWrapper = new CefContextMenuParamsWrapper(params);
     QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, paramsWrapper]() {

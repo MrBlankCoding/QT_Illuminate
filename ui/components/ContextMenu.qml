@@ -10,7 +10,13 @@ Menu {
     property var request: null
 
     signal toggleDevTools
-    signal inspectElement
+    signal inspectElement(int x, int y)
+
+    // media nodes carry their own URL; fall back to the link for plain links
+    readonly property url mediaUrl: request ? request.sourceUrl : ""
+    readonly property url linkUrl: request ? request.linkUrl : ""
+    readonly property url downloadUrl: mediaUrl.toString() !== "" ? mediaUrl : linkUrl
+    readonly property int mediaType: request ? request.mediaType : 0
 
     MenuItem {
         text: "Back"
@@ -29,25 +35,22 @@ Menu {
     MenuSeparator {}
     MenuItem {
         text: "Copy Link"
-        visible: root.request && root.request.linkUrl.toString() !== ""
-        onTriggered: root.webView.triggerWebAction(CefBrowser.CopyLinkToClipboard)
+        visible: root.linkUrl.toString() !== ""
+        onTriggered: root.webView.triggerWebAction(CefBrowser.CopyLinkToClipboard, root.linkUrl)
     }
     MenuItem {
         // rename based on what was clicked
         // this allows for downloads to be specific
         // download image etc
-        readonly property int mediaType: root.request ? root.request.mediaType : 0
-        readonly property bool hasLink: root.request && root.request.linkUrl.toString() !== ""
-
-        text: mediaType === 1 ? "Download Image" : mediaType === 2 ? "Download Video" : mediaType === 3 ? "Download Audio" : "Download Link"
-        visible: mediaType === 1 || mediaType === 2 || mediaType === 3 || hasLink
+        text: root.mediaType === 1 ? "Download Image" : root.mediaType === 2 ? "Download Video" : root.mediaType === 3 ? "Download Audio" : "Download Link"
+        visible: (root.mediaType === 1 || root.mediaType === 2 || root.mediaType === 3) || root.downloadUrl.toString() !== ""
         onTriggered: {
-            if (mediaType === 1)
-                root.webView.triggerWebAction(CefBrowser.DownloadImageToDisk);
-            else if (mediaType === 2 || mediaType === 3)
-                root.webView.triggerWebAction(CefBrowser.DownloadMediaToDisk);
+            if (root.mediaType === 1)
+                root.webView.triggerWebAction(CefBrowser.DownloadImageToDisk, root.downloadUrl);
+            else if (root.mediaType === 2 || root.mediaType === 3)
+                root.webView.triggerWebAction(CefBrowser.DownloadMediaToDisk, root.downloadUrl);
             else
-                root.webView.triggerWebAction(CefBrowser.DownloadLinkToDisk);
+                root.webView.triggerWebAction(CefBrowser.DownloadLinkToDisk, root.downloadUrl);
         }
     }
     MenuItem {
@@ -64,7 +67,7 @@ Menu {
 
     MenuItem {
         text: "Inspect"
-        onTriggered: root.inspectElement()
+        onTriggered: root.inspectElement(root.request ? root.request.x : 0, root.request ? root.request.y : 0)
     }
     MenuItem {
         text: "Toggle Dev Tools"

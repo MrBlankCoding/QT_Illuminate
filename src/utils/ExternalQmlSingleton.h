@@ -19,6 +19,9 @@ public:
         s_instance = instance;
     }
 
+    // for C++ code that needs to reach the instance QML sees
+    static T *instance() { return s_instance; }
+
     // called by QML engine
     static T *create(QQmlEngine *, QJSEngine *)
     {

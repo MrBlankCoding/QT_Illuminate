@@ -1,9 +1,18 @@
 cmake_minimum_required(VERSION 3.16)
 project(QT_Illuminate VERSION 1.0.0 LANGUAGES CXX)
 
-set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0")
-
+# The deployment target must be at least as new as the minimum of every binary
+# we link: Homebrew Qt 6.11 is built for macOS 14.0 (qtbase) up to 27.0
+# (qtdeclarative), and the CEF framework for 13.0. Anything lower makes ld warn
+# "built for newer version" once per framework. Callers may override with
+# -DCMAKE_OSX_DEPLOYMENT_TARGET=<x.y>.
 if(APPLE)
+    if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "27.0")
+    endif()
+    # CEF resets the variable below; keep our own copy to restore.
+    set(QT_ILLUMINATE_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+
     enable_language(OBJCXX)
 endif()
 
@@ -33,6 +42,16 @@ if(CEF_ROOT)
     set(CEF_DIR "${CEF_ROOT}")
     find_package(CEF REQUIRED)
     set(CEF_FOUND ON)
+
+    # CEF's cef_variables.cmake hardcodes its own floor (CEF_TARGET_SDK) into
+    # CMAKE_OSX_DEPLOYMENT_TARGET and CEF_COMPILER_FLAGS. That leaks into this
+    # scope and drags every target defined below down to it, so the app links
+    # Qt/CEF at their real minimums. Put ours back before the wrapper and the
+    # helpers are added.
+    if(APPLE)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "${QT_ILLUMINATE_DEPLOYMENT_TARGET}")
+        list(FILTER CEF_COMPILER_FLAGS EXCLUDE REGEX "^-mmacosx-version-min=")
+    endif()
 endif()
 
 if(CEF_FOUND)
@@ -179,6 +198,8 @@ set_source_files_properties(ui/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 qt_add_library(QT_Illuminatemodule STATIC
     src/core/BrowserTab.h
     src/core/BrowserTab.cpp
+    src/core/BrowserSettings.h
+    src/core/BrowserSettings.cpp
     src/core/TabModel.h
     src/core/TabModel.cpp
     src/core/BrowserController.h
@@ -205,6 +226,7 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/CefProfile.cpp
     src/core/CefDownloadWrapper.h
     src/core/CefDownloadWrapper.cpp
+    src/core/CefMainBrowserId.h
     src/core/CefLoadHandler.h
     src/core/CefLoadHandler.cpp
     src/core/CefDisplayHandler.h
@@ -238,6 +260,8 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/utils/PointerLockEmulation.h
     src/utils/PrintHelper.h
     src/utils/PrintHelper.cpp
+    src/utils/ShortcutBridge.h
+    src/utils/ShortcutBridge.cpp
     src/utils/WebVersion.h
     src/utils/WindowRounding.h
     src/utils/WindowHelper.h
@@ -282,6 +306,15 @@ target_link_libraries(QT_Illuminatemodule PUBLIC
 
 if(TARGET cef::cef)
     target_link_libraries(QT_Illuminatemodule PUBLIC cef::cef libcef_dll_wrapper)
+endif()
+
+# ShortcutBridge replays CEF key events through Qt's shortcut map, which lives
+# in a private header. Only the include path is needed; tryShortcut() itself is
+# resolved from QtGui, which is already linked. Optional: without it the bridge
+# compiles to a no-op that logs once.
+find_package(Qt6GuiPrivate QUIET)
+if(Qt6GuiPrivate_FOUND)
+    target_link_libraries(QT_Illuminatemodule PRIVATE Qt6::GuiPrivate)
 endif()
 
 qt_add_qml_module(QT_Illuminatemodule

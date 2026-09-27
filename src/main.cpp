@@ -8,6 +8,7 @@
 #include <QLocalSocket>
 #include <QWindow>
 
+#include "core/BrowserSettings.h"
 #include "core/CefManager.h"
 #include "core/BrowserController.h"
 #include "core/PermissionHandler.h"
@@ -16,6 +17,7 @@
 #include "utils/BrowserLogger.h"
 
 #include <QByteArray>
+#include <memory>
 
 static void activateWindows()
 {
@@ -171,12 +173,21 @@ int main(int argc, char *argv[])
     ProfileManager profileManager(nullptr);
     PermissionHandler permissionHandler(nullptr);
 
+    // before the controller: restoring tabs reads the startup preference, and
+    // QML resolves Prefs during engine load
+    BrowserSettings browserSettings(profileManager.activeProfile(), nullptr);
+    BrowserSettings::setQmlInstance(&browserSettings);
+
     BrowserLogger::instance().info("Main", "QT_Illuminate starting up");
 
     BrowserLogger::instance().info("Main", QString("Qt %1").arg(qVersion()));
     BrowserController controller(profileManager.activeProfile());
     QObject::connect(&profileManager, &ProfileManager::activeProfileChanged, &controller, [&]() {
         controller.setProfile(profileManager.activeProfile());
+    });
+    // the cookie policy and the per-profile settings both follow the profile
+    QObject::connect(&profileManager, &ProfileManager::activeProfileChanged, &browserSettings, [&]() {
+        browserSettings.setProfile(profileManager.activeProfile());
     });
 
     listenForSecondLaunches(instanceServer, controller);
@@ -186,12 +197,16 @@ int main(int argc, char *argv[])
         controller.newTab(url);
 
     // persist profiles session on exit and shutdown CEF
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&controller]() {
+    std::unique_ptr<QQmlApplicationEngine> engine;
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&controller, &engine]() {
         controller.saveSession();
+        // QML-owned CefBrowserWrapper instances hold CEF browser refs and call
+        // CEF methods in their destructors; they must be gone before CefShutdown
+        engine.reset();
         CefManager::shutdown();
     });
-    QQmlApplicationEngine engine;
-    engine.addImportPath("qrc:/");
+    engine = std::make_unique<QQmlApplicationEngine>();
+    engine->addImportPath("qrc:/");
 
     // singletons
     BrowserController::setQmlInstance(&controller);
@@ -201,7 +216,7 @@ int main(int argc, char *argv[])
 
 
     QObject::connect(
-        &engine, &QQmlApplicationEngine::warnings,
+        engine.get(), &QQmlApplicationEngine::warnings,
         [](const QList<QQmlError> &warnings)
         {
             for (const QQmlError &w : warnings)
@@ -210,7 +225,7 @@ int main(int argc, char *argv[])
 
     const QUrl root("qrc:/QT_Illuminate/ui/ui/pages/ProfilePicker.qml");
     QObject::connect(
-        &engine, &QQmlApplicationEngine::objectCreated,
+        engine.get(), &QQmlApplicationEngine::objectCreated,
         &app, [&](QObject *obj, const QUrl &url)
         {
             if (url != root) return;
@@ -222,8 +237,8 @@ int main(int argc, char *argv[])
         Qt::QueuedConnection);
 
     BrowserLogger::instance().info("Main", "Loading root QML: " + root.toString());
-    engine.setInitialProperties({{"autoOpenSingleProfile", true}});
-    engine.load(root);
+    engine->setInitialProperties({{"autoOpenSingleProfile", true}});
+    engine->load(root);
 
     const int exitCode = app.exec();
     BrowserLogger::instance().info("Main", QString("Event loop exited with code %1").arg(exitCode));

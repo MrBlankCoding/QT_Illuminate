@@ -3,12 +3,14 @@
 #include <include/cef_load_handler.h>
 #include <QPointer>
 
+#include "CefMainBrowserId.h"
+
 class CefBrowserWrapper;
 
 class CefLoadHandlerImpl : public CefLoadHandler
 {
 public:
-    explicit CefLoadHandlerImpl(CefBrowserWrapper *wrapper);
+    explicit CefLoadHandlerImpl(CefBrowserWrapper *wrapper, CefMainBrowserId *mainBrowser);
 
     void OnLoadingStateChange(CefRefPtr<CefBrowser> browser,
                               bool isLoading,
@@ -28,6 +30,8 @@ public:
 
 private:
     QPointer<CefBrowserWrapper> m_wrapper;
+    // shared with the client; tells the page's events from the DevTools ones
+    CefMainBrowserId *m_mainBrowser = nullptr;
 
     IMPLEMENT_REFCOUNTING(CefLoadHandlerImpl);
 };

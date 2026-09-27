@@ -62,10 +62,30 @@ Window {
         if (!w)
             return;
         w.show();
+        root.skipCloseConfirm = true
         root.close();
     }
 
     property Window settingsWindow: null
+    // set when the close is one the user already confirmed, or one the app
+    // asked for (profile switch), so the dialog never guards it
+    property bool skipCloseConfirm: false
+
+    function requestWindowClose() {
+        if (Browser.confirmCloseRequired()) {
+            closeDialog.open()
+            return
+        }
+        root.skipCloseConfirm = true
+        root.close()
+    }
+
+    onClosing: function(close) {
+        if (root.skipCloseConfirm || !Browser.confirmCloseRequired())
+            return;
+        close.accepted = false
+        closeDialog.open()
+    }
 
     function openSettings() {
         if (!settingsWindow) {
@@ -91,7 +111,71 @@ Window {
         if (!picker)
             return;
         picker.show();
+        root.skipCloseConfirm = true
         root.close();
+    }
+
+    Dialog {
+        id: closeDialog
+        title: "Close window?"
+        // Popup isn't an Item, so position it by hand
+        x: Math.round((root.width - width) / 2)
+        y: Math.round((root.height - height) / 2)
+        modal: true
+        width: Math.min(360, root.width - 80)
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            radius: 10
+            color: Theme.surface
+            border.color: Theme.border
+            border.width: 1
+        }
+
+        header: Text {
+            text: closeDialog.title
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeM
+            font.weight: Font.Medium
+            color: Theme.text
+            padding: 16
+            bottomPadding: 0
+        }
+
+        contentItem: Text {
+            text: Browser.tabModel.count > 1
+                ? "This window has " + Browser.tabModel.count + " tabs open."
+                : "This window has a tab open."
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeM
+            color: Theme.textMuted
+            wrapMode: Text.WordWrap
+        }
+
+        footer: RowLayout {
+            spacing: 8
+
+            Item { Layout.fillWidth: true }
+
+            PillButton {
+                text: "Cancel"
+                fillColor: "transparent"
+                textColor: Theme.text
+                onClicked: closeDialog.close()
+            }
+
+            PillButton {
+                text: "Close window"
+                fillColor: Theme.accent
+                hoverFillColor: Qt.darker(Theme.accent, 1.1)
+                textColor: Theme.onAccent
+                onClicked: {
+                    closeDialog.close()
+                    root.skipCloseConfirm = true
+                    root.close()
+                }
+            }
+        }
     }
 
     property bool pointerLockActive: false
@@ -198,17 +282,22 @@ Window {
                 id: downloadsPanel
             }
 
-            Connections {
-                target: Browser
-                function onActiveIndexChanged() {
-                    findBar.close();
-                    viewStack.refreshActiveWebView();
-                }
-                function onNewTabOpened() {
-                    // defer so the new tab's view doesn't steal focus back
-                    Qt.callLater(toolbar.focusAddressBar);
-                }
-            }
+    Connections {
+        target: Browser
+        function onActiveIndexChanged() {
+            findBar.close();
+            viewStack.refreshActiveWebView();
+        }
+        function onNewTabOpened() {
+            // defer so the new tab's view doesn't steal focus back
+            Qt.callLater(toolbar.focusAddressBar);
+        }
+        // closing the last tab can't quit from C++: the window has to close,
+        // and the confirm dialog lives in QML
+        function onCloseWindowRequested() {
+            root.requestWindowClose();
+        }
+    }
 
             Repeater {
                 id: viewRepeater

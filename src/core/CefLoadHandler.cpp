@@ -3,10 +3,32 @@
 #include "../utils/cef_helpers.h"
 #include "../utils/BrowserLogger.h"
 
+#include <QFile>
 #include <QMetaObject>
 
-CefLoadHandlerImpl::CefLoadHandlerImpl(CefBrowserWrapper *wrapper)
-    : m_wrapper(wrapper)
+namespace {
+
+// Runs in every main frame before the page's own scripts: hides WebGPU and
+// installs the pointer lock shim QML can no longer read (QML XHR blocks local
+// files unless QML_XHR_ALLOW_FILE_READ is set).
+QString pageInitScript()
+{
+    static const QString script = [] {
+        QString js = QStringLiteral("delete Navigator.prototype.gpu;");
+        QFile shim(QStringLiteral(":/QT_Illuminate/ui/ui/resources/js/pointer-lock-shim.js"));
+        if (shim.open(QIODevice::ReadOnly | QIODevice::Text))
+            js += QLatin1Char('\n') + QString::fromUtf8(shim.readAll());
+        else
+            BrowserLogger::instance().warning("CEF", "pointer-lock-shim.js not found in resources");
+        return js;
+    }();
+    return script;
+}
+
+} // namespace
+
+CefLoadHandlerImpl::CefLoadHandlerImpl(CefBrowserWrapper *wrapper, CefMainBrowserId *mainBrowser)
+    : m_wrapper(wrapper), m_mainBrowser(mainBrowser)
 {
 }
 
@@ -15,8 +37,7 @@ void CefLoadHandlerImpl::OnLoadingStateChange(CefRefPtr<CefBrowser> browser,
                                               bool canGoBack,
                                               bool canGoForward)
 {
-    Q_UNUSED(browser);
-    if (!m_wrapper)
+    if (!m_wrapper || !m_mainBrowser || !m_mainBrowser->matches(browser))
         return;
 
     QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, isLoading, canGoBack, canGoForward]() {
@@ -29,12 +50,13 @@ void CefLoadHandlerImpl::OnLoadStart(CefRefPtr<CefBrowser> browser,
                                      CefRefPtr<CefFrame> frame,
                                      TransitionType transition_type)
 {
-    Q_UNUSED(browser);
     Q_UNUSED(transition_type);
-    if (!m_wrapper || !frame->IsMain())
+    if (!m_wrapper || !m_mainBrowser || !m_mainBrowser->matches(browser) || !frame->IsMain())
         return;
 
     const QString url = cefStringToQString(frame->GetURL());
+    frame->ExecuteJavaScript(qStringToCef(pageInitScript()), frame->GetURL(), 0);
+
     QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, url]() {
         if (wrapper)
             wrapper->onUrlChanged(url);
@@ -45,9 +67,8 @@ void CefLoadHandlerImpl::OnLoadEnd(CefRefPtr<CefBrowser> browser,
                                    CefRefPtr<CefFrame> frame,
                                    int httpStatusCode)
 {
-    Q_UNUSED(browser);
     Q_UNUSED(httpStatusCode);
-    if (!m_wrapper || !frame->IsMain())
+    if (!m_wrapper || !m_mainBrowser || !m_mainBrowser->matches(browser) || !frame->IsMain())
         return;
 
     QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper]() {

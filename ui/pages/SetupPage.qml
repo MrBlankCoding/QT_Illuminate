@@ -193,11 +193,11 @@ Item {
 
                 SetupHeading {
                     Layout.fillWidth: true
-                    title: DefaultBrowser.isDefault ? "Illuminate is your default browser"
+                    title: DefaultBrowser.isDefaultBrowser ? "Illuminate is your default browser"
                                                     : "Make Illuminate your default browser?"
-                    subtitle: DefaultBrowser.isDefault
+                    subtitle: DefaultBrowser.isDefaultBrowser
                               ? "Links you open from other apps will open here."
-                              : DefaultBrowser.opensSystemSettings
+                              : DefaultBrowser.defaultBrowserOpensSystemSettings
                                 ? "Windows will open Default Apps. Choose Illuminate under Web browser."
                                 : "Links you open from mail, chat and other apps will open here. Your system will ask you to confirm."
                 }
@@ -207,18 +207,18 @@ Item {
                     spacing: 12
 
                     PillButton {
-                        visible: !DefaultBrowser.isDefault
-                        enabled: !DefaultBrowser.busy
-                        text: DefaultBrowser.busy ? "Waiting for confirmation…"
-                                                  : DefaultBrowser.opensSystemSettings ? "Open Default Apps" : "Make default"
+                        visible: !DefaultBrowser.isDefaultBrowser
+                        enabled: !DefaultBrowser.defaultBrowserBusy
+                        text: DefaultBrowser.defaultBrowserBusy ? "Waiting for confirmation…"
+                                                  : DefaultBrowser.defaultBrowserOpensSystemSettings ? "Open Default Apps" : "Make default"
                         textColor: Theme.onAccent
                         fillColor: Theme.accent
                         hoverFillColor: Qt.darker(Theme.accent, 1.1)
-                        onClicked: DefaultBrowser.makeDefault()
+                        onClicked: DefaultBrowser.makeDefaultBrowser()
                     }
 
                     Rectangle {
-                        visible: DefaultBrowser.isDefault
+                        visible: DefaultBrowser.isDefaultBrowser
                         Layout.preferredWidth: 36
                         Layout.preferredHeight: 36
                         radius: 18
@@ -236,7 +236,7 @@ Item {
                 Text {
                     id: defaultError
                     Layout.fillWidth: true
-                    visible: text.length > 0 && !DefaultBrowser.isDefault
+                    visible: text.length > 0 && !DefaultBrowser.isDefaultBrowser
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeS
                     color: Theme.danger
@@ -244,8 +244,8 @@ Item {
 
                     Connections {
                         target: DefaultBrowser
-                        function onFailed(message) { defaultError.text = message; }
-                        function onIsDefaultChanged() { defaultError.text = ""; }
+                        function onDefaultBrowserFailed(message) { defaultError.text = message; }
+                        function onIsDefaultBrowserChanged() { defaultError.text = ""; }
                     }
                 }
                 Item { Layout.fillHeight: true }
@@ -450,7 +450,7 @@ Item {
             Item { Layout.fillWidth: true }
 
             PillButton {
-                visible: root.step === 1 || (root.step === 2 && !DefaultBrowser.isDefault)
+                visible: root.step === 1 || (root.step === 2 && !DefaultBrowser.isDefaultBrowser)
                 text: "Not now"
                 fillColor: Theme.surface
                 hoverFillColor: Theme.surfaceHigh
@@ -460,7 +460,7 @@ Item {
             PillButton {
                 text: root.step === 0 ? "Get started"
                                       : root.step === root.stepCount - 1 ? "Start browsing" : "Continue"
-                visible: !(root.step === 2 && !DefaultBrowser.isDefault)
+                visible: !(root.step === 2 && !DefaultBrowser.isDefaultBrowser)
                 textColor: Theme.onAccent
                 fillColor: Theme.accent
                 hoverFillColor: Qt.darker(Theme.accent, 1.1)

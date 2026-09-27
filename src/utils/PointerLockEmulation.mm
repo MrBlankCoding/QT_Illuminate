@@ -4,7 +4,7 @@
 #import <CoreGraphics/CoreGraphics.h>
 
 #include <QTimer>
-#include <QDebug>
+#include "BrowserLogger.h"
 
 class PointerLockEmulation::Private
 {
@@ -38,7 +38,7 @@ PointerLockEmulation::PointerLockEmulation(QObject *parent)
                     object:nil
                      queue:[NSOperationQueue mainQueue]
                 usingBlock:^(NSNotification *) {
-                    qDebug() << "PointerLockEmu resignActive -> end";
+                    BrowserLogger::instance().debug("PointerLock", "app resigned active -> end");
                     if (d->active)
                         end();
                 }];
@@ -66,7 +66,7 @@ bool PointerLockEmulation::begin()
 
     CGAssociateMouseAndMouseCursorPosition(false);
 
-    qDebug() << "PointerLockEmu begin";
+    BrowserLogger::instance().debug("PointerLock", "lock engaged");
 
     d->eventMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:
         (NSEventMaskMouseMoved
@@ -101,7 +101,7 @@ void PointerLockEmulation::end()
 
     CGAssociateMouseAndMouseCursorPosition(true);
 
-    qDebug() << "PointerLockEmu end";
+    BrowserLogger::instance().debug("PointerLock", "lock released");
     setActiveLocal(false);
 }
 

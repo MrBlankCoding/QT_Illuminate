@@ -11,6 +11,8 @@
 #include "../utils/cef_helpers.h"
 #include "../utils/BrowserLogger.h"
 
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QRect>
 #include <QQuickWindow>
 #include <QTimer>
@@ -58,7 +60,13 @@ CefBrowserWrapper::~CefBrowserWrapper()
     if (m_browser)
     {
         if (auto host = m_browser->GetHost())
-            host->CloseBrowser(true);
+        {
+            // DevTools browsers are owned by the page's host, not by us
+            if (m_externalBrowser)
+                host->CloseDevTools();
+            else
+                host->CloseBrowser(true);
+        }
         m_browser = nullptr;
     }
 }
@@ -93,6 +101,15 @@ void CefBrowserWrapper::setDevToolsView(CefBrowserWrapper *devTools)
     {
         m_devToolsView = devTools;
         emit devToolsViewChanged();
+    }
+}
+
+void CefBrowserWrapper::setExternalBrowser(bool external)
+{
+    if (m_externalBrowser != external)
+    {
+        m_externalBrowser = external;
+        emit externalBrowserChanged();
     }
 }
 
@@ -169,9 +186,20 @@ void CefBrowserWrapper::findText(const QString &text, int flags)
     if (!m_browser)
         return;
 
+    auto host = m_browser->GetHost();
+    if (!host)
+        return;
+
+    // CefBrowserHost::Find() DCHECKs on empty text; clearing is done via
+    // StopFinding(true).
+    if (text.isEmpty())
+    {
+        host->StopFinding(true);
+        return;
+    }
+
     const bool forward = !(flags & FindBackward);
-    if (auto host = m_browser->GetHost())
-        host->Find(qStringToCef(text), forward, false, false);
+    host->Find(qStringToCef(text), forward, false, false);
 }
 
 void CefBrowserWrapper::stopFinding(bool clearSelection)
@@ -183,7 +211,7 @@ void CefBrowserWrapper::stopFinding(bool clearSelection)
     }
 }
 
-void CefBrowserWrapper::triggerWebAction(int action)
+void CefBrowserWrapper::triggerWebAction(int action, const QUrl &url)
 {
     if (!m_browser)
         return;
@@ -199,6 +227,21 @@ void CefBrowserWrapper::triggerWebAction(int action)
         break;
     case Paste:
         frame->Paste();
+        break;
+    case CopyLinkToClipboard:
+        if (url.isValid() && !url.isEmpty())
+            QGuiApplication::clipboard()->setText(url.toString());
+        break;
+    case DownloadImageToDisk:
+    case DownloadMediaToDisk:
+    case DownloadLinkToDisk:
+        // goes through CefDownloadHandlerImpl, so it lands in the downloads
+        // panel like any other download instead of being written behind the UI
+        if (url.isValid() && !url.isEmpty())
+        {
+            if (auto host = m_browser->GetHost())
+                host->StartDownload(qUrlToCefString(url));
+        }
         break;
     case InspectElement:
         showDevTools();
@@ -245,25 +288,35 @@ void CefBrowserWrapper::onFullscreenModeChanged(bool fullscreen)
     emit fullScreenChanged();
 }
 
-void CefBrowserWrapper::showDevTools()
+void CefBrowserWrapper::showDevTools(const QPoint &inspectAt)
 {
     if (!m_browser)
         return;
 
-    if (auto host = m_browser->GetHost())
-    {
-        CefWindowInfo windowInfo;
-        CefBrowserSettings settings;
-        CefPoint inspectAt;
-#if defined(OS_WIN)
-        windowInfo.SetAsPopup(nullptr, "DevTools");
-#endif
-        host->ShowDevTools(windowInfo, m_client, settings, inspectAt);
-    }
+    auto host = m_browser->GetHost();
+    if (!host)
+        return;
+
+    CefWindowInfo windowInfo;
+    CefBrowserSettings settings;
+    // (0,0) tells CEF to open DevTools without selecting an element
+    CefPoint inspectAtCef(inspectAt.x(), inspectAt.y());
+    qInfo() << "[DevTools] showDevTools inspectAt=" << inspectAt;
+
+    // CEF opens DevTools in a top-level window of its own. An empty
+    // CefWindowInfo is required here: on macOS a child CefWindowInfo aborts the
+    // process, both when passed directly and when set from
+    // CefLifeSpanHandler::OnBeforeDevToolsPopup, and re-parenting CEF's
+    // BridgedContentView into the Qt window segfaults once it starts rendering.
+    host->ShowDevTools(windowInfo, m_client, settings, inspectAtCef);
 }
 
 void CefBrowserWrapper::closeDevTools()
 {
+    // drop the routing target first: a browser that arrives after the view is
+    // gone must not be adopted by it
+    m_client->setDevToolsView(nullptr);
+
     if (m_browser)
     {
         if (auto host = m_browser->GetHost())
@@ -296,7 +349,7 @@ void CefBrowserWrapper::setBrowser(CefRefPtr<CefBrowser> browser)
 
 void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geometry)
 {
-    if (m_browser || m_creatingBrowser)
+    if (m_browser || m_creatingBrowser || m_externalBrowser)
         return;
 
     m_creatingBrowser = true;
@@ -447,7 +500,7 @@ void CefBrowserWrapper::geometryChange(const QRectF &newGeometry, const QRectF &
 
 void CefBrowserWrapper::initializeBrowserHost()
 {
-    if (m_creatingBrowser || m_browser || !window())
+    if (m_creatingBrowser || m_browser || m_externalBrowser || !window())
         return;
 
     const QRect rect = sceneRect();

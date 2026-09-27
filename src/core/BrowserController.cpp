@@ -1,10 +1,10 @@
 #include "BrowserController.h"
+#include "BrowserSettings.h"
 #include "BrowserTab.h"
 #include "../utils/BrowserLogger.h"
 #include "../utils/UrlResolver.h"
 #include "../utils/ColorExtractor.h"
 
-#include <QCoreApplication>
 #include <QGuiApplication>
 #include <QClipboard>
 #include <QSettings>
@@ -255,6 +255,15 @@ QString BrowserController::sessionFilePath() const
     return m_profile->path() + QDir::separator() + QStringLiteral("session.json");
 }
 
+bool BrowserController::confirmCloseRequired() const
+{
+    const BrowserSettings *prefs = BrowserSettings::instance();
+    if (prefs && !prefs->confirmCloseMultipleTabs())
+        return false;
+    // one tab is still worth closing without a prompt; a pile of them is not
+    return m_model->rowCount() > 1;
+}
+
 void BrowserController::saveSession() const
 {
     const QString path = sessionFilePath();
@@ -290,6 +299,14 @@ void BrowserController::saveSession() const
 
 void BrowserController::restoreSession()
 {
+    // the preference decides whether there is a session to restore at all
+    const BrowserSettings *prefs = BrowserSettings::instance();
+    if (!prefs || prefs->startupBehavior() != QLatin1String(BrowserSettings::kStartupSession))
+    {
+        openInitialTab();
+        return;
+    }
+
     const QString path = sessionFilePath();
     QFile file(path);
     if (path.isEmpty() || !file.open(QFile::ReadOnly | QFile::Text))
@@ -331,7 +348,21 @@ void BrowserController::restoreSession()
 
 void BrowserController::openInitialTab()
 {
-    newTab(m_isFirstRun ? SETUP_URL : QString());
+    if (m_isFirstRun)
+    {
+        newTab(SETUP_URL);
+        return;
+    }
+
+    const BrowserSettings *prefs = BrowserSettings::instance();
+    if (prefs && prefs->startupBehavior() == QLatin1String(BrowserSettings::kStartupHomepage)
+        && !prefs->homepageUrl().isEmpty())
+    {
+        newTab(prefs->homepageUrl());
+        return;
+    }
+
+    newTab();
 }
 
 bool BrowserController::isFirstRun() const
@@ -368,9 +399,10 @@ void BrowserController::newTab(const QString &urlStr)
     if (m_model->rowCount() >= TabModel::kMaxTabs || !m_webEngineProfile)
         return;
 
+    const BrowserSettings *prefs = BrowserSettings::instance();
     const QUrl url = urlStr.isEmpty()
                          ? QUrl(NEW_TAB_URL)
-                         : UrlResolver::resolve(urlStr);
+                         : UrlResolver::resolve(urlStr, prefs ? prefs->searchUrlTemplate() : QString());
 
     if (!m_model->addTab(url, m_webEngineProfile))
         return;
@@ -383,8 +415,8 @@ void BrowserController::closeTab(int index)
 {
     if (m_model->rowCount() <= 1)
     {
-        // close the last time -> close the browser
-        QCoreApplication::quit();
+        // last tab: hand the close to the window so it can confirm first
+        emit closeWindowRequested();
         return;
     }
     m_model->removeTab(index);
@@ -412,7 +444,8 @@ void BrowserController::cycleTab(int delta)
 
 void BrowserController::navigate(const QString &input)
 {
-    const QUrl url = UrlResolver::resolve(input);
+    const BrowserSettings *prefs = BrowserSettings::instance();
+    const QUrl url = UrlResolver::resolve(input, prefs ? prefs->searchUrlTemplate() : QString());
     if (url.isEmpty())
         return;
     const int idx = m_model->activeIndex();
@@ -475,6 +508,11 @@ void BrowserController::onNewWindowRequested(int i, const QString &url)
 {
     Q_UNUSED(i);
     newTab(url);
+}
+
+void BrowserController::onDownloadRequested(QObject *download)
+{
+    emit downloadRequested(download);
 }
 
 const QString BrowserController::NEW_TAB_URL = "newtab://newtab";

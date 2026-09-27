@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QColor>
+#include <QPoint>
+#include <QPointer>
 #include <QRect>
 #include <QQuickItem>
 #include <QString>
@@ -34,6 +36,10 @@ class CefBrowserWrapper : public QQuickItem
     Q_PROPERTY(CefProfile *profile READ profile WRITE setProfile NOTIFY profileChanged)
     Q_PROPERTY(bool fullScreen READ fullScreen NOTIFY fullScreenChanged)
     Q_PROPERTY(CefBrowserWrapper *devToolsView READ devToolsView WRITE setDevToolsView NOTIFY devToolsViewChanged)
+    // Set on the item that hosts the DevTools browser: it does not create a
+    // browser of its own, CefBrowserHost::ShowDevTools() does and the item
+    // adopts it via setBrowser().
+    Q_PROPERTY(bool externalBrowser READ externalBrowser WRITE setExternalBrowser NOTIFY externalBrowserChanged)
 
 public:
     enum LifecycleState
@@ -87,6 +93,8 @@ public:
     bool fullScreen() const { return m_fullScreen; }
     CefBrowserWrapper *devToolsView() const { return m_devToolsView; }
     void setDevToolsView(CefBrowserWrapper *devTools);
+    bool externalBrowser() const { return m_externalBrowser; }
+    void setExternalBrowser(bool external);
 
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goForward();
@@ -94,15 +102,16 @@ public:
     Q_INVOKABLE void stop();
     Q_INVOKABLE void findText(const QString &text, int flags = 0);
     Q_INVOKABLE void stopFinding(bool clearSelection = false);
-    Q_INVOKABLE void triggerWebAction(int action);
+    Q_INVOKABLE void triggerWebAction(int action, const QUrl &url = QUrl());
     Q_INVOKABLE void runJavaScript(const QString &script, int worldId = 0);
     Q_INVOKABLE void printToPdf(const QString &path);
     Q_INVOKABLE void load(const QUrl &url) { setUrl(url); }
     // leaves HTML5 element fullscreen (video players etc.)
     Q_INVOKABLE void exitFullScreen();
 
-    // dev tools
-    Q_INVOKABLE void showDevTools();
+    // dev tools; |inspectAt| is in the page's coordinate space, (0,0) opens
+    // DevTools without selecting an element
+    Q_INVOKABLE void showDevTools(const QPoint &inspectAt = QPoint());
     Q_INVOKABLE void closeDevTools();
 
     // Internal integration with CefTabClient
@@ -110,6 +119,10 @@ public:
     CefRefPtr<CefBrowser> browser() const { return m_browser; }
     void createBrowser(void *nativeWindowHandle, const QRect &geometry);
     void updateGeometry(const QRect &geometry);
+
+    // Geometry of this item within its window, in native window coordinates.
+    // Used to dock the DevTools browser.
+    QRect sceneRect() const;
 
     // Callbacks from handlers
     void onUrlChanged(const QString &url);
@@ -129,7 +142,6 @@ protected:
 private:
     void initializeBrowserHost();
     void updateNativeGeometry();
-    QRect sceneRect() const;
 
 signals:
     void urlChanged();
@@ -146,6 +158,7 @@ signals:
     void backgroundColorChanged();
     void profileChanged();
     void devToolsViewChanged();
+    void externalBrowserChanged();
     void fullScreenChanged();
 
     void loadRequested(const QUrl &url);
@@ -171,7 +184,10 @@ private:
     int m_recommendedState = Active;
     QColor m_backgroundColor = Qt::white;
     CefProfile *m_profile = nullptr;
-    CefBrowserWrapper *m_devToolsView = nullptr;
+    // the dock that hosts the DevTools browser; QPointer because the Loader
+    // that creates it can be torn down before this item is
+    QPointer<CefBrowserWrapper> m_devToolsView;
+    bool m_externalBrowser = false;
 
     CefRefPtr<CefBrowser> m_browser;
     CefRefPtr<CefTabClient> m_client;
@@ -180,5 +196,4 @@ private:
     QRect m_nativeRect;
     bool m_nativeVisible = true;
     QMetaObject::Connection m_frameConnection;
-    QUrl m_createdUrl;
-};
+    QUrl m_createdUrl;};

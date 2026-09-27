@@ -5,15 +5,14 @@
 
 #include <QMetaObject>
 
-CefDisplayHandlerImpl::CefDisplayHandlerImpl(CefBrowserWrapper *wrapper)
-    : m_wrapper(wrapper)
+CefDisplayHandlerImpl::CefDisplayHandlerImpl(CefBrowserWrapper *wrapper, CefMainBrowserId *mainBrowser)
+    : m_wrapper(wrapper), m_mainBrowser(mainBrowser)
 {
 }
 
 void CefDisplayHandlerImpl::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString &title)
 {
-    Q_UNUSED(browser);
-    if (!m_wrapper)
+    if (!m_wrapper || !m_mainBrowser || !m_mainBrowser->matches(browser))
         return;
 
     const QString t = cefStringToQString(title);
@@ -26,8 +25,7 @@ void CefDisplayHandlerImpl::OnTitleChange(CefRefPtr<CefBrowser> browser, const C
 void CefDisplayHandlerImpl::OnFaviconURLChange(CefRefPtr<CefBrowser> browser,
                                                const std::vector<CefString> &icon_urls)
 {
-    Q_UNUSED(browser);
-    if (!m_wrapper || icon_urls.empty())
+    if (!m_wrapper || !m_mainBrowser || !m_mainBrowser->matches(browser) || icon_urls.empty())
         return;
 
     const QString iconUrl = cefStringToQString(icon_urls.front());
@@ -39,8 +37,7 @@ void CefDisplayHandlerImpl::OnFaviconURLChange(CefRefPtr<CefBrowser> browser,
 
 void CefDisplayHandlerImpl::OnLoadingProgressChange(CefRefPtr<CefBrowser> browser, double progress)
 {
-    Q_UNUSED(browser);
-    if (!m_wrapper)
+    if (!m_wrapper || !m_mainBrowser || !m_mainBrowser->matches(browser))
         return;
 
     const int p = static_cast<int>(progress * 100);
@@ -52,8 +49,7 @@ void CefDisplayHandlerImpl::OnLoadingProgressChange(CefRefPtr<CefBrowser> browse
 
 void CefDisplayHandlerImpl::OnFullscreenModeChange(CefRefPtr<CefBrowser> browser, bool fullscreen)
 {
-    Q_UNUSED(browser);
-    if (!m_wrapper)
+    if (!m_wrapper || !m_mainBrowser || !m_mainBrowser->matches(browser))
         return;
 
     QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, fullscreen]() {
@@ -68,7 +64,9 @@ bool CefDisplayHandlerImpl::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
                                              const CefString &source,
                                              int line)
 {
-    Q_UNUSED(browser);
+    if (!m_wrapper || !m_mainBrowser || !m_mainBrowser->matches(browser))
+        return false;
+
     const QString msg = cefStringToQString(message);
     const QString src = cefStringToQString(source);
 

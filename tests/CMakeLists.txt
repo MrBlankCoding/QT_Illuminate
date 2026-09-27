@@ -26,9 +26,13 @@ qt_add_executable(tst_permissionhandler tst_PermissionHandler.cpp)
 target_link_libraries(tst_permissionhandler PRIVATE Qt6::Test QT_Illuminatemodule)
 add_test(NAME tst_permissionhandler COMMAND tst_permissionhandler)
 
+qt_add_executable(tst_shortcutbridge tst_ShortcutBridge.cpp)
+target_link_libraries(tst_shortcutbridge PRIVATE Qt6::Test Qt6::Quick QT_Illuminatemodule)
+add_test(NAME tst_shortcutbridge COMMAND tst_shortcutbridge)
+
 if(APPLE AND CEF_FOUND)
     # Link tests against CEF framework directly from CEF release directory
-    foreach(_test_target tst_qmltests tst_colorextractor tst_permissionhandler)
+    foreach(_test_target tst_qmltests tst_colorextractor tst_permissionhandler tst_shortcutbridge)
         add_custom_command(TARGET ${_test_target} POST_BUILD
             COMMAND install_name_tool -change
                 "@executable_path/../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework"

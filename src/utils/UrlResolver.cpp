@@ -4,6 +4,8 @@
 namespace UrlResolver
 {
 
+    const QString kFallbackSearchTemplate = QStringLiteral("https://duckduckgo.com/?q=%s");
+
     static bool isIPv4(const QString &s)
     {
         static const QRegularExpression re(R"(^\d{1,3}(\.\d{1,3}){3}(:\d+)?(/.*)?$)");
@@ -27,7 +29,7 @@ namespace UrlResolver
         return dot > 0 && dot < trimmed.size() - 1;
     }
 
-    QUrl resolve(const QString &input)
+    QUrl resolve(const QString &input, const QString &searchTemplate)
     {
         const QString t = input.trimmed();
         if (t.isEmpty())
@@ -37,8 +39,19 @@ namespace UrlResolver
             return QUrl::fromUserInput(t);
         if (looksLikeHost(t))
             return QUrl::fromUserInput("https://" + t);
-        const QString enc = QString::fromUtf8(QUrl::toPercentEncoding(t));
-        return QUrl("https://www.google.com/search?q=" + enc);
+        return searchUrl(t, searchTemplate);
+    }
+
+    QUrl searchUrl(const QString &query, const QString &searchTemplate)
+    {
+        // a template without the placeholder would drop the query entirely
+        const QString tmpl = searchTemplate.contains(QLatin1String("%s"))
+                                 ? searchTemplate
+                                 : kFallbackSearchTemplate;
+        QString escaped = tmpl;
+        escaped.replace(QLatin1String("%s"),
+                        QString::fromUtf8(QUrl::toPercentEncoding(query)));
+        return QUrl(escaped);
     }
 
 } // namespace UrlResolver

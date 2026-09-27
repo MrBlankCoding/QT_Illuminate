@@ -1,6 +1,7 @@
 #include "CefDownloadHandler.h"
 #include "CefBrowserWrapper.h"
 #include "CefDownloadWrapper.h"
+#include "BrowserController.h"
 
 #include <QMetaObject>
 
@@ -34,12 +35,21 @@ bool CefDownloadHandlerImpl::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
     if (m_wrapper)
     {
         QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, download]() {
-            if (wrapper)
+            if (!wrapper)
+                return;
+            download->setParent(wrapper);
+
+            // hand the download to the downloads panel; it accepts it there
+            if (auto *controller = BrowserController::instance())
             {
-                download->setParent(wrapper);
-                // Auto accept or signal QML
-                download->accept();
+                QMetaObject::invokeMethod(controller, [controller, download]() {
+                    controller->onDownloadRequested(download);
+                }, Qt::QueuedConnection);
+                return;
             }
+
+            // no UI to ask, so don't drop the download
+            download->accept();
         }, Qt::QueuedConnection);
     }
 

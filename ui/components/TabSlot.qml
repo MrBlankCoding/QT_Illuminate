@@ -21,7 +21,10 @@ Item {
         Browser.onRenderProcessPidChanged(tabSlot.index, tabSlot.webView ? tabSlot.webView.renderProcessPid : 0)
     }
 
-    readonly property int discardAfterMs: 5 * 60 * 1000
+    // 0 means never discard, in which case the timer below stays stopped
+    readonly property int discardAfterMs: Prefs.autoUnloadEnabled
+        ? Math.max(1, Prefs.autoUnloadMinutes) * 60 * 1000
+        : 0
     property bool discardable: false
     onVisibleChanged: {
         if (visible) {
@@ -39,13 +42,41 @@ Item {
             wv.runJavaScript("window.__illuminate__forceExit && window.__illuminate__forceExit()")
     }
     Timer {
-        interval: tabSlot.discardAfterMs
-        running: !tabSlot.visible && tabSlot.webView !== null
+        interval: Math.max(1, tabSlot.discardAfterMs)
+        running: tabSlot.discardAfterMs > 0 && !tabSlot.visible && tabSlot.webView !== null
         onTriggered: tabSlot.discardable = true
     }
     property bool devToolsOpen: false
+    // point for the next "Inspect", in page coordinates; (0,0) = none
+    property point devToolsInspectAt: Qt.point(0, 0)
     readonly property CefBrowser webView: webLoader.item as CefBrowser
-    onWebViewChanged: viewStack.refreshActiveWebView()
+    onWebViewChanged: {
+        viewStack.refreshActiveWebView()
+        // the dock outlives a web view that got rebuilt (tab restore); re-open
+        // DevTools on the new one, otherwise the panel stays blank
+        if (tabSlot.devToolsOpen)
+            tabSlot.openDevTools(devToolsLoader.item)
+    }
+
+    // The DevTools browser is created by CefBrowserHost::ShowDevTools() into
+    // the dock item, which then owns its native view and geometry.
+    function openDevTools(view) {
+        const wv = tabSlot.webView
+        if (!wv || !view)
+            return
+        wv.devToolsView = view
+        wv.showDevTools(tabSlot.devToolsInspectAt)
+        tabSlot.devToolsInspectAt = Qt.point(0, 0)
+    }
+
+    function closeDevTools() {
+        const wv = tabSlot.webView
+        if (!wv)
+            return
+        wv.closeDevTools()
+        wv.devToolsView = null
+    }
+
     // user could change this
     property string devToolsDock: "right"
     readonly property bool devToolsVertical: devToolsDock === "bottom"
@@ -72,16 +103,6 @@ Item {
         else
             pointerLockHint.opacity = 0
     }
-
-    // QML XHR can read embedded resources synchronously
-    function readResource(path) {
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", path, false);
-        xhr.send();
-        return xhr.responseText;
-    }
-
-    readonly property string pointerLockShimSource: tabSlot.readResource("qrc:/QT_Illuminate/ui/ui/resources/js/pointer-lock-shim.js")
 
     Loader {
         anchors.fill: parent
@@ -129,9 +150,6 @@ Item {
                 // CEF: scripts injected via CefBrowserWrapper on OnLoadStart
                 Component.onCompleted: {
                     Logger.info("WebView", "Tab " + tabSlot.index + " created, url=" + tabSlot.model.url);
-                    // Inject scripts now that browser is ready
-                    webView.runJavaScript("delete Navigator.prototype.gpu;");
-                    webView.runJavaScript(tabSlot.pointerLockShimSource);
                 }
 
                 onLoadingChanged: function () {
@@ -191,9 +209,11 @@ Item {
                     id: contextMenu
                     webView: webView
                     onToggleDevTools: tabSlot.devToolsOpen = !tabSlot.devToolsOpen
-                    onInspectElement: {
+                    onInspectElement: (x, y) => {
+                        // stash the point first: the dock opens DevTools itself
+                        // once it exists, and picks this up
+                        tabSlot.devToolsInspectAt = Qt.point(x, y)
                         tabSlot.devToolsOpen = true
-                        Qt.callLater(() => webView.triggerWebAction(CefBrowser.InspectElement))
                     }
                 }
 
@@ -244,19 +264,17 @@ Item {
         visible: tabSlot.devToolsOpen
 
         sourceComponent: Component {
-            // CEF: dev tools opened via CefBrowserHost::ShowDevTools() into a popup.
-            // The CefBrowser wrapper exposes showDevTools()/closeDevTools() called
-            // by devToolsOpen toggle; no separate embedded view needed here.
-            Item {
+            CefBrowser {
+                id: devToolsView
                 anchors.fill: parent
-                Component.onCompleted: {
-                    if (tabSlot.webView)
-                        tabSlot.webView.showDevTools()
-                }
-                Component.onDestruction: {
-                    if (tabSlot.webView)
-                        tabSlot.webView.closeDevTools()
-                }
+                // CEF created this browser for us; the item only hosts and
+                // positions its native view
+                externalBrowser: true
+                // avoids a white flash before the first paint
+                backgroundColor: Theme.bg
+
+                Component.onCompleted: Qt.callLater(() => tabSlot.openDevTools(devToolsView))
+                Component.onDestruction: tabSlot.closeDevTools()
             }
         }
     }
