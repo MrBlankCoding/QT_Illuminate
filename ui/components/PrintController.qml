@@ -7,7 +7,7 @@ import QT_Illuminate.ui
 Item {
     id: printController
 
-    // the currently selected WebEngineView (null for internal/suspended tabs)
+    // the currently selected CefBrowser (null for internal/suspended tabs)
     required property var activeWebView
 
     property var pendingPrintView: null
@@ -64,7 +64,7 @@ Item {
     }
 
     // StandardPaths and FileDialog report locations as file:// URLs; the
-    // WebEngineView bridge expects a plain native path
+    // CefBrowser bridge expects a plain native path
     function toLocalPath(value) {
         const s = String(value);
         if (!s.startsWith("file:"))

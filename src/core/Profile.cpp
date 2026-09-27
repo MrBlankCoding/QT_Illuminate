@@ -1,11 +1,8 @@
 #include "Profile.h"
+#include <QSettings>
 #include <QStandardPaths>
 #include <QDir>
 #include <QDebug>
-#include <QWebEngineClientHints>
-#include <QtQml/qqmlparserstatus.h>
-#include <QtWebEngineQuick/private/qquickwebengineprofileprototype_p.h>
-#include "AdBlocker.h"
 #include "../utils/BrowserLogger.h"
 #include "../utils/WebVersion.h"
 #include "SystemInfo.h"
@@ -64,38 +61,17 @@ void Profile::setColor(const QString &color)
 
 Profile::~Profile() = default;
 
-QQuickWebEngineProfile *Profile::webProfile()
+CefProfile *Profile::webProfile()
 {
-    if (m_webProfilePrototype)
-        return m_webProfilePrototype->instance();
+    if (m_webProfile)
+        return m_webProfile.get();
 
-    m_webProfilePrototype = std::make_unique<QQuickWebEngineProfilePrototype>();
-    m_webProfilePrototype->setStorageName(m_id);
-    m_webProfilePrototype->setPersistentStoragePath(m_path + QDir::separator() + "web_data");
-    m_webProfilePrototype->setCachePath(m_path + QDir::separator() + "cache");
-    m_webProfilePrototype->setPersistentCookiesPolicy(QQuickWebEngineProfile::ForcePersistentCookies);
-    static_cast<QQmlParserStatus *>(m_webProfilePrototype.get())->componentComplete();
+    const QString webData = m_path + QDir::separator() + QStringLiteral("web_data");
+    const QString cache = CefProfile::cachePathForProfile(m_id);
+    m_webProfile = std::make_unique<CefProfile>(webData, cache, this);
+    m_webProfile->setHttpUserAgent(chromeUserAgent());
 
-    QQuickWebEngineProfile *profile = m_webProfilePrototype->instance();
-    if (!profile)
-    {
-        // Qt returns null when another profile already uses the storage path
-        BrowserLogger::instance().error("Profile", "Could not create web profile for " + m_path);
-        return nullptr;
-    }
-
-    profile->setHttpUserAgent(chromeUserAgent());
-    if (SystemInfo *si = SystemInfo::instance())
-        profile->setHttpCacheMaximumSize(si->httpCacheLimitMB());
-    if (QWebEngineClientHints *hints = profile->clientHints())
-    {
-        hints->setFullVersion(chromiumVersion());
-        hints->setFullVersionList(chromeBrandVersions());
-    }
-
-    if (AdBlocker *adBlocker = AdBlocker::instance())
-        profile->setUrlRequestInterceptor(adBlocker->interceptor());
-
-    BrowserLogger::instance().info("Profile", QString("Web profile ready: storage=%1").arg(profile->persistentStoragePath()));
-    return profile;
+    BrowserLogger::instance().info("Profile", QString("Chromium %1 (CEF)").arg(chromiumVersion()));
+    BrowserLogger::instance().info("Profile", QString("Web profile ready: storage=%1").arg(webData));
+    return m_webProfile.get();
 }

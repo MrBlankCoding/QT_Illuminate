@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import QtWebEngine
 import QT_Illuminate.ui
 
 Item {
@@ -62,7 +61,7 @@ Item {
             return;
         }
         hasSearched = true;
-        const flags = backward ? WebEngineView.FindBackward : 0;
+        const flags = backward ? CefBrowser.FindBackward : 0;
         webView.findText(input.text, flags);
     }
 
@@ -72,13 +71,12 @@ Item {
             search(false);
     }
 
-    // findText()'s own callback isn't invoked by QtWebEngine build
-    // read match counts off this signal instead.
+    // findText() match counts forwarded from CEF find handler.
     Connections {
         target: root.webView
-        function onFindTextFinished(result) {
-            root.matchCount = result.numberOfMatches;
-            root.activeMatch = result.numberOfMatches > 0 ? result.activeMatch : 0;
+        function onFindTextFinished(numberOfMatches, activeMatchOrdinal, finalUpdate) {
+            root.matchCount = numberOfMatches;
+            root.activeMatch = numberOfMatches > 0 ? activeMatchOrdinal : 0;
         }
     }
 

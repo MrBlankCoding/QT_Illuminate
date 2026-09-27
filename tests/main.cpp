@@ -1,5 +1,4 @@
 #include <QtQuickTest>
-#include <QtWebEngineQuick>
 #include <QApplication>
 #include <QObject>
 #include <QQmlEngine>
@@ -13,7 +12,6 @@ public slots:
         QCoreApplication::setOrganizationName("QT_Illuminate");
         QCoreApplication::setOrganizationDomain("qt-illuminate.local");
         QCoreApplication::setApplicationName("qmltests");
-        QtWebEngineQuick::initialize();
     }
 
     // the app's QML module is linked in statically; its qmldir lives at

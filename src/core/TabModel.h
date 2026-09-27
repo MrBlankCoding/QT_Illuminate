@@ -4,10 +4,10 @@
 #include <QUrl>
 #include <QVariantMap>
 #include <QVector>
-#include <QQuickWebEngineProfile>
 #include <QtQml/qqmlregistration.h>
-// MOC needs to resolve at compile time.
+
 class BrowserTab;
+class CefProfile;
 
 class TabModel : public QAbstractListModel
 {
@@ -41,7 +41,7 @@ public:
 
     // tab CRUD
     // suspended: no web view until the tab is first activated (session restore)
-    BrowserTab *addTab(const QUrl &url, QQuickWebEngineProfile *profile, bool suspended = false);
+    BrowserTab *addTab(const QUrl &url, CefProfile *profile, bool suspended = false);
     void removeTab(int index);
     void clear();
     BrowserTab *tabAt(int index) const;

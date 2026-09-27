@@ -1,6 +1,5 @@
 #include "BrowserController.h"
 #include "BrowserTab.h"
-#include "AdBlocker.h"
 #include "../utils/BrowserLogger.h"
 #include "../utils/UrlResolver.h"
 #include "../utils/ColorExtractor.h"
@@ -19,7 +18,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
-#include <QWebEngineSettings>
 
 void BrowserController::setProfile(Profile *profile)
 {
@@ -430,7 +428,7 @@ void BrowserController::navigate(const QString &input)
 void BrowserController::reload() { emit navigationRequested(QStringLiteral("reload")); }
 void BrowserController::goBack() { emit navigationRequested(QStringLiteral("back")); }
 void BrowserController::goForward() { emit navigationRequested(QStringLiteral("forward")); }
-QQuickWebEngineProfile *BrowserController::webProfile() const { return m_webEngineProfile; }
+CefProfile *BrowserController::webProfile() const { return m_webEngineProfile; }
 
 void BrowserController::toggleDevTools() { emit navigationRequested(QStringLiteral("devtools")); }
 
@@ -475,14 +473,7 @@ void BrowserController::onRenderProcessPidChanged(int i, qint64 v)
 
 void BrowserController::onNewWindowRequested(int i, const QString &url)
 {
-    // EasyList's $popup rules: ad networks opening windows
-    const BrowserTab *opener = m_model->tabAt(i);
-    AdBlocker *adBlocker = AdBlocker::instance();
-    if (opener && adBlocker && adBlocker->shouldBlockPopup(QUrl(url), opener->url()))
-    {
-        BrowserLogger::instance().info("AdBlocker", "Blocked popup " + url);
-        return;
-    }
+    Q_UNUSED(i);
     newTab(url);
 }
 

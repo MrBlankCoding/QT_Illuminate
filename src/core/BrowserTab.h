@@ -4,19 +4,15 @@
 #include <QUrl>
 #include <QString>
 
-#include <QQuickWebEngineProfile>
+class CefProfile;
 
 // represents a tab.
-// tab?
-// whats a tab
-// idk im tired
-
 class BrowserTab : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit BrowserTab(QQuickWebEngineProfile *profile, QObject *parent = nullptr);
+    explicit BrowserTab(CefProfile *profile, QObject *parent = nullptr);
 
     QUrl url() const;
     QString title() const;
@@ -36,14 +32,14 @@ public:
     void setRenderProcessPid(qint64 pid);
     void setSuspended(bool suspended);
 
-    QQuickWebEngineProfile *webEngineProfile() const;
+    CefProfile *webEngineProfile() const;
 
     // navigate time!
     // emits loadRequested.
     void requestLoad(const QUrl &url);
 
     signals:
-    void loadRequested(const QUrl &url); // -> QML WebEngineView
+    void loadRequested(const QUrl &url); // -> QML view
     void urlChanged(const QUrl &url);
     void titleChanged(const QString &title);
     void iconUrlChanged(const QString &iconUrl);
@@ -60,5 +56,5 @@ private:
     bool m_loading = false;
     qint64 m_renderProcessPid = 0;
     bool m_suspended = false;
-    QQuickWebEngineProfile *m_webEngineProfile;
+    CefProfile *m_webEngineProfile = nullptr;
 };

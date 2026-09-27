@@ -1,6 +1,5 @@
 #include <QtTest>
 #include <QStandardPaths>
-#include <QWebEnginePermission>
 #include "PermissionHandler.h"
 
 class TestPermissionHandler : public QObject
@@ -16,14 +15,14 @@ private slots:
     {
         PermissionHandler pm(nullptr);
         QCOMPARE(pm.decision(QUrl(QStringLiteral("https://example.com")),
-                            static_cast<int>(QWebEnginePermission::PermissionType::Geolocation)), 0);
+                            static_cast<int>(PermissionHandler::Geolocation)), 0);
     }
 
     void rememberAllowThenDecide()
     {
         PermissionHandler pm(nullptr);
         const QUrl origin("https://example.com");
-        const int type = static_cast<int>(QWebEnginePermission::PermissionType::MediaVideoCapture);
+        const int type = static_cast<int>(PermissionHandler::MediaVideoCapture);
 
         pm.storeDecision(origin, type, /*allow*/ true, /*remember*/ true);
         QCOMPARE(pm.decision(origin, type), 1);
@@ -33,7 +32,7 @@ private slots:
     {
         PermissionHandler pm(nullptr);
         const QUrl origin("https://ad-supported.site");
-        const int type = static_cast<int>(QWebEnginePermission::PermissionType::Notifications);
+        const int type = static_cast<int>(PermissionHandler::Notifications);
 
         pm.storeDecision(origin, type, /*allow*/ false, /*remember*/ true);
         QCOMPARE(pm.decision(origin, type), -1);
@@ -42,7 +41,7 @@ private slots:
     void decisionsAreOriginScoped()
     {
         PermissionHandler pm(nullptr);
-        const int geo = static_cast<int>(QWebEnginePermission::PermissionType::Geolocation);
+        const int geo = static_cast<int>(PermissionHandler::Geolocation);
         pm.storeDecision(QUrl(QStringLiteral("https://one.test")), geo, true, true);
         QCOMPARE(pm.decision(QUrl(QStringLiteral("https://two.test")), geo), 0);
         QCOMPARE(pm.decision(QUrl(QStringLiteral("https://one.test")), geo), 1);
@@ -52,7 +51,7 @@ private slots:
     {
         PermissionHandler pm(nullptr);
         const QUrl origin("https://tmp.test");
-        const int mic = static_cast<int>(QWebEnginePermission::PermissionType::MediaAudioCapture);
+        const int mic = static_cast<int>(PermissionHandler::MediaAudioCapture);
 
         pm.storeDecision(origin, mic, true, /*remember*/ false);
         QCOMPARE(pm.decision(origin, mic), 0); // not persisted
@@ -61,16 +60,16 @@ private slots:
     void labelsAreHumanReadable()
     {
         PermissionHandler pm(nullptr);
-        QCOMPARE(pm.labelForType(static_cast<int>(QWebEnginePermission::PermissionType::Geolocation)),
+        QCOMPARE(pm.labelForType(static_cast<int>(PermissionHandler::Geolocation)),
                  QStringLiteral("Location"));
-        QCOMPARE(pm.labelForType(static_cast<int>(QWebEnginePermission::PermissionType::MediaVideoCapture)),
+        QCOMPARE(pm.labelForType(static_cast<int>(PermissionHandler::MediaVideoCapture)),
                  QStringLiteral("Camera"));
     }
     void forgetClearsDecision()
     {
         PermissionHandler pm(nullptr);
         const QUrl origin("https://forget.test");
-        const int geo = static_cast<int>(QWebEnginePermission::PermissionType::Geolocation);
+        const int geo = static_cast<int>(PermissionHandler::Geolocation);
         pm.storeDecision(origin, geo, true, true);
         pm.forget(origin, geo);
         QCOMPARE(pm.decision(origin, geo), 0);
@@ -80,7 +79,7 @@ private slots:
     {
         PermissionHandler pm(nullptr);
         pm.forgetAll();
-        const int cam = static_cast<int>(QWebEnginePermission::PermissionType::MediaVideoCapture);
+        const int cam = static_cast<int>(PermissionHandler::MediaVideoCapture);
         pm.storeDecision(QUrl(QStringLiteral("https://list.test")), cam, false, true);
 
         const QVariantList all = pm.rememberedDecisions();
@@ -97,7 +96,7 @@ private slots:
     void typesWithoutOsGateAreGranted()
     {
         PermissionHandler pm(nullptr);
-        const int clip = static_cast<int>(QWebEnginePermission::PermissionType::ClipboardReadWrite);
+        const int clip = static_cast<int>(PermissionHandler::ClipboardReadWrite);
         QCOMPARE(pm.systemAccessForType(clip), static_cast<int>(PermissionHandler::Granted));
         QCOMPARE(pm.blockedResourceForType(clip), -1);
     }

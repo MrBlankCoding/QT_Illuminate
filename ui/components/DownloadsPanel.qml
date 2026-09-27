@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import QtWebEngine
 import QT_Illuminate.ui
 
 pragma ComponentBehavior: Bound
@@ -58,18 +57,18 @@ Item {
     }
 
     function statusText(state, receivedBytes, totalBytes) {
-        if (state === WebEngineDownloadRequest.DownloadCompleted)
+        if (state === 2)
             return "Completed";
-        if (state === WebEngineDownloadRequest.DownloadCancelled)
+        if (state === 3)
             return "Cancelled";
-        if (state === WebEngineDownloadRequest.DownloadInterrupted)
+        if (state === 4)
             return "Failed";
         return formatBytes(receivedBytes) + (totalBytes > 0 ? " / " + formatBytes(totalBytes) : "");
     }
 
     function cancelOrRemove(index) {
         const row = downloadsModel.get(index);
-        if (row.downloadState === WebEngineDownloadRequest.DownloadInProgress || row.downloadState === WebEngineDownloadRequest.DownloadRequested)
+        if (row.downloadState === 1 || row.downloadState === 0)
             row.downloadObj.cancel();
         else
             downloadsModel.remove(index);

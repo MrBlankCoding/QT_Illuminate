@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtWebEngine
 import QT_Illuminate.ui
 
 pragma ComponentBehavior: Bound
@@ -45,7 +44,7 @@ Item {
         onTriggered: tabSlot.discardable = true
     }
     property bool devToolsOpen: false
-    readonly property WebEngineView webView: webLoader.item as WebEngineView
+    readonly property CefBrowser webView: webLoader.item as CefBrowser
     onWebViewChanged: viewStack.refreshActiveWebView()
     // user could change this
     property string devToolsDock: "right"
@@ -109,61 +108,41 @@ Item {
         }
 
         sourceComponent: Component {
-            WebEngineView {
+            CefBrowser {
                 id: webView
                 anchors.fill: parent
 
                 // set once at creation; a profile switch replaces every tab
                 profile: Browser.webProfile
-                devToolsView: tabSlot.devToolsOpen ? devToolsLoader.item as WebEngineView : null
                 visible: tabSlot.index === Browser.tabModel.activeIndex
                 lifecycleState: webView.visible
-                    ? WebEngineView.LifecycleState.Active
-                    : (webView.recommendedState === WebEngineView.LifecycleState.Discarded
-                        ? (tabSlot.discardable ? WebEngineView.LifecycleState.Discarded : WebEngineView.LifecycleState.Frozen)
+                    ? CefBrowser.Active
+                    : (webView.recommendedState === CefBrowser.Discarded
+                        ? (tabSlot.discardable ? CefBrowser.Discarded : CefBrowser.Frozen)
                         : webView.recommendedState)
                 onLifecycleStateChanged: tabSlot.syncRenderPid()
-                onRenderProcessTerminated: tabSlot.syncRenderPid()
 
                 // avoids a white flash before the first paint
                 backgroundColor: Theme.bg
 
-                // gpu shit
-                userScripts.collection: [{
-                    name: "hide-webgpu",
-                    injectionPoint: WebEngineScript.DocumentCreation,
-                    worldId: WebEngineScript.MainWorld,
-                    runsOnSubFrames: true,
-                    sourceCode: "delete Navigator.prototype.gpu;"
-                }, {
-                    name: "pointer-lock-emulation",
-                    injectionPoint: WebEngineScript.DocumentCreation,
-                    worldId: WebEngineScript.MainWorld,
-                    runsOnSubFrames: false,
-                    sourceCode: tabSlot.pointerLockShimSource
-                }].concat(AdBlocker.cosmeticScript === "" ? [] : [{
-                    // ~13k generic selectors: parsing that into every ad iframe cost
-                    // more than it hid; site rules only ever reached the top frame
-                    name: "adblock-cosmetic",
-                    injectionPoint: WebEngineScript.DocumentCreation,
-                    worldId: WebEngineScript.ApplicationWorld,
-                    runsOnSubFrames: false,
-                    sourceCode: AdBlocker.cosmeticScript
-                }])
+                // JS injection: hide WebGPU and install pointer-lock shim
+                // CEF: scripts injected via CefBrowserWrapper on OnLoadStart
+                Component.onCompleted: {
+                    Logger.info("WebView", "Tab " + tabSlot.index + " created, url=" + tabSlot.model.url);
+                    // Inject scripts now that browser is ready
+                    webView.runJavaScript("delete Navigator.prototype.gpu;");
+                    webView.runJavaScript(tabSlot.pointerLockShimSource);
+                }
 
-                settings.dnsPrefetchEnabled: true
-                settings.scrollAnimatorEnabled: true
+                onLoadingChanged: function () {
+                    Browser.onLoadingChanged(tabSlot.index, webView.loading);
+                    tabSlot.syncRenderPid();
+                    if (webView.loading)
+                        Logger.info("WebView", "Tab " + tabSlot.index + " loading: " + webView.url);
+                }
 
-                onJavaScriptConsoleMessage: (level, message, lineNumber, sourceID) => {
+                onJavaScriptConsoleMessage: function (level, message, lineNumber, sourceId) {
                     const msg = String(message)
-                    if (msg.startsWith(AdBlocker.cosmeticMarker)) {
-                        const pageUrl = msg.slice(AdBlocker.cosmeticMarker.length)
-                        const host = new URL(pageUrl).hostname
-                        webView.runJavaScript("window.__illuminateAdblock && window.__illuminateAdblock.apply("
-                            + JSON.stringify(host) + ", " + AdBlocker.cosmeticFor(pageUrl) + ")",
-                            WebEngineScript.ApplicationWorld)
-                        return
-                    }
                     if (msg.startsWith(tabSlot.plockReqMarker)) {
                         tabSlot.pointerLocked = true
                         return
@@ -173,23 +152,12 @@ Item {
                         return
                     }
                     if (level === 0)
-                        return;
-                    const text = level + "/" + sourceID + ":" + lineNumber + " " + msg
-                    if (level >= 2)
+                        return
+                    const text = level + "/" + sourceId + ":" + lineNumber + " " + msg
+                    if (level >= 3)
                         Logger.error("WebView", text)
                     else
                         Logger.warning("WebView", text)
-                }
-
-                Component.onCompleted: {
-                    Logger.info("WebView", "Tab " + tabSlot.index + " created, url=" + tabSlot.model.url);
-                }
-
-                onLoadingChanged: function (loading) {
-                    Browser.onLoadingChanged(tabSlot.index, webView.loading);
-                    tabSlot.syncRenderPid();
-                    if (webView.loading)
-                        Logger.info("WebView", "Tab " + tabSlot.index + " loading: " + webView.url);
                 }
 
                 onUrlChanged: function () {
@@ -197,15 +165,13 @@ Item {
                     Logger.debug("WebView", "Tab " + tabSlot.index + " url → " + webView.url);
                 }
 
-                onLoadProgressChanged: Browser.onLoadProgressChanged(tabSlot.index, webView.loadProgress)
+                onLoadProgressChanged: function (p) { Browser.onLoadProgressChanged(tabSlot.index, p) }
                 onRenderProcessPidChanged: tabSlot.syncRenderPid()
                 onTitleChanged: Browser.onTitleChanged(tabSlot.index, webView.title)
                 onIconChanged: Browser.onIconUrlChanged(tabSlot.index, webView.icon.toString())
 
-                onNewWindowRequested: function (request) {
-                    // not calling request.openIn() leaves the request ignored;
-                    // the controller opens the url in a new tab instead
-                    Browser.onNewWindowRequested(tabSlot.index, request.requestedUrl.toString());
+                onNewWindowRequested: function (url) {
+                    Browser.onNewWindowRequested(tabSlot.index, url.toString());
                 }
 
                 // pages calling window.print() open the system print dialog
@@ -213,7 +179,6 @@ Item {
                 onPdfPrintingFinished: (filePath, success) => browserWindow.onPdfPrintingFinished(filePath, success)
 
                 onContextMenuRequested: function (request) {
-                    request.accepted = true;
                     contextMenu.request = request;
                     contextMenu.popup();
                 }
@@ -228,7 +193,7 @@ Item {
                     onToggleDevTools: tabSlot.devToolsOpen = !tabSlot.devToolsOpen
                     onInspectElement: {
                         tabSlot.devToolsOpen = true
-                        Qt.callLater(() => webView.triggerWebAction(WebEngineView.InspectElement))
+                        Qt.callLater(() => webView.triggerWebAction(CefBrowser.InspectElement))
                     }
                 }
 
@@ -279,32 +244,18 @@ Item {
         visible: tabSlot.devToolsOpen
 
         sourceComponent: Component {
-            WebEngineView {
-                id: devToolsView
+            // CEF: dev tools opened via CefBrowserHost::ShowDevTools() into a popup.
+            // The CefBrowser wrapper exposes showDevTools()/closeDevTools() called
+            // by devToolsOpen toggle; no separate embedded view needed here.
+            Item {
                 anchors.fill: parent
-                profile: Browser.webProfile
-                backgroundColor: Theme.bg
-
-                // the frontend's close (X) button asks its page to close
-                onWindowCloseRequested: tabSlot.devToolsOpen = false
-                userScripts.collection: [{
-                    name: "devtools-bridge",
-                    injectionPoint: WebEngineScript.DocumentCreation,
-                    worldId: WebEngineScript.MainWorld,
-                    sourceCode: tabSlot.readResource("qrc:/QT_Illuminate/ui/ui/resources/js/devtools-bridge.js")
-                        .replace("__ILLUMINATE_DOCK_MARKER__", tabSlot.devToolsDockMarker)
-                }]
-
-                onJavaScriptConsoleMessage: (level, message, lineNumber, sourceID) => {
-                    const msg = String(message)
-                    if (!msg.startsWith(tabSlot.devToolsDockMarker))
-                        return
-                    const side = msg.slice(tabSlot.devToolsDockMarker.length)
-                    // a separate devtools window isn't supported; keep it docked
-                    if (side === "left" || side === "bottom" || side === "right")
-                        tabSlot.devToolsDock = side
-                    else if (side === "undocked")
-                        tabSlot.devToolsDock = "right"
+                Component.onCompleted: {
+                    if (tabSlot.webView)
+                        tabSlot.webView.showDevTools()
+                }
+                Component.onDestruction: {
+                    if (tabSlot.webView)
+                        tabSlot.webView.closeDevTools()
                 }
             }
         }

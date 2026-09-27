@@ -12,7 +12,7 @@ Item {
         ZoomIndicator {}
     }
 
-    // stands in for WebEngineView: a plain JS object wouldn't notify the
+    // stands in for CefBrowser: a plain JS object wouldn't notify the
     // zoomPercent binding when zoomFactor changes
     Component {
         id: webViewStubComponent

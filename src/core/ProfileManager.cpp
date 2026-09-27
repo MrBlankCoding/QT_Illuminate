@@ -1,4 +1,5 @@
 #include "ProfileManager.h"
+#include "CefProfile.h"
 #include <QStandardPaths>
 #include <QDir>
 #include <QJsonDocument>
@@ -90,6 +91,9 @@ void ProfileManager::deleteProfile(const QString &id)
     QDir profileDir(profile->path());
     if (!profileDir.removeRecursively())
         qWarning() << "Failed to remove profile directory:" << profile->path();
+    QDir cefCacheDir(CefProfile::cachePathForProfile(id));
+    if (cefCacheDir.exists() && !cefCacheDir.removeRecursively())
+        qWarning() << "Failed to remove CEF cache directory:" << cefCacheDir.path();
     profile->deleteLater();
     saveProfiles();
     emit profilesChanged();

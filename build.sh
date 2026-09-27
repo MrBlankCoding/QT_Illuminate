@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+eval "$(/opt/homebrew/bin/brew shellenv zsh)"
 #
 # Usage:
 #   ./build.sh              # configure (if needed) + build
@@ -32,6 +33,9 @@ if [[ -z "${QT_ILLUMINATE_ROOT:-}" ]]; then
     exec bash "$_qt_snap" "$@"
 fi
 trap 'rm -f "${QT_ILLUMINATE_SNAPSHOT:-/dev/null}"' EXIT
+
+SCRIPT_DIR="${QT_ILLUMINATE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+BUILD_DIR="$SCRIPT_DIR/build"
 
 # ── detect OS ────────────────────────────────────────────────────────────────
 
@@ -200,12 +204,81 @@ clean_app_data() {
     fi
 }
 
-# ── Dependencies ─────────────────────────────────────────────────────────────
-qt_has_webengine() {
-    local prefix="$1" dir
-    for dir in "$prefix"/lib/cmake "$prefix"/lib64/cmake "$prefix"/lib/*/cmake; do
-        [[ -f "$dir/Qt6WebEngineQuick/Qt6WebEngineQuickConfig.cmake" ]] && return 0
+# ── Dependencies ─�────────────────────────────────────────────────────────────
+
+find_cef() {
+    local candidate
+
+    # 1. Explicit CEF_ROOT (env or cache)
+    if [[ -n "${CEF_ROOT:-}" ]]; then
+        [[ -d "$CEF_ROOT" ]] && { echo "$CEF_ROOT"; return 0; }
+    fi
+
+    # 2. CMake cache
+    if [[ -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+        candidate="$(sed -n 's/^CEF_ROOT:PATH=//p' "$BUILD_DIR/CMakeCache.txt" 2>/dev/null || true)"
+        [[ -n "$candidate" && -d "$candidate" ]] && { echo "$candidate"; return 0; }
+    fi
+
+    # 3. Standard install locations
+    for candidate in "$HOME/cef"/* "$HOME/cef" "$HOME/cef/latest" "/opt/cef" "/usr/local/cef"; do
+        if [[ -d "$candidate/include" ]] && { ls -d "$candidate"/Release/libcef* >/dev/null 2>&1 || ls -d "$candidate"/Release/*.framework >/dev/null 2>&1; }; then
+            echo "$candidate"
+            return 0
+        fi
     done
+
+    # 4. CMake prefix search result (set by find_cef_via_prefix below)
+    if [[ -n "${CEF_PREFIX:-}" ]] && [[ -d "${CEF_PREFIX:-}" ]]; then
+        echo "$CEF_PREFIX"
+        return 0
+    fi
+
+    return 1
+}
+
+# Try to locate CEF through cmake's find_package mechanism
+find_cef_via_prefix() {
+    local prefix candidates
+    # Collect candidate prefixes: CEF_ROOT dirs + common install paths
+    candidates=()
+    [[ -n "${CEF_ROOT:-}" ]] && candidates+=("$CEF_ROOT")
+    candidates+=("$HOME/cef" "/opt/cef" "/usr/local/cef")
+
+    for prefix in "${candidates[@]}"; do
+        [[ -d "$prefix" ]] || continue
+        # Quick check: CEF ships a cmake config under lib/
+        if ls "$prefix"/lib/cef_config.cmake* "$prefix"/lib/cmake/cef* 2>/dev/null | head -1 | grep -q .; then
+            echo "$prefix"
+            return 0
+        fi
+    done
+    return 1
+}
+
+qt_has_webengine() {
+    # CEF: no longer needed; kept as no-op so call sites don't break
+    return 0
+}
+
+maybe_install_cef() {
+    # Only auto-install if the install script exists and we're interactive
+    local script="$SCRIPT_DIR/install-cef.sh"
+    [[ -x "$script" ]] || script="${BASH_SOURCE[0]/build.sh/install-cef.sh}"
+    if [[ -x "$script" ]]; then
+        echo "→ CEF not found. Running installer ($script)…"
+        if "$script"; then
+            export CEF_ROOT
+            CEF_ROOT=""
+            # Re-detect after install
+            CEF_ROOT="$(find_cef || true)"
+            if [[ -n "$CEF_ROOT" ]]; then
+                echo "✓ CEF auto-installed at: $CEF_ROOT"
+                return 0
+            fi
+        fi
+    fi
+    echo "✗ Could not find or install CEF."
     return 1
 }
 
@@ -529,8 +602,21 @@ check_deps() {
     QT_PREFIX="$(find_qt)"
     if [[ -z "$QT_PREFIX" ]]; then
         MISSING+=("Qt 6")
-    elif ! qt_has_webengine "$QT_PREFIX"; then
-        MISSING+=("Qt WebEngine (Qt found at $QT_PREFIX)")
+    fi
+
+    # CEF — try to auto-install if missing
+    if CEF_ROOT="$(find_cef 2>/dev/null || true)" && [[ -n "$CEF_ROOT" ]]; then
+        export CEF_ROOT
+    else
+        CEF_PREFIX="$(find_cef_via_prefix 2>/dev/null || true)"
+        if [[ -n "$CEF_PREFIX" ]]; then
+            export CEF_ROOT="$CEF_PREFIX"
+            CEF_ROOT="$CEF_PREFIX"
+        elif maybe_install_cef; then
+            export CEF_ROOT
+        else
+            MISSING+=("CEF (Chromium Embedded Framework)")
+        fi
     fi
 }
 
@@ -543,16 +629,16 @@ if (( ${#MISSING[@]} )); then
     echo "  toolchain. Install the above yourself, then re-run:"
     if (( IS_MAC )); then
         echo "    • Xcode Command Line Tools — xcode-select --install"
-        echo "    • cmake and Qt 6 with WebEngine — brew install cmake qt"
-        echo "      or the Qt installer: https://www.qt.io/download-qt-installer"
+        echo "    • cmake and Qt 6 — brew install cmake qt"
+        echo "    • CEF binary distribution — set CEF_ROOT to the extracted path"
+        echo "      or install via: https://cef-builds.spotifycdn.com/"
     else
         echo "    • a C++ compiler, cmake and ninja from your distro's packages"
-        echo "    • Qt 6 with WebEngine, WebChannel and the QML modules"
-        echo "      (exact package names vary by distro — check your package"
-        echo "      manager, or use https://www.qt.io/download-qt-installer)"
+        echo "    • Qt 6 and the CEF binary distribution for your platform"
+        echo "      Set CEF_ROOT to the extracted CEF path before building."
     fi
     if [[ -n "$QT_PREFIX" ]]; then
-        echo "  (Qt was found at $QT_PREFIX, but its WebEngine module wasn't.)"
+        echo "  (Qt was found at $QT_PREFIX — ensure CEF_ROOT is also set.)"
     fi
     echo "  Qt installed somewhere nonstandard? Point QT_DIR at its prefix."
     exit 1
@@ -581,28 +667,43 @@ fi
 
 echo "→ Using Qt at: $QT_PREFIX"
 
+if [[ -n "${CEF_ROOT:-}" ]]; then
+    echo "→ Using CEF at: $CEF_ROOT"
+    export CEF_ROOT
+else
+    echo "✗ CEF_ROOT is not set and CEF was not found. Run ./install-cef.sh first."
+    exit 1
+fi
+
 # ── Configure ────────────────────────────────────────────────────────────────
 CONFIGURED_TYPE=""
 CONFIGURED_PREFIX=""
+CONFIGURED_CEF=""
 if [[ -f "$BUILD_DIR/CMakeCache.txt" ]]; then
     CONFIGURED_TYPE="$(sed -n 's/^CMAKE_BUILD_TYPE:[A-Z]*=//p' "$BUILD_DIR/CMakeCache.txt")"
     CONFIGURED_PREFIX="$(sed -n 's/^CMAKE_PREFIX_PATH:[A-Z]*=//p' "$BUILD_DIR/CMakeCache.txt")"
+    CONFIGURED_CEF="$(sed -n 's/^CEF_ROOT:PATH=//p' "$BUILD_DIR/CMakeCache.txt" 2>/dev/null || true)"
 fi
 
 if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]] || [[ "$CONFIGURED_TYPE" != "$BUILD_TYPE" ]] \
-        || [[ "$CONFIGURED_PREFIX" != "$QT_PREFIX" ]]; then
+        || [[ "$CONFIGURED_PREFIX" != "$QT_PREFIX" ]] \
+        || [[ "$CONFIGURED_CEF" != "$CEF_ROOT" ]]; then
     echo "→ Configuring ($BUILD_TYPE)…"
     if (( IS_LINUX )); then
         cmake -S "$SCRIPT_DIR" \
               -B "$BUILD_DIR"  \
               -G Ninja \
               -DCMAKE_PREFIX_PATH="$QT_PREFIX" \
+              -DCEF_ROOT="$CEF_ROOT" \
               -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
     else
         cmake -S "$SCRIPT_DIR" \
               -B "$BUILD_DIR"  \
               -DCMAKE_PREFIX_PATH="$QT_PREFIX" \
-              -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
+              -DCEF_ROOT="$CEF_ROOT" \
+              -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+              -DCMAKE_OSX_DEPLOYMENT_TARGET="27.0" \
+              -DCMAKE_OSX_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
     fi
 fi
 
@@ -627,11 +728,18 @@ clean_app_data
 
 [[ -n "$APP_BUNDLE" ]] && rm -rf "$APP_BUNDLE"
 
+export MACOSX_DEPLOYMENT_TARGET="27.0"
+export SDKROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+
+echo "MACOSX_DEPLOYMENT_TARGET: ${MACOSX_DEPLOYMENT_TARGET:-not set}"
+echo "SDKROOT: ${SDKROOT:-not set}"
+echo "TARGET_BUILD_DIR: ${TARGET_BUILD_DIR:-not set}"
+
 echo "→ Building…"
 cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --parallel "$(cpu_cores)"
 
 if (( IS_MAC )); then
-    if [[ -d "$APP_BUNDLE/Contents/Frameworks" ]] || [[ -d "$APP_BUNDLE/Contents/PlugIns" ]]; then
+    if [[ -d "$APP_BUNDLE/Contents/Frameworks/QtCore.framework" ]] || [[ -d "$APP_BUNDLE/Contents/PlugIns" ]]; then
         echo "→ Removing previously deployed Qt frameworks (dev bundle runs against dev Qt)…"
         rm -rf "$APP_BUNDLE"
         cmake --build "$BUILD_DIR" --target QT_Illuminate --config "$BUILD_TYPE" \
@@ -722,10 +830,16 @@ if (( DO_PACKAGE )); then
             echo "$BROKEN_LINKS" | head -10
             exit 1
         fi
-        [[ -d "$STAGED_APP/Contents/Frameworks/QtWebEngineCore.framework" ]] || {
-            echo "✗ Deployed bundle is missing QtWebEngineCore.framework"
+        [[ -f "$STAGED_APP/Contents/Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework" ]] || {
+            echo "✗ Deployed bundle is missing Chromium Embedded Framework.framework"
             exit 1
         }
+        for _helper in "" " (Alerts)" " (GPU)" " (Plugin)" " (Renderer)"; do
+            [[ -x "$STAGED_APP/Contents/Frameworks/QT_Illuminate Helper$_helper.app/Contents/MacOS/QT_Illuminate Helper$_helper" ]] || {
+                echo "✗ Deployed bundle is missing QT_Illuminate Helper$_helper.app"
+                exit 1
+            }
+        done
         [[ -f "$STAGED_APP/Contents/Resources/AppIcon.icns" ]] || {
             echo "✗ Deployed bundle is missing Contents/Resources/AppIcon.icns"
             exit 1
@@ -768,7 +882,7 @@ if (( DO_PACKAGE )); then
         tar -C "$STAGE_DIR" -czf "$TAR_PATH" usr
         rm -rf "$STAGE_DIR"
         echo "✓ Package: $TAR_PATH"
-        echo "  Extract to / (or a prefix) — requires the distro's Qt 6 WebEngine packages."
+        echo "  Extract to / (or a prefix) — requires libcef and its dependencies."
     fi
 fi
 
@@ -776,10 +890,9 @@ fi
 
 if (( DO_RUN )) && (( ! DO_DEV )); then
     echo "→ Launching ${APP_LABEL} (detached)…"
-    export QTWEBENGINE_DISABLE_SANDBOX=1
+    # CEF: --no-sandbox passed via CefManager; QTWEBENGINE_DISABLE_SANDBOX not needed
     if (( IS_MAC )); then
-        # open goes through launchd, which doesn't inherit our environment
-        open --env QTWEBENGINE_DISABLE_SANDBOX=1 "$APP_BUNDLE"
+        open "$APP_BUNDLE"
     else
         nohup "$APP_BINARY" >/dev/null 2>&1 &
         disown
@@ -805,8 +918,7 @@ if (( DO_DEV )); then
 
     echo "  Log file: $LOG_FILE"
 
-    # dev builds are unsigned; see the detached-run block above
-    export QTWEBENGINE_DISABLE_SANDBOX=1
+    # dev builds: CEF --no-sandbox is set via CefManager settings
     "$APP_BINARY" 2>&1 | tee -a "$LOG_FILE" &
     APP_PID=$!
     trap 'kill "$APP_PID" 2>/dev/null; exit 0' INT TERM

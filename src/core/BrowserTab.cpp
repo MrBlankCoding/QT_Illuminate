@@ -1,10 +1,11 @@
 #include "BrowserTab.h"
+#include "CefProfile.h"
 
-BrowserTab::BrowserTab(QQuickWebEngineProfile *profile, QObject *parent) : QObject(parent), m_webEngineProfile(profile)
+BrowserTab::BrowserTab(CefProfile *profile, QObject *parent) : QObject(parent), m_webEngineProfile(profile)
 {
 }
 
-QQuickWebEngineProfile *BrowserTab::webEngineProfile() const
+CefProfile *BrowserTab::webEngineProfile() const
 {
     return m_webEngineProfile;
 }

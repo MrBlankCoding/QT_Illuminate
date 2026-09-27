@@ -5,13 +5,16 @@
 #include <QString>
 #include <QVariantMap>
 
-#include "ChromeVersion.h"
+#include <include/cef_version.h>
 
+// the Chromium version bundled in the CEF build we compiled against
 inline QString chromiumVersion()
 {
-    return ChromeVersion::instance().latest();
+    return QStringLiteral("%1.%2.%3.%4")
+        .arg(CHROME_VERSION_MAJOR).arg(CHROME_VERSION_MINOR)
+        .arg(CHROME_VERSION_BUILD).arg(CHROME_VERSION_PATCH);
 }
-// web version
+
 inline QString chromeUserAgent()
 {
     const QString major = chromiumVersion().section('.', 0, 0);

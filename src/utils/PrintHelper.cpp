@@ -55,6 +55,6 @@ void PrintHelper::printPdf(const QString &filePath)
     }
     painter.end();
 
-    // the file only ever served as a bridge from WebEngine into this dialog
+    // the file only ever served as a bridge from CEF into this dialog
     QFile::remove(filePath);
 }

@@ -4,10 +4,10 @@
 #include <QSize>
 #include <QUrl>
 #include <QString>
-#include <QQuickWebEngineProfile>
 #include <QtQml/qqmlregistration.h>
 #include "TabModel.h"
 #include "Profile.h"
+#include "CefProfile.h"
 #include "../utils/ExternalQmlSingleton.h"
 #include "../utils/ColorExtractor.h"
 
@@ -34,7 +34,7 @@ class BrowserController : public QObject, public ExternalQmlSingleton<BrowserCon
     Q_PROPERTY(QString adaptiveAccentDark READ adaptiveAccentDark NOTIFY adaptivePaletteChanged)
     Q_PROPERTY(QString adaptiveAccentLight READ adaptiveAccentLight NOTIFY adaptivePaletteChanged)
     Q_PROPERTY(qreal backgroundLuminance READ backgroundLuminance NOTIFY adaptivePaletteChanged)
-    Q_PROPERTY(QQuickWebEngineProfile *webProfile READ webProfile NOTIFY webProfileChanged)
+    Q_PROPERTY(CefProfile *webProfile READ webProfile NOTIFY webProfileChanged)
 
 public:
     explicit BrowserController(Profile *profile, QObject *parent = nullptr);
@@ -55,7 +55,7 @@ public:
     QString adaptiveAccentDark() const;
     QString adaptiveAccentLight() const;
     qreal backgroundLuminance() const;
-    QQuickWebEngineProfile *webProfile() const;
+    CefProfile *webProfile() const;
 
     // user actions
     Q_INVOKABLE void newTab(const QString &url = {});
@@ -101,7 +101,7 @@ private:
 
     TabModel *m_model;
     Profile *m_profile;
-    QQuickWebEngineProfile *m_webEngineProfile;
+    CefProfile *m_webEngineProfile = nullptr;
     QObject *m_activeTabCtx = nullptr;
     ImagePalette m_palette;
     // bumped per extraction so a slow result for an old image is dropped

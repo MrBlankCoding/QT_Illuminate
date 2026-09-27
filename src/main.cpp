@@ -7,15 +7,13 @@
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QWindow>
-#include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
-#include "core/AdBlocker.h"
+#include "core/CefManager.h"
 #include "core/BrowserController.h"
 #include "core/PermissionHandler.h"
 #include "core/ProfileManager.h"
 #include "core/SystemInfo.h"
 #include "utils/BrowserLogger.h"
-#include "utils/ChromeVersion.h"
 
 #include <QByteArray>
 
@@ -132,26 +130,16 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 
 int main(int argc, char *argv[])
 {
+    // CEF sub-processes re-launch this binary on Windows/Linux; they must exit
+    // here before any Qt state (QApplication, logger, windows) is created
+    const int subprocessExitCode = CefManager::executeProcess(argc, argv);
+    if (subprocessExitCode >= 0)
+        return subprocessExitCode;
+
     // build chromium flags from detected hardware profile
     const QStringList flagsList = SystemInfo::instance()->chromiumFlags();
-    QByteArray flags;
-    for (const QString &flag : flagsList)
-    {
-        const QByteArray ba = flag.toUtf8();
-        if (!flags.isEmpty())
-            flags += ' ';
-        flags += ba;
-    }
+    CefManager::setChromiumFlags(flagsList);
 
-    const QByteArray existing = qgetenv("QTWEBENGINE_CHROMIUM_FLAGS");
-    if (!existing.isEmpty())
-    {
-        flags = existing + ' ' + flags;
-    }
-    qputenv("QTWEBENGINE_CHROMIUM_FLAGS", flags);
-
-    // webengine start before everyting
-    QtWebEngineQuick::initialize();
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
     if (!qEnvironmentVariableIsSet("QSG_ATLAS_WIDTH"))
         qputenv("QSG_ATLAS_WIDTH", "1024");
@@ -167,7 +155,10 @@ int main(int argc, char *argv[])
 #endif
 
     BrowserLogger::instance().installAsQtHandler();
-    ChromeVersion::instance().start();
+
+    // after QApplication: on macOS CEF hooks into Qt's NSApplication
+    if (!CefManager::initialize(argc, argv))
+        BrowserLogger::instance().error("Main", "CEF failed to initialize; web pages will not load");
 
     const QStringList launchUrls = urlsFromArguments(app.arguments());
     QLocalServer instanceServer;
@@ -177,13 +168,12 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    AdBlocker adBlocker(nullptr);
     ProfileManager profileManager(nullptr);
     PermissionHandler permissionHandler(nullptr);
 
     BrowserLogger::instance().info("Main", "QT_Illuminate starting up");
 
-    BrowserLogger::instance().info("Main", QString("Qt %1 — WebEngine ready").arg(qVersion()));
+    BrowserLogger::instance().info("Main", QString("Qt %1").arg(qVersion()));
     BrowserController controller(profileManager.activeProfile());
     QObject::connect(&profileManager, &ProfileManager::activeProfileChanged, &controller, [&]() {
         controller.setProfile(profileManager.activeProfile());
@@ -195,9 +185,10 @@ int main(int argc, char *argv[])
     for (const QString &url : launchUrls)
         controller.newTab(url);
 
-    // persist profiles session on exit
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, &controller, [&controller]() {
+    // persist profiles session on exit and shutdown CEF
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&controller]() {
         controller.saveSession();
+        CefManager::shutdown();
     });
     QQmlApplicationEngine engine;
     engine.addImportPath("qrc:/");
@@ -205,8 +196,9 @@ int main(int argc, char *argv[])
     // singletons
     BrowserController::setQmlInstance(&controller);
     ProfileManager::setQmlInstance(&profileManager);
-    AdBlocker::setQmlInstance(&adBlocker);
     PermissionHandler::setQmlInstance(&permissionHandler);
+    qmlRegisterSingletonType<PermissionHandler>("QT_Illuminate.ui", 1, 0, "DefaultBrowser", PermissionHandler::create);
+
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::warnings,

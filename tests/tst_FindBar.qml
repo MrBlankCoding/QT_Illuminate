@@ -70,7 +70,7 @@ Item {
             bar.webView = webView
             bar.search(false)
             compare(bar.hasSearched, false)
-            // findText("") is how QtWebEngine clears the previous highlights
+            // findText("") is how CEF clears the previous highlights
             compare(webView.findTextCount, 1)
             compare(webView.lastFindText, "")
         }

@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtWebEngine
 import QT_Illuminate.ui
 
 pragma ComponentBehavior: Bound
@@ -16,6 +15,39 @@ Window {
     color: Theme.bg
     readonly property bool frameless: Qt.platform.os !== "osx"
     flags: frameless ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
+
+    // HTML5 element fullscreen (e.g. YouTube): the page fills the whole screen
+    readonly property bool contentFullScreen: viewStack.activeWebView ? viewStack.activeWebView.fullScreen : false
+    property bool fullScreenForContent: false
+    property bool contentFullScreenShown: false
+    property int visibilityBeforeContentFullScreen: Window.Windowed
+
+    onContentFullScreenChanged: {
+        if (contentFullScreen) {
+            if (root.visibility !== Window.FullScreen) {
+                root.visibilityBeforeContentFullScreen = root.visibility;
+                root.fullScreenForContent = true;
+                root.showFullScreen();
+            }
+        } else if (root.fullScreenForContent) {
+            root.fullScreenForContent = false;
+            root.contentFullScreenShown = false;
+            if (root.visibilityBeforeContentFullScreen === Window.Maximized)
+                root.showMaximized();
+            else
+                root.showNormal();
+        }
+    }
+
+    onVisibilityChanged: {
+        if (!root.contentFullScreen)
+            return;
+        if (root.visibility === Window.FullScreen)
+            root.contentFullScreenShown = true;
+        else if (root.contentFullScreenShown && viewStack.activeWebView)
+            // user left macOS fullscreen (green button, Ctrl+Cmd+F): end the page's too
+            viewStack.activeWebView.exitFullScreen();
+    }
 
     function switchProfile(profile) {
         if (!profile)
@@ -95,6 +127,7 @@ Window {
         TabBar {
             id: tabBar
             Layout.fillWidth: true
+            visible: !root.contentFullScreen
         }
 
         // toolbar
@@ -102,6 +135,7 @@ Window {
             id: toolbar
             Layout.fillWidth: true
             z: 100
+            visible: !root.contentFullScreen
 
             currentUrl: Browser.activeUrl === "newtab://newtab" ? "" : Browser.activeUrl
             currentTitle: Browser.activeTitle
@@ -126,7 +160,7 @@ Window {
         BookmarksBar {
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
-            visible: Bookmarks.count > 0 && Browser.activeUrl === "newtab://newtab"
+            visible: !root.contentFullScreen && Bookmarks.count > 0 && Browser.activeUrl === "newtab://newtab"
         }
 
         // content area
@@ -134,11 +168,15 @@ Window {
             id: viewStack
             Layout.fillWidth: true
             Layout.fillHeight: true
-            property WebEngineView activeWebView: null
+            property CefBrowser activeWebView: null
 
             function refreshActiveWebView() {
                 const tab = viewRepeater.itemAt(Browser.tabModel.activeIndex) as TabSlot;
-                viewStack.activeWebView = tab ? tab.webView : null;
+                const next = tab ? tab.webView : null;
+                // a background tab can't stay fullscreen
+                if (viewStack.activeWebView && viewStack.activeWebView !== next && viewStack.activeWebView.fullScreen)
+                    viewStack.activeWebView.exitFullScreen();
+                viewStack.activeWebView = next;
             }
 
             Component.onCompleted: Qt.callLater(viewStack.refreshActiveWebView)

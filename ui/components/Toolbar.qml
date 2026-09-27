@@ -538,57 +538,6 @@ onActiveFocusChanged: {
 
                     MenuSeparator {}
 
-                    Menu {
-                        id: adBlockMenu
-                        title: "Ad Blocker"
-                        popupType: Popup.Native
-
-                        // "example.com" for the current page; empty on internal pages
-                        readonly property string site: root.currentUrl.startsWith("http") ? AdBlocker.siteKey(root.currentUrl) : ""
-                        readonly property bool siteAllowed: site !== "" && AdBlocker.allowedSites.indexOf(site) >= 0
-
-                        MenuItem {
-                            enabled: false
-                            text: AdBlocker.ruleCount > 0
-                                ? AdBlocker.blockedCount.toLocaleString(Qt.locale(), "f", 0) + " blocked · "
-                                    + AdBlocker.ruleCount.toLocaleString(Qt.locale(), "f", 0) + " filter rules"
-                                : (AdBlocker.updating ? "Downloading filter lists…" : "No filter lists yet")
-                        }
-
-                        MenuSeparator {}
-
-                        MenuItem {
-                            text: AdBlocker.enabled ? "Turn Off Ad Blocking" : "Turn On Ad Blocking"
-                            onTriggered: {
-                                AdBlocker.enabled = !AdBlocker.enabled;
-                                Browser.reload();
-                            }
-                        }
-                        MenuItem {
-                            text: adBlockMenu.site === "" ? "Allow Ads on This Site"
-                                : (adBlockMenu.siteAllowed ? "Block Ads on " : "Allow Ads on ") + adBlockMenu.site
-                            enabled: AdBlocker.enabled && adBlockMenu.site !== ""
-                            onTriggered: {
-                                AdBlocker.setSiteAllowed(root.currentUrl, !adBlockMenu.siteAllowed);
-                                Browser.reload();
-                            }
-                        }
-
-                        MenuSeparator {}
-
-                        MenuItem {
-                            text: AdBlocker.updating ? "Updating Filters…" : "Update Filters"
-                            enabled: !AdBlocker.updating
-                            onTriggered: AdBlocker.updateFilters()
-                        }
-                        MenuItem {
-                            text: "Edit My Filters…"
-                            onTriggered: AdBlocker.editCustomFilters()
-                        }
-                    }
-
-                    MenuSeparator {}
-
                     MenuItem {
                         text: "Developer Tools"
                         onTriggered: Browser.toggleDevTools()

@@ -1,12 +1,12 @@
 import QtQuick
 import QtQuick.Controls
-import QtWebEngine
+import QT_Illuminate.ui
 
 Menu {
     id: root
     popupType: Popup.Native
 
-    property WebEngineView webView: null
+    property CefBrowser webView: null
     property var request: null
 
     signal toggleDevTools
@@ -30,35 +30,35 @@ Menu {
     MenuItem {
         text: "Copy Link"
         visible: root.request && root.request.linkUrl.toString() !== ""
-        onTriggered: root.webView.triggerWebAction(WebEngineView.CopyLinkToClipboard)
+        onTriggered: root.webView.triggerWebAction(CefBrowser.CopyLinkToClipboard)
     }
     MenuItem {
         // rename based on what was clicked
         // this allows for downloads to be specific
         // download image etc
-        readonly property int mediaType: root.request ? root.request.mediaType : ContextMenuRequest.MediaTypeNone
+        readonly property int mediaType: root.request ? root.request.mediaType : 0
         readonly property bool hasLink: root.request && root.request.linkUrl.toString() !== ""
 
-        text: mediaType === ContextMenuRequest.MediaTypeImage ? "Download Image" : mediaType === ContextMenuRequest.MediaTypeVideo ? "Download Video" : mediaType === ContextMenuRequest.MediaTypeAudio ? "Download Audio" : "Download Link"
-        visible: mediaType === ContextMenuRequest.MediaTypeImage || mediaType === ContextMenuRequest.MediaTypeVideo || mediaType === ContextMenuRequest.MediaTypeAudio || hasLink
+        text: mediaType === 1 ? "Download Image" : mediaType === 2 ? "Download Video" : mediaType === 3 ? "Download Audio" : "Download Link"
+        visible: mediaType === 1 || mediaType === 2 || mediaType === 3 || hasLink
         onTriggered: {
-            if (mediaType === ContextMenuRequest.MediaTypeImage)
-                root.webView.triggerWebAction(WebEngineView.DownloadImageToDisk);
-            else if (mediaType === ContextMenuRequest.MediaTypeVideo || mediaType === ContextMenuRequest.MediaTypeAudio)
-                root.webView.triggerWebAction(WebEngineView.DownloadMediaToDisk);
+            if (mediaType === 1)
+                root.webView.triggerWebAction(CefBrowser.DownloadImageToDisk);
+            else if (mediaType === 2 || mediaType === 3)
+                root.webView.triggerWebAction(CefBrowser.DownloadMediaToDisk);
             else
-                root.webView.triggerWebAction(WebEngineView.DownloadLinkToDisk);
+                root.webView.triggerWebAction(CefBrowser.DownloadLinkToDisk);
         }
     }
     MenuItem {
         text: "Copy"
         visible: root.request && root.request.selectedText !== ""
-        onTriggered: root.webView.triggerWebAction(WebEngineView.Copy)
+        onTriggered: root.webView.triggerWebAction(CefBrowser.Copy)
     }
     MenuItem {
         text: "Paste"
         visible: root.request && root.request.isContentEditable
-        onTriggered: root.webView.triggerWebAction(WebEngineView.Paste)
+        onTriggered: root.webView.triggerWebAction(CefBrowser.Paste)
     }
     MenuSeparator {}
 

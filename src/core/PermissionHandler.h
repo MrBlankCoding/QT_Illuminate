@@ -3,10 +3,11 @@
 #include <QObject>
 #include <QUrl>
 #include <QVariantList>
-#include <QWebEnginePermission>
 #include <QtQml/qqmlregistration.h>
 #include "utils/ExternalQmlSingleton.h"
 
+// CEF: Replaced QWebEnginePermission with custom PermissionType enum
+// preserving exact integer values for QSettings compatibility.
 class QSettings;
 class PermissionHandler : public QObject, public ExternalQmlSingleton<PermissionHandler>
 {
@@ -22,6 +23,21 @@ public:
     enum Decision { Deny = -1, Ask = 0, Allow = 1 };
     Q_ENUM(Decision)
 
+    enum PermissionType {
+        Unsupported = 0,
+        MediaAudioCapture = 1,
+        MediaVideoCapture = 2,
+        MediaAudioVideoCapture = 3,
+        DesktopVideoCapture = 4,
+        DesktopAudioVideoCapture = 5,
+        MouseLock = 6,
+        Notifications = 7,
+        Geolocation = 8,
+        ClipboardReadWrite = 9,
+        LocalFontsAccess = 10,
+    };
+    Q_ENUM(PermissionType)
+
     enum SystemResource { Camera, Microphone, Location, ScreenCapture }; // could be more
     Q_ENUM(SystemResource)
 
@@ -31,8 +47,10 @@ public:
     explicit PermissionHandler(QObject *parent);
 
     // ── site permissions ────────────────────────────────────────────
-    Q_INVOKABLE bool resolve(QWebEnginePermission permission) const;
-    Q_INVOKABLE void respond(QWebEnginePermission permission, bool allow, bool remember);
+    Q_INVOKABLE bool resolve(QObject *permission) const;
+    Q_INVOKABLE bool resolve(const QUrl &origin, int type) const;
+    Q_INVOKABLE void respond(QObject *permission, bool allow, bool remember);
+    Q_INVOKABLE void respond(const QUrl &origin, int type, bool allow, bool remember);
 
     Q_INVOKABLE int decision(const QUrl &origin, int type) const;
     Q_INVOKABLE void storeDecision(const QUrl &origin, int type, bool allow, bool remember);
@@ -66,7 +84,7 @@ signals:
     void defaultBrowserFailed(const QString &message);
 
 private:
-    static QWebEnginePermission::PermissionType toType(int v);
+    static PermissionType toType(int v);
     static QList<SystemResource> resourcesForType(int type);
     QString key(const QUrl &origin, int type) const;
 

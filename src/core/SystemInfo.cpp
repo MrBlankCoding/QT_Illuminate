@@ -158,6 +158,13 @@ void SystemInfo::detectHardware()
     // disk cache limit (MB -> bytes)
     flags << "--disk-cache-size=" + QString::number(m_httpCacheLimitMB * 1024 * 1024);
 
+    // third-party cookie handling: Chromium 138 blocks third-party cookies in
+    // some modes by default. Allow them so embedded logins (Google SSO, OAuth)
+    // that depend on cross-site cookies work across the whole browser.
+    // Disable the ThirdPartyCookieBlocking and ThirdPartyCookieBlockingOnStartup
+    // features explicitly (no-op on builds without them).
+    flags << "--disable-features=ThirdPartyCookieBlocking,ThirdPartyCookieBlockingOnStartup";
+
     m_chromiumFlags = flags;
 
     // emit signals

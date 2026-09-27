@@ -1,12 +1,10 @@
 #pragma once
 
 #include <QObject>
-#include <QQuickWebEngineProfile>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
 
-// ask 
-// need a more graceful way
+// CEF: PointerLock permission shim stub. WebEngine private API hack removed.
 class PointerLockPermission : public QObject
 {
     Q_OBJECT
@@ -16,5 +14,5 @@ class PointerLockPermission : public QObject
 public:
     using QObject::QObject;
 
-    Q_INVOKABLE void allow(QQuickWebEngineProfile *profile, const QUrl &origin);
+    Q_INVOKABLE void allow(QObject *profile, const QUrl &origin);
 };

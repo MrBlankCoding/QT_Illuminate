@@ -10,8 +10,6 @@ target_link_libraries(tst_qmltests PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::QuickTest
-    Qt6::WebEngineQuick
-    Qt6::WebEngineCore
     QT_Illuminatemodule
     QT_Illuminatemoduleplugin
 )
@@ -25,5 +23,18 @@ target_link_libraries(tst_colorextractor PRIVATE Qt6::Test QT_Illuminatemodule)
 add_test(NAME tst_colorextractor COMMAND tst_colorextractor)
 
 qt_add_executable(tst_permissionhandler tst_PermissionHandler.cpp)
-target_link_libraries(tst_permissionhandler PRIVATE Qt6::Test QT_Illuminatemodule Qt6::WebEngineCore)
+target_link_libraries(tst_permissionhandler PRIVATE Qt6::Test QT_Illuminatemodule)
 add_test(NAME tst_permissionhandler COMMAND tst_permissionhandler)
+
+if(APPLE AND CEF_FOUND)
+    # Link tests against CEF framework directly from CEF release directory
+    foreach(_test_target tst_qmltests tst_colorextractor tst_permissionhandler)
+        add_custom_command(TARGET ${_test_target} POST_BUILD
+            COMMAND install_name_tool -change
+                "@executable_path/../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework"
+                "${CEF_BINARY_DIR_RELEASE}/Chromium Embedded Framework.framework/Chromium Embedded Framework"
+                "$<TARGET_FILE:${_test_target}>"
+            COMMENT "Updating CEF library path for ${_test_target}"
+        )
+    endforeach()
+endif()

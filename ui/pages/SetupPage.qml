@@ -361,42 +361,6 @@ Item {
                         }
                     }
                 }
-
-                ColumnLayout {
-                    spacing: 8
-
-                    Text {
-                        text: "Ads"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textMuted
-                    }
-
-                    Row {
-                        spacing: 14
-
-                        PillButton {
-                            id: adblockBtn
-                            text: AdBlocker.enabled ? "Ads blocked" : "Block ads"
-                            textColor: AdBlocker.enabled ? Theme.onAccent : Theme.text
-                            fillColor: AdBlocker.enabled ? Theme.accent : Theme.surface
-                            hoverFillColor: AdBlocker.enabled ? Qt.darker(Theme.accent, 1.1) : Theme.surfaceHigh
-                            onClicked: AdBlocker.enabled = !AdBlocker.enabled
-                        }
-
-                        Text {
-                            anchors.verticalCenter: adblockBtn.verticalCenter
-                            text: AdBlocker.updating
-                                  ? "Updating…"
-                                  : (AdBlocker.ruleCount > 0
-                                     ? AdBlocker.ruleCount.toLocaleString(Qt.locale(), "f", 0) + " filter rules"
-                                     : "Lists not downloaded yet")
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeS
-                            color: Theme.textMuted
-                        }
-                    }
-                }
                 Item { Layout.fillHeight: true }
             }
 

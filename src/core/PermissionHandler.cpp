@@ -48,9 +48,9 @@ PermissionHandler::PermissionHandler(QObject *parent)
 
 // ── site permissions ────────────────────────────────────────────────
 
-QWebEnginePermission::PermissionType PermissionHandler::toType(int v)
+PermissionHandler::PermissionType PermissionHandler::toType(int v)
 {
-    return static_cast<QWebEnginePermission::PermissionType>(v);
+    return static_cast<PermissionHandler::PermissionType>(v);
 }
 
 QString PermissionHandler::key(const QUrl &origin, int type) const
@@ -60,7 +60,7 @@ QString PermissionHandler::key(const QUrl &origin, int type) const
 
 QString PermissionHandler::labelForType(int type) const
 {
-    using T = QWebEnginePermission::PermissionType;
+    using T = PermissionType;
     switch (toType(type)) {
     case T::MediaAudioCapture:        return QStringLiteral("Microphone");
     case T::MediaVideoCapture:        return QStringLiteral("Camera");
@@ -77,23 +77,47 @@ QString PermissionHandler::labelForType(int type) const
     }
 }
 
-bool PermissionHandler::resolve(QWebEnginePermission permission) const
+bool PermissionHandler::resolve(const QUrl &origin, int type) const
 {
-    const int type = static_cast<int>(permission.permissionType());
-    switch (decision(permission.origin(), type)) {
-    case Allow: permission.grant(); return true;
-    case Deny:  permission.deny();  return true;
-    default:    return false;
-    }
+    const int dec = decision(origin, type);
+    return (dec != Ask);
 }
 
-void PermissionHandler::respond(QWebEnginePermission permission, bool allow, bool remember)
+bool PermissionHandler::resolve(QObject *permission) const
 {
+    if (!permission)
+        return false;
+    const QUrl origin = permission->property("origin").toUrl();
+    const int type = permission->property("permissionType").toInt();
+    const int dec = decision(origin, type);
+    if (dec == Allow) {
+        QMetaObject::invokeMethod(permission, "grant");
+        return true;
+    }
+    if (dec == Deny) {
+        QMetaObject::invokeMethod(permission, "deny");
+        return true;
+    }
+    return false;
+}
+
+void PermissionHandler::respond(const QUrl &origin, int type, bool allow, bool remember)
+{
+    storeDecision(origin, type, allow, remember);
+}
+
+void PermissionHandler::respond(QObject *permission, bool allow, bool remember)
+{
+    if (!permission)
+        return;
     if (allow)
-        permission.grant();
+        QMetaObject::invokeMethod(permission, "grant");
     else
-        permission.deny();
-    storeDecision(permission.origin(), static_cast<int>(permission.permissionType()), allow, remember);
+        QMetaObject::invokeMethod(permission, "deny");
+
+    const QUrl origin = permission->property("origin").toUrl();
+    const int type = permission->property("permissionType").toInt();
+    storeDecision(origin, type, allow, remember);
 }
 
 int PermissionHandler::decision(const QUrl &origin, int type) const
@@ -154,7 +178,7 @@ QVariantList PermissionHandler::rememberedDecisions() const
 
 QList<PermissionHandler::SystemResource> PermissionHandler::resourcesForType(int type)
 {
-    using T = QWebEnginePermission::PermissionType;
+    using T = PermissionType;
     switch (toType(type)) {
     case T::MediaAudioCapture:        return {Microphone};
     case T::MediaVideoCapture:        return {Camera};
@@ -396,7 +420,7 @@ void PermissionHandler::platformMakeDefaultBrowser()
     QSettings caps(QStringLiteral("HKEY_CURRENT_USER\\Software\\") + kAppName + QStringLiteral("\\Capabilities"),
                    QSettings::NativeFormat);
     caps.setValue(QStringLiteral("ApplicationName"), kAppName);
-    caps.setValue(QStringLiteral("ApplicationDescription"), QStringLiteral("A Qt WebEngine browser"));
+    caps.setValue(QStringLiteral("ApplicationDescription"), QStringLiteral("A Chromium Embedded browser"));
     caps.setValue(QStringLiteral("URLAssociations/http"), kProgId);
     caps.setValue(QStringLiteral("URLAssociations/https"), kProgId);
 

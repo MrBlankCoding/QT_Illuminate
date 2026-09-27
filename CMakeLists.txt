@@ -1,11 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
 project(QT_Illuminate VERSION 1.0.0 LANGUAGES CXX)
 
+set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0")
+
 if(APPLE)
     enable_language(OBJCXX)
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -14,12 +16,50 @@ include(CTest)
 
 find_package(Qt6 REQUIRED COMPONENTS
     Core Gui Network Qml Quick QuickControls2 Concurrent
-    WebEngineQuick WebEngineCore WebChannel WebChannelQuick
     Widgets PrintSupport Pdf
 )
 
-set(QT_NO_PRIVATE_MODULE_WARNING ON)
-find_package(Qt6 REQUIRED COMPONENTS WebEngineCorePrivate WebEngineQuickPrivate)
+# CEF configuration
+# CEF ships a CMake Find module (FindCEF.cmake), NOT a CONFIG file, so we
+# must use MODULE mode.  CEF_ROOT points at the extracted cef_binary_* dir.
+if(DEFINED ENV{CEF_ROOT})
+    set(CEF_ROOT $ENV{CEF_ROOT})
+elseif(DEFINED CEF_ROOT)
+    # Accept -DCEF_ROOT=<path> from the command line
+endif()
+
+if(CEF_ROOT)
+    list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
+    set(CEF_DIR "${CEF_ROOT}")
+    find_package(CEF REQUIRED)
+    set(CEF_FOUND ON)
+endif()
+
+if(CEF_FOUND)
+    # Compile libcef_dll_wrapper from CEF's own sources.
+    add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper)
+
+    # CEF: Unified imported target for the CEF library + include paths.
+    if(OS_MAC)
+        # macOS: CEF ships as the "Chromium Embedded Framework" framework.
+        set(_CEF_FW_PATH "${CEF_BINARY_DIR_RELEASE}/Chromium Embedded Framework.framework")
+        add_library(cef::cef UNKNOWN IMPORTED)
+        set_target_properties(cef::cef PROPERTIES
+            IMPORTED_LOCATION "${_CEF_FW_PATH}/Chromium Embedded Framework"
+            INTERFACE_INCLUDE_DIRECTORIES "${CEF_INCLUDE_PATH}"
+        )
+        set_property(TARGET cef::cef APPEND PROPERTY
+            INTERFACE_LINK_OPTIONS "-F${CEF_BINARY_DIR_RELEASE}")
+        list(APPEND CEF_FRAMEWORK_LIBS "Chromium Embedded Framework")
+    else()
+        # Linux: libcef.so (or .a depending on CEF_LIBTYPE)
+        ADD_LOGICAL_TARGET(libcef "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
+        add_library(cef::cef ALIAS libcef)
+    endif()
+
+    # On macOS, the framework will be copied into the app bundle by the
+    # POST_BUILD custom command on QT_Illuminate below.
+endif()
 
 qt_standard_project_setup()
 qt_policy(SET QTP0004 NEW)
@@ -36,11 +76,77 @@ target_link_libraries(QT_Illuminate PRIVATE
     Qt6::Network
     Qt6::Qml
     Qt6::Quick
-    Qt6::WebEngineQuick
-    Qt6::WebEngineCore
+    Qt6::Widgets
     QT_Illuminatemodule
     QT_Illuminatemoduleplugin
 )
+
+if(TARGET cef::cef)
+    target_link_libraries(QT_Illuminate PRIVATE cef::cef libcef_dll_wrapper)
+endif()
+
+if(OS_MAC AND CEF_FOUND)
+    set_target_properties(QT_Illuminate PROPERTIES
+        BUILD_RPATH "@executable_path/../Frameworks"
+        INSTALL_RPATH "@executable_path/../Frameworks"
+    )
+    # Copy the CEF framework into the bundle at build time with proper macOS
+    # framework structure (Versions/A symlinks) as expected by CEF's runtime.
+    add_custom_command(TARGET QT_Illuminate POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CEF_BINARY_DIR_RELEASE}/Chromium Embedded Framework.framework"
+            "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Versions/A"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Versions"
+        COMMAND ln -sf "A" "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Versions/Current"
+        COMMAND ln -sf "Versions/A/Chromium Embedded Framework" "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework"
+        COMMAND ln -sf "Versions/A/Libraries" "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Libraries"
+        COMMAND ln -sf "Versions/A/Resources" "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Resources"
+        COMMAND ln -sf "Versions/A/Info.plist" "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Info.plist"
+        COMMENT "Copying Chromium Embedded Framework.framework into the bundle with proper structure"
+    )
+    # On macOS, CEF resources live inside Chromium Embedded Framework.framework/Resources.
+    # Non-macOS platforms copy them directly from CEF_BINARY_DIR_RELEASE.
+
+    # CEF sub-processes (renderer, GPU, ...) run from separate helper bundles that
+    # CEF looks up at Contents/Frameworks/<app> Helper<suffix>.app.
+    foreach(_suffix_list ${CEF_HELPER_APP_SUFFIXES})
+        string(REPLACE ":" ";" _suffix_list ${_suffix_list})
+        list(GET _suffix_list 0 _name_suffix)
+        list(GET _suffix_list 1 _target_suffix)
+        list(GET _suffix_list 2 _plist_suffix)
+
+        set(_helper_target "QT_Illuminate_Helper${_target_suffix}")
+        set(_helper_output_name "QT_Illuminate Helper${_name_suffix}")
+
+        set(_helper_info_plist "${CMAKE_CURRENT_BINARY_DIR}/helper-Info${_target_suffix}.plist")
+        file(READ "${CMAKE_CURRENT_SOURCE_DIR}/packaging/helper-Info.plist.in" _plist_contents)
+        string(REPLACE "\${EXECUTABLE_NAME}" "${_helper_output_name}" _plist_contents "${_plist_contents}")
+        string(REPLACE "\${BUNDLE_ID_SUFFIX}" "${_plist_suffix}" _plist_contents "${_plist_contents}")
+        string(REPLACE "\${VERSION}" "${PROJECT_VERSION}" _plist_contents "${_plist_contents}")
+        file(WRITE "${_helper_info_plist}" "${_plist_contents}")
+
+        add_executable(${_helper_target} MACOSX_BUNDLE src/cef_helper/process_helper_mac.cpp)
+        target_include_directories(${_helper_target} PRIVATE "${CEF_INCLUDE_PATH}")
+        target_link_libraries(${_helper_target} PRIVATE libcef_dll_wrapper "-framework Cocoa")
+        set_target_properties(${_helper_target} PROPERTIES
+            AUTOMOC OFF
+            OUTPUT_NAME "${_helper_output_name}"
+            MACOSX_BUNDLE_INFO_PLIST "${_helper_info_plist}"
+        )
+
+        add_dependencies(QT_Illuminate ${_helper_target})
+        add_custom_command(TARGET QT_Illuminate POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E rm -rf
+                "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/${_helper_output_name}.app"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "$<TARGET_BUNDLE_DIR:${_helper_target}>"
+                "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/${_helper_output_name}.app"
+            COMMENT "Copying ${_helper_output_name}.app into the bundle"
+            VERBATIM
+        )
+    endforeach()
+endif()
 
 set_target_properties(QT_Illuminate PROPERTIES
     WIN32_EXECUTABLE TRUE
@@ -71,10 +177,6 @@ endif()
 set_source_files_properties(ui/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_library(QT_Illuminatemodule STATIC
-    src/core/AdBlockEngine.h
-    src/core/AdBlockEngine.cpp
-    src/core/AdBlocker.h
-    src/core/AdBlocker.cpp
     src/core/BrowserTab.h
     src/core/BrowserTab.cpp
     src/core/TabModel.h
@@ -95,7 +197,34 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/ProfileManager.cpp
     src/core/SystemInfo.h
     src/core/SystemInfo.cpp
+    src/core/CefManager.h
+    src/core/CefManager.cpp
+    src/core/CefBrowserWrapper.h
+    src/core/CefBrowserWrapper.cpp
+    src/core/CefProfile.h
+    src/core/CefProfile.cpp
+    src/core/CefDownloadWrapper.h
+    src/core/CefDownloadWrapper.cpp
+    src/core/CefLoadHandler.h
+    src/core/CefLoadHandler.cpp
+    src/core/CefDisplayHandler.h
+    src/core/CefDisplayHandler.cpp
+    src/core/CefContextMenuHandler.h
+    src/core/CefContextMenuHandler.cpp
+    src/core/CefDownloadHandler.h
+    src/core/CefDownloadHandler.cpp
+    src/core/CefFindHandler.h
+    src/core/CefFindHandler.cpp
+    src/core/CefPermissionHandler.h
+    src/core/CefPermissionHandler.cpp
+    src/core/CefRequestHandler.h
+    src/core/CefRequestHandler.cpp
+    src/core/CefTabClient.h
+    src/core/CefTabClient.cpp
+    src/core/CefQuickItem.h
+    src/core/CefQuickItem.cpp
 
+    src/utils/cef_helpers.h
     src/utils/UrlResolver.h
     src/utils/UrlResolver.cpp
     src/utils/BrowserLogger.h
@@ -109,8 +238,6 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/utils/PointerLockEmulation.h
     src/utils/PrintHelper.h
     src/utils/PrintHelper.cpp
-    src/utils/ChromeVersion.h
-    src/utils/ChromeVersion.cpp
     src/utils/WebVersion.h
     src/utils/WindowRounding.h
     src/utils/WindowHelper.h
@@ -121,9 +248,10 @@ if(APPLE)
     target_sources(QT_Illuminatemodule PRIVATE src/utils/WindowRounding_mac.mm)
     target_sources(QT_Illuminatemodule PRIVATE src/utils/PointerLockEmulation.mm)
     target_sources(QT_Illuminatemodule PRIVATE src/core/PermissionHandler_mac.mm)
+    target_sources(QT_Illuminatemodule PRIVATE src/core/CefManager_mac.mm src/core/CefBrowserWrapper_mac.mm)
     set_source_files_properties(src/utils/PointerLockEmulation.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_link_libraries(QT_Illuminatemodule PRIVATE
-        "-framework Cocoa" "-framework AVFoundation" "-framework CoreLocation")
+        "-framework Cocoa" "-framework AppKit" "-framework AVFoundation" "-framework CoreLocation" "-framework IOSurface")
 else()
     # generic Qt event-filter/cursor-warp pointer lock for Linux and Windows
     target_sources(QT_Illuminatemodule PRIVATE src/utils/PointerLockEmulation.cpp)
@@ -147,24 +275,20 @@ target_link_libraries(QT_Illuminatemodule PUBLIC
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
-    Qt6::WebEngineQuick
-    Qt6::WebEngineCore
-    Qt6::WebChannel
-    Qt6::WebChannelQuick
     Qt6::Widgets
     Qt6::PrintSupport
     Qt6::Pdf
-PRIVATE
-    Qt6::WebEngineCorePrivate
-    Qt6::WebEngineQuickPrivate
 )
+
+if(TARGET cef::cef)
+    target_link_libraries(QT_Illuminatemodule PUBLIC cef::cef libcef_dll_wrapper)
+endif()
 
 qt_add_qml_module(QT_Illuminatemodule
     URI QT_Illuminate.ui
     VERSION 1.0
     RESOURCE_PREFIX /
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/qml/QT_Illuminate/ui"
-    DEPENDENCIES QtWebEngine
     QML_FILES
         ui/Theme.qml
         ui/pages/BrowserWindow.qml
