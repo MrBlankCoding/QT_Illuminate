@@ -10,11 +10,6 @@ class CefProfile;
 class Profile;
 class QSettings;
 
-// Preferences the settings window edits. Which store a value lands in follows
-// what it affects: per-profile values (startup, search, cookies, tab unloading)
-// go in the profile's settings.ini next to its session.json, because the cookie
-// store and the session they describe are per profile. App-wide values go in
-// the platform preferences.
 class BrowserSettings : public QObject, public ExternalQmlSingleton<BrowserSettings>
 {
     Q_DISABLE_COPY_MOVE(BrowserSettings)

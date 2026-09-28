@@ -1,8 +1,3 @@
-// Threading model: on Windows/Linux CEF runs its UI message loop on its own
-// thread (multi_threaded_message_loop). macOS does not support that, so there
-// CEF's UI thread is the Qt main thread and work is pumped from Qt's event loop
-// via OnScheduleMessagePumpWork (external_message_pump).
-
 #include "CefManager.h"
 #include "../utils/cef_helpers.h"
 #include "../utils/BrowserLogger.h"
@@ -162,19 +157,19 @@ void CefManager::closeAllBrowsers()
 
 void CefManager::shutdown()
 {
-    if (instance().m_initialized)
-    {
-        CefManager &self = instance();
-        self.m_shuttingDown = true;
-        if (self.m_pumpTimer)
-            self.m_pumpTimer->stop();
-        self.closeAllBrowsers();
-        // request contexts hold CEF refs that must go before CefShutdown
-        CefProfile::releaseAllRequestContexts();
-        CefShutdown();
-        instance().m_initialized = false;
-        BrowserLogger::instance().info("CEF", "CEF shutdown complete");
-    }
+    CefManager &self = instance();
+    if (!self.m_initialized || self.m_shuttingDown)
+        return;
+
+    self.m_shuttingDown = true;
+    self.m_initialized = false;
+    if (self.m_pumpTimer)
+        self.m_pumpTimer->stop();
+    self.closeAllBrowsers();
+    // request contexts hold CEF refs that must go before CefShutdown
+    CefProfile::releaseAllRequestContexts();
+    CefShutdown();
+    BrowserLogger::instance().info("CEF", "CEF shutdown complete");
 }
 
 void CefManager::OnBeforeCommandLineProcessing(const CefString &process_type,

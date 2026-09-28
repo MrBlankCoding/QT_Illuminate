@@ -1,10 +1,9 @@
+pragma ComponentBehavior: Bound
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import QtQuick.Window
 import QT_Illuminate.ui
-
-pragma ComponentBehavior: Bound
 
 ApplicationWindow {
     id: root
@@ -21,15 +20,15 @@ ApplicationWindow {
             target: null
             onActiveChanged: {
                 if (active)
-                    root.startSystemMove()
+                    root.startSystemMove();
             }
         }
         TapHandler {
             gesturePolicy: TapHandler.DragThreshold
             onTapCountChanged: {
                 if (tapCount !== 2)
-                    return
-                root.visibility === Window.Maximized ? root.showNormal() : root.showMaximized()
+                    return;
+                root.visibility === Window.Maximized ? root.showNormal() : root.showMaximized();
             }
         }
     }
@@ -46,9 +45,9 @@ ApplicationWindow {
         function indexOfValue(v) {
             for (let i = 0; i < model.length; ++i) {
                 if (model[i].value === v)
-                    return i
+                    return i;
             }
-            return -1
+            return -1;
         }
 
         background: Rectangle {
@@ -57,7 +56,11 @@ ApplicationWindow {
             border.color: Theme.border
             border.width: 1
 
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            Behavior on color {
+                ColorAnimation {
+                    duration: Theme.durationFast
+                }
+            }
 
             Text {
                 anchors.left: parent.left
@@ -150,7 +153,11 @@ ApplicationWindow {
             border.color: control.checked ? Theme.accent : Theme.border
             border.width: 1
 
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            Behavior on color {
+                ColorAnimation {
+                    duration: Theme.durationFast
+                }
+            }
         }
 
         Rectangle {
@@ -161,11 +168,19 @@ ApplicationWindow {
             radius: 10
             color: Theme.isDark ? "#f5f5fa" : "#ffffff"
 
-            Behavior on x { NumberAnimation { duration: Theme.durationFast } }
+            Behavior on x {
+                NumberAnimation {
+                    duration: Theme.durationFast
+                }
+            }
         }
 
-        HoverHandler { cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: control.toggled() }
+        HoverHandler {
+            cursorShape: Qt.PointingHandCursor
+        }
+        TapHandler {
+            onTapped: control.toggled()
+        }
     }
 
     // title + optional description + the control underneath
@@ -219,7 +234,11 @@ ApplicationWindow {
             radius: 6
             color: nav.selected ? Theme.accentDim : (hover.hovered ? Theme.surfaceHigh : "transparent")
 
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            Behavior on color {
+                ColorAnimation {
+                    duration: Theme.durationFast
+                }
+            }
         }
 
         Text {
@@ -287,7 +306,7 @@ ApplicationWindow {
     Item {
         id: navRoot
         property int currentIndex: 0
-        readonly property var sections: ["Startup", "Search", "Privacy", "Tabs"]
+        readonly property var sections: ["Startup", "Search", "Privacy", "Tabs", "Shortcuts"]
         anchors.top: header.bottom
         anchors.left: parent.left
         anchors.bottom: parent.bottom
@@ -334,9 +353,13 @@ ApplicationWindow {
             ColumnLayout {
                 spacing: 18
 
-                Item { Layout.preferredHeight: 4 }
+                Item {
+                    Layout.preferredHeight: 4
+                }
 
-                SectionTitle { text: "On launch" }
+                SectionTitle {
+                    text: "On launch"
+                }
 
                 SettingRow {
                     title: "Open"
@@ -347,9 +370,18 @@ ApplicationWindow {
                         id: startupCombo
                         Layout.topMargin: 2
                         model: [
-                            { name: "New tab page", value: "newtab" },
-                            { name: "Homepage", value: "homepage" },
-                            { name: "Restore last session", value: "session" }
+                            {
+                                name: "New tab page",
+                                value: "newtab"
+                            },
+                            {
+                                name: "Homepage",
+                                value: "homepage"
+                            },
+                            {
+                                name: "Restore last session",
+                                value: "session"
+                            }
                         ]
                         textRole: "name"
                         valueRole: "value"
@@ -359,7 +391,7 @@ ApplicationWindow {
                         Connections {
                             target: Prefs
                             function onStartupBehaviorChanged() {
-                                startupCombo.currentIndex = Math.max(0, startupCombo.indexOfValue(Prefs.startupBehavior))
+                                startupCombo.currentIndex = Math.max(0, startupCombo.indexOfValue(Prefs.startupBehavior));
                             }
                         }
                     }
@@ -392,7 +424,7 @@ ApplicationWindow {
                             target: Prefs
                             function onHomepageUrlChanged() {
                                 if (!homepageField.activeFocus)
-                                    homepageField.text = Prefs.homepageUrl
+                                    homepageField.text = Prefs.homepageUrl;
                             }
                         }
                     }
@@ -409,9 +441,13 @@ ApplicationWindow {
             ColumnLayout {
                 spacing: 18
 
-                Item { Layout.preferredHeight: 4 }
+                Item {
+                    Layout.preferredHeight: 4
+                }
 
-                SectionTitle { text: "Address bar" }
+                SectionTitle {
+                    text: "Address bar"
+                }
 
                 SettingRow {
                     title: "Search engine"
@@ -430,7 +466,7 @@ ApplicationWindow {
                         Connections {
                             target: Prefs
                             function onSearchEngineChanged() {
-                                engineCombo.currentIndex = Math.max(0, engineCombo.indexOfValue(Prefs.searchEngineId))
+                                engineCombo.currentIndex = Math.max(0, engineCombo.indexOfValue(Prefs.searchEngineId));
                             }
                         }
                     }
@@ -463,7 +499,7 @@ ApplicationWindow {
                             target: Prefs
                             function onSearchEngineChanged() {
                                 if (!customSearchField.activeFocus)
-                                    customSearchField.text = Prefs.customSearchUrl
+                                    customSearchField.text = Prefs.customSearchUrl;
                             }
                         }
                     }
@@ -480,9 +516,13 @@ ApplicationWindow {
             ColumnLayout {
                 spacing: 18
 
-                Item { Layout.preferredHeight: 4 }
+                Item {
+                    Layout.preferredHeight: 4
+                }
 
-                SectionTitle { text: "Cookies" }
+                SectionTitle {
+                    text: "Cookies"
+                }
 
                 SettingRow {
                     title: "Allow third-party cookies"
@@ -507,9 +547,13 @@ ApplicationWindow {
             ColumnLayout {
                 spacing: 18
 
-                Item { Layout.preferredHeight: 4 }
+                Item {
+                    Layout.preferredHeight: 4
+                }
 
-                SectionTitle { text: "Background tabs" }
+                SectionTitle {
+                    text: "Background tabs"
+                }
 
                 SettingRow {
                     title: "Unload inactive tabs"
@@ -534,12 +578,30 @@ ApplicationWindow {
                         id: unloadDelayCombo
                         Layout.topMargin: 2
                         model: [
-                            { name: "1 minute", value: 1 },
-                            { name: "5 minutes", value: 5 },
-                            { name: "10 minutes", value: 10 },
-                            { name: "15 minutes", value: 15 },
-                            { name: "30 minutes", value: 30 },
-                            { name: "1 hour", value: 60 }
+                            {
+                                name: "1 minute",
+                                value: 1
+                            },
+                            {
+                                name: "5 minutes",
+                                value: 5
+                            },
+                            {
+                                name: "10 minutes",
+                                value: 10
+                            },
+                            {
+                                name: "15 minutes",
+                                value: 15
+                            },
+                            {
+                                name: "30 minutes",
+                                value: 30
+                            },
+                            {
+                                name: "1 hour",
+                                value: 60
+                            }
                         ]
                         textRole: "name"
                         valueRole: "value"
@@ -549,7 +611,7 @@ ApplicationWindow {
                         Connections {
                             target: Prefs
                             function onAutoUnloadChanged() {
-                                unloadDelayCombo.currentIndex = Math.max(0, unloadDelayCombo.indexOfValue(Prefs.autoUnloadMinutes))
+                                unloadDelayCombo.currentIndex = Math.max(0, unloadDelayCombo.indexOfValue(Prefs.autoUnloadMinutes));
                             }
                         }
                     }
@@ -569,6 +631,94 @@ ApplicationWindow {
                         Layout.topMargin: 2
                         checked: Prefs.confirmCloseMultipleTabs
                         onToggled: Prefs.confirmCloseMultipleTabs = checked
+                    }
+                }
+            }
+
+            // ── keyboard shortcuts ─────────────────────────────────────────
+            ColumnLayout {
+                id: shortcutPage
+                spacing: 18
+
+                // the registry hands back a flat catalog already ordered by
+                // category; fold it into the groups the page renders
+                readonly property var groups: {
+                    const out = [];
+                    for (let i = 0; i < Shortcuts.commands.length; ++i) {
+                        const command = Shortcuts.commands[i];
+                        const last = out.length > 0 ? out[out.length - 1] : null;
+                        if (last !== null && last.title === command.category)
+                            last.commands.push(command);
+                        else
+                            out.push({
+                                title: command.category,
+                                commands: [command]
+                            });
+                    }
+                    return out;
+                }
+
+                Item {
+                    Layout.preferredHeight: 4
+                }
+
+                SettingRow {
+                    title: "Keyboard shortcuts"
+                    description: "Click a shortcut to record a new combination. Backspace restores its default, Escape backs out, and a combination another command already uses will be refused."
+                    Layout.fillWidth: true
+
+                    PillButton {
+                        Layout.topMargin: 2
+                        visible: Shortcuts.hasCustomizations
+                        Layout.preferredHeight: visible ? implicitHeight : 0
+                        text: "Reset all"
+                        leftPadding: 14
+                        rightPadding: 14
+                        topPadding: 6
+                        bottomPadding: 6
+                        fillColor: "transparent"
+                        borderColor: Theme.border
+                        textColor: Theme.text
+                        hoverFillColor: Theme.surfaceHigh
+                        onClicked: Shortcuts.resetAll()
+                    }
+                }
+
+                Repeater {
+                    model: shortcutPage.groups
+
+                    delegate: ColumnLayout {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        SectionTitle {
+                            text: modelData.title
+                            Layout.topMargin: 8
+                        }
+
+                        Repeater {
+                            model: modelData.commands
+
+                            delegate: RowLayout {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                spacing: 12
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: modelData.label
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeM
+                                    color: Theme.text
+                                    elide: Text.ElideRight
+                                }
+
+                                ShortcutField {
+                                    commandId: modelData.id
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -1,0 +1,275 @@
+#include "ShortcutRegistry.h"
+
+#include <QKeySequence>
+#include <QSettings>
+
+namespace
+{
+    // app-wide, not per profile: a shortcut that moved with the profile would
+    // mean the same key did different things in different windows
+    constexpr char kGroup[] = "shortcuts";
+
+    // resolves a platform standard to portable text, so "Ctrl+T" means Cmd+T
+    // on macOS and Ctrl+T everywhere else -- the same convention the QML
+    // Shortcut items and the CEF key bridge already use
+    QString standard(QKeySequence::StandardKey key)
+    {
+        return QKeySequence(key).toString(QKeySequence::PortableText);
+    }
+}
+
+ShortcutRegistry::ShortcutRegistry(QObject *parent)
+    : QObject(parent), m_settings(new QSettings(this))
+{
+}
+
+const QList<ShortcutRegistry::Command> &ShortcutRegistry::table()
+{
+    static const QList<Command> commands = buildTable();
+    return commands;
+}
+
+QList<ShortcutRegistry::Command> ShortcutRegistry::buildTable()
+{
+    QList<Command> table;
+
+    // every parameter is taken by value and copied into the row: a
+    // qPrintable() temporary would be dangling the moment this returns
+    const auto add = [&table](QString category, QString id, QString label, QStringList sequences) {
+        table.append({std::move(id), std::move(label), std::move(category), std::move(sequences)});
+    };
+
+    add("Tabs", "newTab", "New tab", {standard(QKeySequence::StandardKey::AddTab)});
+    add("Tabs", "closeTab", "Close tab", {standard(QKeySequence::StandardKey::Close)});
+    add("Tabs", "nextTab", "Next tab", {QStringLiteral("Ctrl+Up")});
+    add("Tabs", "previousTab", "Previous tab", {QStringLiteral("Ctrl+Down")});
+
+    for (int i = 1; i <= 8; ++i)
+        add("Tabs",
+            QStringLiteral("tab%1").arg(i),
+            QStringLiteral("Open tab %1").arg(i),
+            {QStringLiteral("Ctrl+%1").arg(i)});
+
+    add("Tabs", "lastTab", "Open last tab", {QStringLiteral("Ctrl+9")});
+
+    add("Navigation", "reload", "Reload", {standard(QKeySequence::StandardKey::Refresh)});
+    add("Navigation", "back", "Go back", {standard(QKeySequence::StandardKey::Back)});
+    add("Navigation", "forward", "Go forward", {standard(QKeySequence::StandardKey::Forward)});
+    add("Navigation", "focusAddressBar", "Focus address bar", {QStringLiteral("Ctrl+L")});
+    add("Navigation", "copyUrl", "Copy current URL", {QStringLiteral("Ctrl+Shift+C")});
+
+    add("Page", "print", "Print", {standard(QKeySequence::StandardKey::Print)});
+    add("Page", "savePdf", "Save as PDF", {standard(QKeySequence::StandardKey::Save)});
+    add("Page", "toggleBookmark", "Bookmark this page", {QStringLiteral("Ctrl+B")});
+    add("Page", "downloads", "Show downloads", {QStringLiteral("Ctrl+Shift+J")});
+
+    add("Find", "find", "Find in page", {standard(QKeySequence::StandardKey::Find)});
+    add("Find", "findNext", "Find next", {standard(QKeySequence::StandardKey::FindNext)});
+    add("Find", "findPrevious", "Find previous", {standard(QKeySequence::StandardKey::FindPrevious)});
+
+    add("View", "zoomIn", "Zoom in", {standard(QKeySequence::StandardKey::ZoomIn), QStringLiteral("Ctrl+=")});
+    add("View", "zoomOut", "Zoom out", {standard(QKeySequence::StandardKey::ZoomOut)});
+    add("View", "zoomReset", "Reset zoom", {QStringLiteral("Ctrl+0")});
+
+    add("Developer",
+        "toggleDevTools",
+        "Toggle developer tools",
+        {QStringLiteral("Ctrl+Shift+I"), QStringLiteral("Ctrl+Alt+I"), QStringLiteral("F12")});
+
+    add("Application", "settings", "Open settings", {QStringLiteral("Ctrl+,")});
+
+    return table;
+}
+
+const ShortcutRegistry::Command *ShortcutRegistry::find(const QString &commandId)
+{
+    for (const Command &command : table())
+    {
+        if (commandId == command.id)
+            return &command;
+    }
+    return nullptr;
+}
+
+// QKeySequence accepts several spellings of the same combination ("Ctrl+Shift+C",
+// "Meta+C", ...); normalizing means a duplicate is recognised however it arrives
+QString ShortcutRegistry::normalize(const QString &sequence)
+{
+    if (sequence.isEmpty())
+        return {};
+
+    const QKeySequence parsed(sequence);
+    if (parsed.isEmpty())
+        return {};
+
+    return parsed.toString(QKeySequence::PortableText);
+}
+
+QVariantList ShortcutRegistry::commands() const
+{
+    QVariantList result;
+    result.reserve(table().size());
+
+    for (const Command &command : table())
+    {
+        result.append(QVariantMap{{QStringLiteral("id"), command.id},
+                                  {QStringLiteral("label"), command.label},
+                                  {QStringLiteral("category"), command.category}});
+    }
+
+    return result;
+}
+
+QString ShortcutRegistry::labelFor(const QString &commandId) const
+{
+    const Command *command = find(commandId);
+    return command ? command->label : QString();
+}
+
+QStringList ShortcutRegistry::sequences(const QString &commandId) const
+{
+    const Command *command = find(commandId);
+    if (!command)
+        return {};
+
+    const QString bound = normalize(m_settings->value(QLatin1String(kGroup) + QLatin1Char('/') + command->id).toString());
+    if (!bound.isEmpty())
+        return {bound};
+
+    return command->defaults;
+}
+
+QString ShortcutRegistry::displaySequence(const QString &commandId) const
+{
+    QStringList rendered;
+    for (const QString &sequence : sequences(commandId))
+    {
+        const QString native = QKeySequence(sequence).toString(QKeySequence::NativeText);
+        if (!rendered.contains(native))
+            rendered.append(native);
+    }
+    return rendered.join(QStringLiteral(" or "));
+}
+
+bool ShortcutRegistry::isCustomized(const QString &commandId) const
+{
+    const Command *command = find(commandId);
+    if (!command)
+        return false;
+
+    return !normalize(m_settings->value(QLatin1String(kGroup) + QLatin1Char('/') + command->id).toString()).isEmpty();
+}
+
+bool ShortcutRegistry::hasCustomizations() const
+{
+    for (const Command &command : table())
+    {
+        if (isCustomized(command.id))
+            return true;
+    }
+    return false;
+}
+
+QString ShortcutRegistry::commandUsing(const QString &sequence, const QString &exceptCommandId) const
+{
+    const QString wanted = normalize(sequence);
+    if (wanted.isEmpty())
+        return {};
+
+    for (const Command &command : table())
+    {
+        if (command.id == exceptCommandId)
+            continue;
+
+        if (sequences(command.id).contains(wanted))
+            return command.id;
+    }
+
+    return {};
+}
+
+bool ShortcutRegistry::setSequence(const QString &commandId, const QString &sequence)
+{
+    if (!find(commandId))
+        return false;
+
+    const QString normalized = normalize(sequence);
+    const Command *command = find(commandId);
+
+    // rebinding to a default is the same as never having changed it
+    if (normalized.isEmpty() || command->defaults.contains(normalized))
+    {
+        reset(commandId);
+        return true;
+    }
+
+    // two live commands on one key means one of them silently stops working
+    if (!commandUsing(normalized, commandId).isEmpty())
+        return false;
+
+    m_settings->setValue(QLatin1String(kGroup) + QLatin1Char('/') + commandId, normalized);
+    // a second instance has to see the change straight away, the way it would
+    // on the next launch
+    m_settings->sync();
+    emit shortcutsChanged();
+    return true;
+}
+
+void ShortcutRegistry::reset(const QString &commandId)
+{
+    if (!find(commandId))
+        return;
+
+    m_settings->remove(QLatin1String(kGroup) + QLatin1Char('/') + commandId);
+    m_settings->sync();
+    emit shortcutsChanged();
+}
+
+void ShortcutRegistry::resetAll()
+{
+    if (!hasCustomizations())
+        return;
+
+    m_settings->remove(QLatin1String(kGroup));
+    m_settings->sync();
+    emit shortcutsChanged();
+}
+
+QString ShortcutRegistry::sequenceFromKey(int key, int modifierMask)
+{
+    const auto qtKey = static_cast<Qt::Key>(key);
+
+    // pressing a modifier on its own never makes a bindable combination
+    switch (qtKey)
+    {
+    case Qt::Key_Shift:
+    case Qt::Key_Control:
+    case Qt::Key_Meta:
+    case Qt::Key_Alt:
+    case Qt::Key_AltGr:
+    case Qt::Key_CapsLock:
+    case Qt::Key_NumLock:
+    case Qt::Key_ScrollLock:
+        return {};
+    default:
+        break;
+    }
+
+    // QML hands over the raw modifier bitfield; keep only the four that mean
+    // something in a binding and drop keypad/group-switch noise
+    constexpr int kBindable = Qt::ControlModifier | Qt::AltModifier | Qt::ShiftModifier | Qt::MetaModifier;
+    const auto modifiers = static_cast<Qt::KeyboardModifiers>(modifierMask & kBindable);
+
+    // a bare key would swallow ordinary typing, so require a modifier
+    if (modifiers == Qt::NoModifier)
+        return {};
+
+    if (qtKey == Qt::Key_Escape || qtKey == Qt::Key_unknown)
+        return {};
+
+    const QKeySequence sequence(QKeyCombination(modifiers, qtKey));
+    if (sequence.isEmpty())
+        return {};
+
+    return sequence.toString(QKeySequence::PortableText);
+}

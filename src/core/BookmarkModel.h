@@ -36,10 +36,10 @@ public:
     Q_INVOKABLE void removeBookmark(int index);
     Q_INVOKABLE void renameBookmark(int index, const QString &title);
 
-// QML convenience: bookmarks.itemAt(i).title etc.
+    // QML convenience: bookmarks.itemAt(i).title etc.
     Q_INVOKABLE QVariantMap itemAt(int index) const;
 
-    signals:
+signals:
     void countChanged();
 
 private:

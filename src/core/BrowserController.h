@@ -109,7 +109,6 @@ private:
 
     TabModel *m_model;
     Profile *m_profile;
-    CefProfile *m_webEngineProfile = nullptr;
     QObject *m_activeTabCtx = nullptr;
     ImagePalette m_palette;
     // bumped per extraction so a slow result for an old image is dropped

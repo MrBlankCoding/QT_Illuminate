@@ -6,7 +6,6 @@
 #include <include/cef_request_context.h>
 #include <include/cef_request_context_handler.h>
 
-// CEF: Replaces QQuickWebEngineProfile / QQuickWebEngineProfilePrototype
 class CefProfile : public QObject
 {
     Q_OBJECT

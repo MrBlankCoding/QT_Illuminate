@@ -1,5 +1,8 @@
 import QtQuick
 
+// Sequences come from the Shortcuts registry rather than being written here, so
+// the settings page and these bindings can never disagree. "Ctrl" is Cmd on
+// macOS and Ctrl elsewhere; "Alt" is Option.
 Item {
     id: root
 
@@ -14,153 +17,151 @@ Item {
 
     // tabs
     Shortcut {
-        sequences: [StandardKey.AddTab]
+        sequences: Shortcuts.sequences("newTab")
         onActivated: Browser.newTab()
     }
     Shortcut {
-        sequences: [StandardKey.Close]
+        sequences: Shortcuts.sequences("closeTab")
         onActivated: Browser.closeTab(Browser.tabModel.activeIndex)
     }
     Shortcut {
-        sequence: "Ctrl+Up"
+        sequences: Shortcuts.sequences("nextTab")
         onActivated: {
-            Logger.info("KeyboardShortcuts", "Ctrl+Up fired");
+            Logger.info("KeyboardShortcuts", "nextTab fired");
             Browser.cycleTab(1);
         }
     }
     Shortcut {
-        sequence: "Ctrl+Down"
+        sequences: Shortcuts.sequences("previousTab")
         onActivated: {
-            Logger.info("KeyboardShortcuts", "Ctrl+Down fired");
+            Logger.info("KeyboardShortcuts", "previousTab fired");
             Browser.cycleTab(-1);
         }
     }
 
-    // Ctrl+1..8 jump to that tab; Ctrl+9 always jumps to the last tab.
+    // Ctrl+1..8 jump to that tab; the last one always jumps to the final tab.
     Shortcut {
-        sequence: "Ctrl+1"
+        sequences: Shortcuts.sequences("tab1")
         onActivated: Browser.activateTab(0)
     }
     Shortcut {
-        sequence: "Ctrl+2"
+        sequences: Shortcuts.sequences("tab2")
         onActivated: Browser.activateTab(1)
     }
     Shortcut {
-        sequence: "Ctrl+3"
+        sequences: Shortcuts.sequences("tab3")
         onActivated: Browser.activateTab(2)
     }
     Shortcut {
-        sequence: "Ctrl+4"
+        sequences: Shortcuts.sequences("tab4")
         onActivated: Browser.activateTab(3)
     }
     Shortcut {
-        sequence: "Ctrl+5"
+        sequences: Shortcuts.sequences("tab5")
         onActivated: Browser.activateTab(4)
     }
     Shortcut {
-        sequence: "Ctrl+6"
+        sequences: Shortcuts.sequences("tab6")
         onActivated: Browser.activateTab(5)
     }
     Shortcut {
-        sequence: "Ctrl+7"
+        sequences: Shortcuts.sequences("tab7")
         onActivated: Browser.activateTab(6)
     }
     Shortcut {
-        sequence: "Ctrl+8"
+        sequences: Shortcuts.sequences("tab8")
         onActivated: Browser.activateTab(7)
     }
     Shortcut {
-        sequence: "Ctrl+9"
+        sequences: Shortcuts.sequences("lastTab")
         onActivated: Browser.activateTab(Browser.tabModel.count - 1)
     }
 
     // navigation
     Shortcut {
-        sequences: [StandardKey.Refresh]
+        sequences: Shortcuts.sequences("reload")
         onActivated: Browser.reload()
     }
     Shortcut {
-        sequences: [StandardKey.Back]
+        sequences: Shortcuts.sequences("back")
         onActivated: Browser.goBack()
     }
     Shortcut {
-        sequences: [StandardKey.Forward]
+        sequences: Shortcuts.sequences("forward")
         onActivated: Browser.goForward()
     }
     Shortcut {
-        sequence: "Ctrl+L"
+        sequences: Shortcuts.sequences("focusAddressBar")
         onActivated: root.toolbar.focusAddressBar()
     }
-    // copy current url: Cmd+Shift+C on macOS
     Shortcut {
-        sequence: "Ctrl+Shift+C"
+        sequences: Shortcuts.sequences("copyUrl")
         onActivated: Browser.copyActiveUrl()
     }
 
     // find
     Shortcut {
-        sequences: [StandardKey.Find]
+        sequences: Shortcuts.sequences("find")
         onActivated: root.findBar.open()
     }
     Shortcut {
-        sequences: [StandardKey.FindNext]
+        sequences: Shortcuts.sequences("findNext")
         enabled: root.findBar.visible
         onActivated: root.findBar.search(false)
     }
     Shortcut {
-        sequences: [StandardKey.FindPrevious]
+        sequences: Shortcuts.sequences("findPrevious")
         enabled: root.findBar.visible
         onActivated: root.findBar.search(true)
     }
 
-    // inspect element. "Ctrl" is Cmd on macOS, "Alt" is Option: Cmd+Shift+I,
-    // Cmd+Option+I (Chrome's mac shortcut) and F12 all toggle devtools
+    // inspect element
     Shortcut {
-        sequences: ["Ctrl+Shift+I", "Ctrl+Alt+I", "F12"]
+        sequences: Shortcuts.sequences("toggleDevTools")
         onActivated: Browser.toggleDevTools()
     }
 
     // zoom in/out/reset
     Shortcut {
-        sequences: [StandardKey.ZoomIn, "Ctrl+="]
+        sequences: Shortcuts.sequences("zoomIn")
         onActivated: root.zoomIndicator.zoomBy(0.1)
     }
     Shortcut {
-        sequences: [StandardKey.ZoomOut]
+        sequences: Shortcuts.sequences("zoomOut")
         onActivated: root.zoomIndicator.zoomBy(-0.1)
     }
     Shortcut {
-        sequence: "Ctrl+0"
+        sequences: Shortcuts.sequences("zoomReset")
         onActivated: root.zoomIndicator.zoomReset()
     }
 
-    // settings: Cmd+, on macOS, Ctrl+, elsewhere
+    // settings
     Shortcut {
-        sequence: "Ctrl+,"
+        sequences: Shortcuts.sequences("settings")
         onActivated: root.settingsRequested()
     }
 
-    // print: Cmd+P on macOS, Ctrl+P elsewhere
+    // print
     Shortcut {
-        sequences: [StandardKey.Print]
+        sequences: Shortcuts.sequences("print")
         onActivated: root.printRequested()
     }
 
-    // save a copy as PDF: Cmd+S on macOS, Ctrl+S elsewhere
+    // save a copy as PDF
     Shortcut {
-        sequences: [StandardKey.Save]
+        sequences: Shortcuts.sequences("savePdf")
         onActivated: root.savePdfRequested()
     }
 
     // downloads
     Shortcut {
-        sequence: "Ctrl+Shift+J"
+        sequences: Shortcuts.sequences("downloads")
         onActivated: root.downloadsPanel.toggle()
     }
 
     // bookmarks
     Shortcut {
-        sequence: "Ctrl+B"
+        sequences: Shortcuts.sequences("toggleBookmark")
         onActivated: root.toolbar.toggleBookmark()
     }
 }

@@ -15,7 +15,6 @@
 class CefProfile;
 class CefTabClient;
 
-// CEF: Replaces WebEngineView QML type.
 class CefBrowserWrapper : public QQuickItem
 {
     Q_OBJECT
@@ -196,4 +195,5 @@ private:
     QRect m_nativeRect;
     bool m_nativeVisible = true;
     QMetaObject::Connection m_frameConnection;
-    QUrl m_createdUrl;};
+    QUrl m_createdUrl;
+};

@@ -17,9 +17,9 @@ public:
                      const CefString &request_method) override;
 
     bool OnBeforeDownload(CefRefPtr<CefBrowser> browser,
-                           CefRefPtr<CefDownloadItem> download_item,
-                           const CefString &suggested_name,
-                           CefRefPtr<CefBeforeDownloadCallback> callback) override;
+                          CefRefPtr<CefDownloadItem> download_item,
+                          const CefString &suggested_name,
+                          CefRefPtr<CefBeforeDownloadCallback> callback) override;
 
     void OnDownloadUpdated(CefRefPtr<CefBrowser> browser,
                            CefRefPtr<CefDownloadItem> download_item,

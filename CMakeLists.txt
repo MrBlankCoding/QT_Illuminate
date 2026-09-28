@@ -28,6 +28,19 @@ find_package(Qt6 REQUIRED COMPONENTS
     Widgets PrintSupport Pdf
 )
 
+# QHotkey - cross-platform global keyboard shortcut library
+# Replaces manual ShortcutBridge with Qt private headers
+include(FetchContent)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)  # QHotkey still uses cmake_minimum_required(VERSION 3.1)
+FetchContent_Declare(
+    QHotkey
+    GIT_REPOSITORY https://github.com/Skycoder42/QHotkey.git
+    GIT_TAG 1.5.0
+    SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/qhotkey-src"
+)
+FetchContent_MakeAvailable(QHotkey)
+unset(CMAKE_POLICY_VERSION_MINIMUM)  # restore for the rest of our project
+
 # CEF configuration
 # CEF ships a CMake Find module (FindCEF.cmake), NOT a CONFIG file, so we
 # must use MODULE mode.  CEF_ROOT points at the extracted cef_binary_* dir.
@@ -147,7 +160,7 @@ if(OS_MAC AND CEF_FOUND)
 
         add_executable(${_helper_target} MACOSX_BUNDLE src/cef_helper/process_helper_mac.cpp)
         target_include_directories(${_helper_target} PRIVATE "${CEF_INCLUDE_PATH}")
-        target_link_libraries(${_helper_target} PRIVATE libcef_dll_wrapper "-framework Cocoa")
+        target_link_libraries(${_helper_target} PRIVATE cef::cef libcef_dll_wrapper "-framework Cocoa")
         set_target_properties(${_helper_target} PROPERTIES
             AUTOMOC OFF
             OUTPUT_NAME "${_helper_output_name}"
@@ -155,13 +168,26 @@ if(OS_MAC AND CEF_FOUND)
         )
 
         add_dependencies(QT_Illuminate ${_helper_target})
+        set(_helper_staged "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/${_helper_output_name}.app")
         add_custom_command(TARGET QT_Illuminate POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E rm -rf
-                "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/${_helper_output_name}.app"
+            COMMAND ${CMAKE_COMMAND} -E rm -rf "${_helper_staged}"
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "$<TARGET_BUNDLE_DIR:${_helper_target}>"
-                "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/${_helper_output_name}.app"
+                "${_helper_staged}"
             COMMENT "Copying ${_helper_output_name}.app into the bundle"
+            VERBATIM
+        )
+        # CEF's framework install name is @executable_path/../Frameworks/..., which
+        # from <bundle>/Frameworks/<helper>.app/Contents/MacOS/ resolves inside the
+        # helper's own bundle. Give each helper the same private-Frameworks symlink
+        # Electron/CEF use so sub-processes link against the single top-level copy.
+        add_custom_command(TARGET QT_Illuminate POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${_helper_staged}/Contents/Frameworks"
+            COMMAND ${CMAKE_COMMAND} -E rm -rf "${_helper_staged}/Contents/Frameworks/Chromium Embedded Framework.framework"
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+                "../../../Chromium Embedded Framework.framework"
+                "${_helper_staged}/Contents/Frameworks/Chromium Embedded Framework.framework"
+            COMMENT "Symlinking Chromium Embedded Framework.framework into ${_helper_output_name}.app"
             VERBATIM
         )
     endforeach()
@@ -200,6 +226,8 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/BrowserTab.cpp
     src/core/BrowserSettings.h
     src/core/BrowserSettings.cpp
+    src/core/ShortcutRegistry.h
+    src/core/ShortcutRegistry.cpp
     src/core/TabModel.h
     src/core/TabModel.cpp
     src/core/BrowserController.h
@@ -308,14 +336,8 @@ if(TARGET cef::cef)
     target_link_libraries(QT_Illuminatemodule PUBLIC cef::cef libcef_dll_wrapper)
 endif()
 
-# ShortcutBridge replays CEF key events through Qt's shortcut map, which lives
-# in a private header. Only the include path is needed; tryShortcut() itself is
-# resolved from QtGui, which is already linked. Optional: without it the bridge
-# compiles to a no-op that logs once.
-find_package(Qt6GuiPrivate QUIET)
-if(Qt6GuiPrivate_FOUND)
-    target_link_libraries(QT_Illuminatemodule PRIVATE Qt6::GuiPrivate)
-endif()
+# QHotkey handles global shortcuts without Qt private headers
+target_link_libraries(QT_Illuminatemodule PRIVATE QHotkey::QHotkey)
 
 qt_add_qml_module(QT_Illuminatemodule
     URI QT_Illuminate.ui
@@ -341,6 +363,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/components/ProfileEditor.qml
         ui/components/ProfileTile.qml
         ui/components/ResizeGrips.qml
+        ui/components/ShortcutField.qml
         ui/components/SuggestionBox.qml
         ui/components/TabBar.qml
         ui/components/TabItem.qml

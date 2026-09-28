@@ -1,13 +1,8 @@
 #include "BrowserTab.h"
 #include "CefProfile.h"
 
-BrowserTab::BrowserTab(CefProfile *profile, QObject *parent) : QObject(parent), m_webEngineProfile(profile)
+BrowserTab::BrowserTab(CefProfile *profile, QObject *parent) : QObject(parent)
 {
-}
-
-CefProfile *BrowserTab::webEngineProfile() const
-{
-    return m_webEngineProfile;
 }
 
 QUrl BrowserTab::url() const { return m_url; }

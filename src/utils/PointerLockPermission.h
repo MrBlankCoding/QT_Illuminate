@@ -4,7 +4,7 @@
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
 
-// CEF: PointerLock permission shim stub. WebEngine private API hack removed.
+// CEF: PointerLock permission shim stub.
 class PointerLockPermission : public QObject
 {
     Q_OBJECT

@@ -505,9 +505,8 @@ void CefBrowserWrapper::initializeBrowserHost()
 
     const QRect rect = sceneRect();
     void *winId = reinterpret_cast<void *>(window()->winId());
-    QTimer::singleShot(0, this, [this, winId, rect]() {
-        createBrowser(winId, rect);
-    });
+    QTimer::singleShot(0, this, [this, winId, rect]()
+                       { createBrowser(winId, rect); });
 }
 
 QRect CefBrowserWrapper::sceneRect() const

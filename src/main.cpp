@@ -9,6 +9,7 @@
 #include <QWindow>
 
 #include "core/BrowserSettings.h"
+#include "core/ShortcutRegistry.h"
 #include "core/CefManager.h"
 #include "core/BrowserController.h"
 #include "core/PermissionHandler.h"
@@ -18,6 +19,7 @@
 
 #include <QByteArray>
 #include <memory>
+#include <utility>
 
 static void activateWindows()
 {
@@ -132,8 +134,7 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 
 int main(int argc, char *argv[])
 {
-    // CEF sub-processes re-launch this binary on Windows/Linux; they must exit
-    // here before any Qt state (QApplication, logger, windows) is created
+    // CEF can launch before our application
     const int subprocessExitCode = CefManager::executeProcess(argc, argv);
     if (subprocessExitCode >= 0)
         return subprocessExitCode;
@@ -172,9 +173,9 @@ int main(int argc, char *argv[])
 
     ProfileManager profileManager(nullptr);
     PermissionHandler permissionHandler(nullptr);
+    ShortcutRegistry shortcutRegistry(nullptr);
 
-    // before the controller: restoring tabs reads the startup preference, and
-    // QML resolves Prefs during engine load
+    // QML establishes befor eengine load
     BrowserSettings browserSettings(profileManager.activeProfile(), nullptr);
     BrowserSettings::setQmlInstance(&browserSettings);
 
@@ -185,7 +186,8 @@ int main(int argc, char *argv[])
     QObject::connect(&profileManager, &ProfileManager::activeProfileChanged, &controller, [&]() {
         controller.setProfile(profileManager.activeProfile());
     });
-    // the cookie policy and the per-profile settings both follow the profile
+
+    // follow per profile settings
     QObject::connect(&profileManager, &ProfileManager::activeProfileChanged, &browserSettings, [&]() {
         browserSettings.setProfile(profileManager.activeProfile());
     });
@@ -198,10 +200,13 @@ int main(int argc, char *argv[])
 
     // persist profiles session on exit and shutdown CEF
     std::unique_ptr<QQmlApplicationEngine> engine;
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&controller, &engine]() {
+    // about to quit can arrive more than once
+    bool shuttingDown = false;
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&controller, &engine, &shuttingDown]() {
+        if (std::exchange(shuttingDown, true))
+            return;
         controller.saveSession();
-        // QML-owned CefBrowserWrapper instances hold CEF browser refs and call
-        // CEF methods in their destructors; they must be gone before CefShutdown
+        // QML owns CEF
         engine.reset();
         CefManager::shutdown();
     });
@@ -212,6 +217,7 @@ int main(int argc, char *argv[])
     BrowserController::setQmlInstance(&controller);
     ProfileManager::setQmlInstance(&profileManager);
     PermissionHandler::setQmlInstance(&permissionHandler);
+    ShortcutRegistry::setQmlInstance(&shortcutRegistry);
     qmlRegisterSingletonType<PermissionHandler>("QT_Illuminate.ui", 1, 0, "DefaultBrowser", PermissionHandler::create);
 
 

@@ -10,74 +10,73 @@
 
 namespace
 {
-// keys are grouped by the store they live in
-constexpr char kStartupBehaviorKey[] = "startup/behavior";
-constexpr char kStartupHomepageKey[] = "startup/homepage";
-constexpr char kSearchEngineKey[] = "search/engine";
-constexpr char kSearchCustomUrlKey[] = "search/customUrl";
-constexpr char kThirdPartyCookiesKey[] = "privacy/thirdPartyCookies";
-constexpr char kAutoUnloadKey[] = "tabs/autoUnload";
-constexpr char kAutoUnloadMinutesKey[] = "tabs/autoUnloadMinutes";
-constexpr char kConfirmCloseKey[] = "tabs/confirmCloseMultipleTabs";
+    // keys are grouped by the store they live in
+    constexpr char kStartupBehaviorKey[] = "startup/behavior";
+    constexpr char kStartupHomepageKey[] = "startup/homepage";
+    constexpr char kSearchEngineKey[] = "search/engine";
+    constexpr char kSearchCustomUrlKey[] = "search/customUrl";
+    constexpr char kThirdPartyCookiesKey[] = "privacy/thirdPartyCookies";
+    constexpr char kAutoUnloadKey[] = "tabs/autoUnload";
+    constexpr char kAutoUnloadMinutesKey[] = "tabs/autoUnloadMinutes";
+    constexpr char kConfirmCloseKey[] = "tabs/confirmCloseMultipleTabs";
 
-struct SearchEngine
-{
-    const char *id;
-    const char *name;
-    const char *url; // empty for the "custom" pseudo-engine
-};
-
-const SearchEngine kEngines[] = {
-    { "duckduckgo", "DuckDuckGo", "https://duckduckgo.com/?q=%s" },
-    { "google", "Google", "https://www.google.com/search?q=%s" },
-    { "bing", "Bing", "https://www.bing.com/search?q=%s" },
-    { "brave", "Brave", "https://search.brave.com/search?q=%s" },
-    { "ecosia", "Ecosia", "https://www.ecosia.org/search?q=%s" },
-    { "startpage", "Startpage", "https://www.startpage.com/sp/search?query=%s" },
-    { "youtube", "YouTube", "https://www.youtube.com/results?search_query=%s" },
-    { "wikipedia", "Wikipedia", "https://en.wikipedia.org/w/index.php?search=%s" },
-    { BrowserSettings::kEngineCustom, "Custom…", "" },
-};
-
-QString engineName(const QString &id)
-{
-    for (const SearchEngine &engine : kEngines)
+    struct SearchEngine
     {
-        if (id == QLatin1String(engine.id))
-            return QString::fromLatin1(engine.name);
-    }
-    return {};
-}
+        const char *id;
+        const char *name;
+        const char *url; // empty for the "custom" pseudo-engine
+    };
 
-QString engineTemplate(const QString &id)
-{
-    for (const SearchEngine &engine : kEngines)
+    const SearchEngine kEngines[] = {
+        {"duckduckgo", "DuckDuckGo", "https://duckduckgo.com/?q=%s"},
+        {"google", "Google", "https://www.google.com/search?q=%s"},
+        {"bing", "Bing", "https://www.bing.com/search?q=%s"},
+        {"brave", "Brave", "https://search.brave.com/search?q=%s"},
+        {"ecosia", "Ecosia", "https://www.ecosia.org/search?q=%s"},
+        {"startpage", "Startpage", "https://www.startpage.com/sp/search?query=%s"},
+        {"youtube", "YouTube", "https://www.youtube.com/results?search_query=%s"},
+        {"wikipedia", "Wikipedia", "https://en.wikipedia.org/w/index.php?search=%s"},
+        {BrowserSettings::kEngineCustom, "Custom…", ""},
+    };
+
+    QString engineName(const QString &id)
     {
-        if (id == QLatin1String(engine.id))
-            return QString::fromLatin1(engine.url);
+        for (const SearchEngine &engine : kEngines)
+        {
+            if (id == QLatin1String(engine.id))
+                return QString::fromLatin1(engine.name);
+        }
+        return {};
     }
-    return {};
-}
 
-QVariant readValue(QSettings *settings, const char *key, const QVariant &fallback)
-{
-    return settings ? settings->value(QLatin1String(key), fallback) : fallback;
-}
+    QString engineTemplate(const QString &id)
+    {
+        for (const SearchEngine &engine : kEngines)
+        {
+            if (id == QLatin1String(engine.id))
+                return QString::fromLatin1(engine.url);
+        }
+        return {};
+    }
 
-void writeValue(QSettings *settings, const char *key, const QVariant &value)
-{
-    if (settings)
-        settings->setValue(QLatin1String(key), value);
-}
+    QVariant readValue(QSettings *settings, const char *key, const QVariant &fallback)
+    {
+        return settings ? settings->value(QLatin1String(key), fallback) : fallback;
+    }
 
-// an auto-unload delay of zero would mean "constantly discard"
-constexpr int kMinAutoUnloadMinutes = 1;
-constexpr int kMaxAutoUnloadMinutes = 120;
+    void writeValue(QSettings *settings, const char *key, const QVariant &value)
+    {
+        if (settings)
+            settings->setValue(QLatin1String(key), value);
+    }
+
+    // an auto-unload delay of zero would mean "constantly discard"
+    constexpr int kMinAutoUnloadMinutes = 1;
+    constexpr int kMaxAutoUnloadMinutes = 120;
 }
 
 BrowserSettings::BrowserSettings(Profile *profile, QObject *parent)
-    : QObject(parent)
-    , m_appSettings(new QSettings(this))
+    : QObject(parent), m_appSettings(new QSettings(this))
 {
     m_confirmCloseMultipleTabs =
         m_appSettings->value(QLatin1String(kConfirmCloseKey), true).toBool();
@@ -90,9 +89,8 @@ void BrowserSettings::setProfile(Profile *profile)
     m_webProfile = profile ? profile->webProfile() : nullptr;
 
     delete m_profileSettings;
-    m_profileSettings = profile ? new QSettings(profile->path() + QDir::separator()
-                                                   + QStringLiteral("settings.ini"),
-                                               QSettings::IniFormat, this)
+    m_profileSettings = profile ? new QSettings(profile->path() + QDir::separator() + QStringLiteral("settings.ini"),
+                                                QSettings::IniFormat, this)
                                 : nullptr;
 
     reloadProfileSettings();
@@ -103,8 +101,7 @@ void BrowserSettings::reloadProfileSettings()
 {
     const QString behavior =
         readValue(m_profileSettings, kStartupBehaviorKey, QLatin1String(kStartupNewTab)).toString();
-    m_startupBehavior = (behavior == QLatin1String(kStartupSession)
-                         || behavior == QLatin1String(kStartupHomepage))
+    m_startupBehavior = (behavior == QLatin1String(kStartupSession) || behavior == QLatin1String(kStartupHomepage))
                             ? behavior
                             : QLatin1String(kStartupNewTab);
     m_homepageUrl = readValue(m_profileSettings, kStartupHomepageKey, QString()).toString();

@@ -5,6 +5,19 @@
 
 #include <QMetaObject>
 
+namespace
+{
+
+    // fall back to globe on sites with no favicon
+    bool isDecodableUrl(const QString &url)
+    {
+        if (!url.startsWith(QLatin1String("data:")))
+            return !url.isEmpty();
+        const qsizetype comma = url.indexOf(QLatin1Char(','));
+        return comma >= 0 && comma < url.size() - 1;
+    }
+}
+
 CefDisplayHandlerImpl::CefDisplayHandlerImpl(CefBrowserWrapper *wrapper, CefMainBrowserId *mainBrowser)
     : m_wrapper(wrapper), m_mainBrowser(mainBrowser)
 {
@@ -16,10 +29,10 @@ void CefDisplayHandlerImpl::OnTitleChange(CefRefPtr<CefBrowser> browser, const C
         return;
 
     const QString t = cefStringToQString(title);
-    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, t]() {
+    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, t]()
+                              {
         if (wrapper)
-            wrapper->onTitleChanged(t);
-    }, Qt::QueuedConnection);
+            wrapper->onTitleChanged(t); }, Qt::QueuedConnection);
 }
 
 void CefDisplayHandlerImpl::OnFaviconURLChange(CefRefPtr<CefBrowser> browser,
@@ -28,11 +41,23 @@ void CefDisplayHandlerImpl::OnFaviconURLChange(CefRefPtr<CefBrowser> browser,
     if (!m_wrapper || !m_mainBrowser || !m_mainBrowser->matches(browser) || icon_urls.empty())
         return;
 
-    const QString iconUrl = cefStringToQString(icon_urls.front());
-    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, iconUrl]() {
+    // first entry prefered
+    // could fall thorugh 
+    QString iconUrl;
+    for (const CefString &candidate : icon_urls)
+    {
+        const QString url = cefStringToQString(candidate);
+        if (!isDecodableUrl(url))
+            continue;
+        iconUrl = url;
+        break;
+    }
+
+    // nothing usable: an empty URL clears any favicon the tab had before
+    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, iconUrl]()
+                              {
         if (wrapper)
-            wrapper->onIconChanged(iconUrl);
-    }, Qt::QueuedConnection);
+            wrapper->onIconChanged(iconUrl); }, Qt::QueuedConnection);
 }
 
 void CefDisplayHandlerImpl::OnLoadingProgressChange(CefRefPtr<CefBrowser> browser, double progress)
@@ -41,10 +66,10 @@ void CefDisplayHandlerImpl::OnLoadingProgressChange(CefRefPtr<CefBrowser> browse
         return;
 
     const int p = static_cast<int>(progress * 100);
-    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, p]() {
+    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, p]()
+                              {
         if (wrapper)
-            wrapper->onLoadProgressChanged(p);
-    }, Qt::QueuedConnection);
+            wrapper->onLoadProgressChanged(p); }, Qt::QueuedConnection);
 }
 
 void CefDisplayHandlerImpl::OnFullscreenModeChange(CefRefPtr<CefBrowser> browser, bool fullscreen)
@@ -52,10 +77,10 @@ void CefDisplayHandlerImpl::OnFullscreenModeChange(CefRefPtr<CefBrowser> browser
     if (!m_wrapper || !m_mainBrowser || !m_mainBrowser->matches(browser))
         return;
 
-    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, fullscreen]() {
+    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, fullscreen]()
+                              {
         if (wrapper)
-            wrapper->onFullscreenModeChanged(fullscreen);
-    }, Qt::QueuedConnection);
+            wrapper->onFullscreenModeChanged(fullscreen); }, Qt::QueuedConnection);
 }
 
 bool CefDisplayHandlerImpl::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
@@ -70,10 +95,10 @@ bool CefDisplayHandlerImpl::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
     const QString msg = cefStringToQString(message);
     const QString src = cefStringToQString(source);
 
-    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, level, msg, src, line]() {
+    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, level, msg, src, line]()
+                              {
         if (wrapper)
-            emit wrapper->javaScriptConsoleMessage(static_cast<int>(level), msg, line, src);
-    }, Qt::QueuedConnection);
+            emit wrapper->javaScriptConsoleMessage(static_cast<int>(level), msg, line, src); }, Qt::QueuedConnection);
 
     return false;
 }

@@ -3,117 +3,86 @@
 
 #include <include/internal/cef_types.h>
 
-#include <QKeyEvent>
-
-// QShortcutMap is where QML `Shortcut` items register themselves, and
-// tryShortcut() is what dispatches QEvent::Shortcut to them. It is private API
-// because the platform plugin normally drives it, but there is no public
-// equivalent: a QKeyEvent sent to a QQuickWindow only reaches items, never the
-// shortcut map. Guarded so a Qt build without private headers still compiles.
-#if __has_include(<private/qguiapplication_p.h>)
-#include <private/qguiapplication_p.h>
-#define QTI_SHORTCUT_MAP_AVAILABLE 1
-#else
-#define QTI_SHORTCUT_MAP_AVAILABLE 0
-#endif
+#include <QKeySequence>
+#include <QHotkey>
+#include <QHash>
+#include <QMutex>
+#include <QMutexLocker>
 
 namespace {
 
-// Win32 virtual key codes, as reported in CefKeyEvent::windows_key_code.
-// Letters, digits and F-keys share their numeric value with Qt::Key.
-enum WinVirtualKey : int
+struct ShortcutEntry
 {
-    kBack = 0x08,
-    kTab = 0x09,
-    kReturn = 0x0D,
-    kEscape = 0x1B,
-    kSpace = 0x20,
-    kPageUp = 0x21,
-    kPageDown = 0x22,
-    kEnd = 0x23,
-    kHome = 0x24,
-    kLeft = 0x25,
-    kUp = 0x26,
-    kRight = 0x27,
-    kDown = 0x28,
-    kInsert = 0x2D,
-    kDelete = 0x2E,
-    kDigit0 = 0x30,
-    kDigit9 = 0x39,
-    kKeyA = 0x41,
-    kKeyZ = 0x5A,
-    kNumpad0 = 0x60,
-    kMultiply = 0x6A,
-    kAdd = 0x6B,
-    kSubtract = 0x6D,
-    kDecimal = 0x6E,
-    kDivide = 0x6F,
-    kF1 = 0x70,
-    kF12 = 0x7B,
-    kOemSemicolon = 0xBA,
-    kOemPlus = 0xBB,
-    kOemComma = 0xBC,
-    kOemMinus = 0xBD,
-    kOemPeriod = 0xBE,
-    kOemSlash = 0xBF,
-    kOemQuoteLeft = 0xC0,
-    kOemBracketLeft = 0xDB,
-    kOemBackslash = 0xDC,
-    kOemBracketRight = 0xDD,
-    kOemApostrophe = 0xDE,
+    QHotkey *hotkey = nullptr;
+    ShortcutBridge::Callback callback = nullptr;
 };
 
-} // namespace
-
-Qt::Key ShortcutBridge::keyFromWindowsKeyCode(int code)
+QMutex &shortcutRegistryMutex()
 {
-    if (code >= kDigit0 && code <= kDigit9)
-        return static_cast<Qt::Key>(Qt::Key_0 + (code - kDigit0));
-    if (code >= kKeyA && code <= kKeyZ)
+    static QMutex mutex;
+    return mutex;
+}
+
+QHash<QString, ShortcutEntry> &shortcutRegistry()
+{
+    static QHash<QString, ShortcutEntry> registry;
+    return registry;
+}
+
+QString canonicalSequence(const QString &sequence)
+{
+    return QKeySequence(sequence).toString();
+}
+
+Qt::Key keyFromWindowsKeyCodeImpl(int code)
+{
+    if (code >= 0x30 && code <= 0x39)
+        return static_cast<Qt::Key>(Qt::Key_0 + (code - 0x30));
+    if (code >= 0x41 && code <= 0x5A)
         return static_cast<Qt::Key>(code);
-    if (code >= kF1 && code <= kF12)
-        return static_cast<Qt::Key>(Qt::Key_F1 + (code - kF1));
-    if (code >= kNumpad0 && code <= kNumpad0 + 9)
-        return static_cast<Qt::Key>(Qt::Key_0 + (code - kNumpad0));
+    if (code >= 0x70 && code <= 0x7B)
+        return static_cast<Qt::Key>(Qt::Key_F1 + (code - 0x70));
+    if (code >= 0x60 && code <= 0x69)
+        return static_cast<Qt::Key>(Qt::Key_0 + (code - 0x60));
 
     switch (code)
     {
-    case kBack: return Qt::Key_Backspace;
-    case kTab: return Qt::Key_Tab;
-    case kReturn: return Qt::Key_Return;
-    case kEscape: return Qt::Key_Escape;
-    case kSpace: return Qt::Key_Space;
-    case kPageUp: return Qt::Key_PageUp;
-    case kPageDown: return Qt::Key_PageDown;
-    case kEnd: return Qt::Key_End;
-    case kHome: return Qt::Key_Home;
-    case kLeft: return Qt::Key_Left;
-    case kUp: return Qt::Key_Up;
-    case kRight: return Qt::Key_Right;
-    case kDown: return Qt::Key_Down;
-    case kInsert: return Qt::Key_Insert;
-    case kDelete: return Qt::Key_Delete;
-    case kMultiply: return Qt::Key_Asterisk;
-    case kAdd: return Qt::Key_Plus;
-    case kSubtract: return Qt::Key_Minus;
-    case kDecimal: return Qt::Key_Period;
-    case kDivide: return Qt::Key_Slash;
-    case kOemSemicolon: return Qt::Key_Semicolon;
-    case kOemPlus: return Qt::Key_Equal;
-    case kOemComma: return Qt::Key_Comma;
-    case kOemMinus: return Qt::Key_Minus;
-    case kOemPeriod: return Qt::Key_Period;
-    case kOemSlash: return Qt::Key_Slash;
-    case kOemQuoteLeft: return Qt::Key_QuoteLeft;
-    case kOemBracketLeft: return Qt::Key_BracketLeft;
-    case kOemBackslash: return Qt::Key_Backslash;
-    case kOemBracketRight: return Qt::Key_BracketRight;
-    case kOemApostrophe: return Qt::Key_Apostrophe;
+    case 0x08: return Qt::Key_Backspace;
+    case 0x09: return Qt::Key_Tab;
+    case 0x0D: return Qt::Key_Return;
+    case 0x1B: return Qt::Key_Escape;
+    case 0x20: return Qt::Key_Space;
+    case 0x21: return Qt::Key_PageUp;
+    case 0x22: return Qt::Key_PageDown;
+    case 0x23: return Qt::Key_End;
+    case 0x24: return Qt::Key_Home;
+    case 0x25: return Qt::Key_Left;
+    case 0x26: return Qt::Key_Up;
+    case 0x27: return Qt::Key_Right;
+    case 0x28: return Qt::Key_Down;
+    case 0x2D: return Qt::Key_Insert;
+    case 0x2E: return Qt::Key_Delete;
+    case 0x6A: return Qt::Key_Asterisk;
+    case 0x6B: return Qt::Key_Plus;
+    case 0x6D: return Qt::Key_Minus;
+    case 0x6E: return Qt::Key_Period;
+    case 0x6F: return Qt::Key_Slash;
+    case 0xBA: return Qt::Key_Semicolon;
+    case 0xBB: return Qt::Key_Equal;
+    case 0xBC: return Qt::Key_Comma;
+    case 0xBD: return Qt::Key_Minus;
+    case 0xBE: return Qt::Key_Period;
+    case 0xBF: return Qt::Key_Slash;
+    case 0xC0: return Qt::Key_QuoteLeft;
+    case 0xDB: return Qt::Key_BracketLeft;
+    case 0xDC: return Qt::Key_Backslash;
+    case 0xDD: return Qt::Key_BracketRight;
+    case 0xDE: return Qt::Key_Apostrophe;
     default: return Qt::Key_unknown;
     }
 }
 
-Qt::KeyboardModifiers ShortcutBridge::modifiersFromCef(uint32_t cefEventFlags)
+Qt::KeyboardModifiers modifiersFromCefImpl(uint32_t cefEventFlags)
 {
     Qt::KeyboardModifiers modifiers;
     if (cefEventFlags & EVENTFLAG_SHIFT_DOWN)
@@ -121,8 +90,6 @@ Qt::KeyboardModifiers ShortcutBridge::modifiersFromCef(uint32_t cefEventFlags)
     if (cefEventFlags & EVENTFLAG_ALT_DOWN)
         modifiers |= Qt::AltModifier;
 #ifdef Q_OS_MACOS
-    // Qt reports the Command key as ControlModifier on macOS, and the physical
-    // Control key as MetaModifier; QKeySequence text like "Ctrl+T" means Cmd+T.
     if (cefEventFlags & EVENTFLAG_COMMAND_DOWN)
         modifiers |= Qt::ControlModifier;
     if (cefEventFlags & EVENTFLAG_CONTROL_DOWN)
@@ -136,31 +103,117 @@ Qt::KeyboardModifiers ShortcutBridge::modifiersFromCef(uint32_t cefEventFlags)
     return modifiers;
 }
 
+} // namespace
+
+Qt::Key ShortcutBridge::keyFromWindowsKeyCode(int code)
+{
+    return keyFromWindowsKeyCodeImpl(code);
+}
+
+Qt::KeyboardModifiers ShortcutBridge::modifiersFromCef(uint32_t cefEventFlags)
+{
+    return modifiersFromCefImpl(cefEventFlags);
+}
+
 bool ShortcutBridge::dispatchKeyPress(QWindow *window, int windowsKeyCode, uint32_t cefEventFlags)
 {
-#if QTI_SHORTCUT_MAP_AVAILABLE
-    if (!window)
-        return false;
+    Q_UNUSED(window);
 
-    const Qt::Key key = keyFromWindowsKeyCode(windowsKeyCode);
+    const Qt::Key key = keyFromWindowsKeyCodeImpl(windowsKeyCode);
     if (key == Qt::Key_unknown)
         return false;
 
-    // no text: the shortcut map only looks at key + modifiers, and supplying
-    // text would risk a second copy of the character reaching a Qt item
-    QKeyEvent press(QEvent::KeyPress, key, modifiersFromCef(cefEventFlags));
-    return QGuiApplicationPrivate::instance()->shortcutMap.tryShortcut(&press);
-#else
-    Q_UNUSED(window);
-    Q_UNUSED(windowsKeyCode);
-    Q_UNUSED(cefEventFlags);
-    static bool warned = false;
-    if (!warned)
+    const Qt::KeyboardModifiers modifiers = modifiersFromCefImpl(cefEventFlags);
+    const QKeyCombination combination(modifiers, key);
+    const QString sequence = QKeySequence(combination).toString();
+
+    ShortcutBridge::Callback callbackToInvoke;
+    bool matched = false;
+
     {
-        warned = true;
-        BrowserLogger::instance().warning("Shortcuts",
-            "built without Qt private headers: keyboard shortcuts will not reach the UI");
+        QMutexLocker locker(&shortcutRegistryMutex());
+        auto it = shortcutRegistry().constFind(sequence);
+        if (it != shortcutRegistry().constEnd() && it->hotkey && it->hotkey->isRegistered())
+        {
+            callbackToInvoke = it->callback;
+            matched = true;
+        }
     }
-    return false;
-#endif
+
+    if (matched && callbackToInvoke)
+        callbackToInvoke();
+
+    return matched;
+}
+
+bool ShortcutBridge::registerShortcut(const QString &sequence, Callback callback)
+{
+    const QString key = canonicalSequence(sequence);
+
+    QMutexLocker locker(&shortcutRegistryMutex());
+
+    auto it = shortcutRegistry().find(key);
+    if (it != shortcutRegistry().end())
+    {
+        if (it->hotkey && it->hotkey->isRegistered())
+        {
+            // Already active: just let the caller attach a new callback.
+            it->callback = std::move(callback);
+            return true;
+        }
+
+        // Previously failed to register (or hotkey is otherwise stale) —
+        // retry instead of returning a stale failure forever.
+        if (it->hotkey)
+        {
+            it->hotkey->setRegistered(true);
+            it->callback = std::move(callback);
+            return it->hotkey->isRegistered();
+        }
+    }
+
+    QHotkey *hotkey = new QHotkey(QKeySequence(key), true, nullptr);
+    ShortcutEntry entry;
+    entry.hotkey = hotkey;
+    entry.callback = std::move(callback);
+    const bool registered = hotkey->isRegistered();
+    shortcutRegistry().insert(key, entry);
+    return registered;
+}
+
+bool ShortcutBridge::unregisterShortcut(const QString &sequence)
+{
+    const QString key = canonicalSequence(sequence);
+
+    QMutexLocker locker(&shortcutRegistryMutex());
+
+    ShortcutEntry entry = shortcutRegistry().take(key);
+    if (!entry.hotkey)
+        return false;
+    entry.hotkey->setRegistered(false);
+    entry.hotkey->deleteLater();
+    return true;
+}
+
+bool ShortcutBridge::isShortcutRegistered(const QString &sequence)
+{
+    const QString key = canonicalSequence(sequence);
+
+    QMutexLocker locker(&shortcutRegistryMutex());
+    auto it = shortcutRegistry().constFind(key);
+    return it != shortcutRegistry().constEnd() && it->hotkey && it->hotkey->isRegistered();
+}
+
+void ShortcutBridge::unregisterAll()
+{
+    QMutexLocker locker(&shortcutRegistryMutex());
+    for (auto it = shortcutRegistry().begin(); it != shortcutRegistry().end(); ++it)
+    {
+        if (it->hotkey)
+        {
+            it->hotkey->setRegistered(false);
+            it->hotkey->deleteLater();
+        }
+    }
+    shortcutRegistry().clear();
 }

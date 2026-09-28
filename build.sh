@@ -256,11 +256,6 @@ find_cef_via_prefix() {
     return 1
 }
 
-qt_has_webengine() {
-    # CEF: no longer needed; kept as no-op so call sites don't break
-    return 0
-}
-
 maybe_install_cef() {
     # Only auto-install if the install script exists and we're interactive
     local script="$SCRIPT_DIR/install-cef.sh"
@@ -455,27 +450,6 @@ prune_release_macpayload() {
     local quick="$app/Contents/PlugIns/quick"
     local before after
     before="$(du -sk "$app" | cut -f1)"
-
-    # 1. Chromium locale packs (~44MB). English strings live in
-    #    qtwebengine_resources.pak; only the en-* overrides are separate files.
-    local locales="$fw/QtWebEngineCore.framework/Versions/A/Resources/qtwebengine_locales"
-    if [[ -d "$locales" ]]; then
-        local keep_locales="${QT_ILLUMINATE_KEEP_LOCALES:-en-US en-GB}"
-        local -a keep=($keep_locales)
-        local pak name
-        for pak in "$locales"/*.pak; do
-            [[ -e "$pak" ]] || continue
-            name="$(basename "$pak")"
-            local wanted=0 k
-            for k in "${keep[@]}"; do
-                [[ "$name" == "$k.pak" ]] && { wanted=1; break; }
-            done
-            if (( ! wanted )); then
-                rm -f "$pak"
-                echo "  pruned locale $name"
-            fi
-        done
-    fi
 
     local -a styles=(Imagine Material Universal FluentWinUI3 iOS)
     local style lower
@@ -890,7 +864,6 @@ fi
 
 if (( DO_RUN )) && (( ! DO_DEV )); then
     echo "→ Launching ${APP_LABEL} (detached)…"
-    # CEF: --no-sandbox passed via CefManager; QTWEBENGINE_DISABLE_SANDBOX not needed
     if (( IS_MAC )); then
         open "$APP_BUNDLE"
     else

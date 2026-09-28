@@ -98,24 +98,31 @@ Item {
                 receivedBytes: download.receivedBytes,
                 downloadState: download.state
             });
+        }
+    }
 
-            download.receivedBytesChanged.connect(function () {
-                const i = root.rowIndexFor(download);
+    Instantiator {
+        model: downloadsModel
+        delegate: Connections {
+            required property var downloadObj
+            target: downloadObj
+
+            // totalBytes and receivedBytes share one notify signal
+            function onProgressChanged() {
+                const i = root.rowIndexFor(downloadObj);
+                if (i < 0)
+                    return;
+                downloadsModel.setProperty(i, "receivedBytes", downloadObj.receivedBytes);
+                downloadsModel.setProperty(i, "totalBytes", downloadObj.totalBytes);
+            }
+
+            function onStateChanged() {
+                const i = root.rowIndexFor(downloadObj);
                 if (i >= 0)
-                    downloadsModel.setProperty(i, "receivedBytes", download.receivedBytes);
-            });
-            download.totalBytesChanged.connect(function () {
-                const i = root.rowIndexFor(download);
-                if (i >= 0)
-                    downloadsModel.setProperty(i, "totalBytes", download.totalBytes);
-            });
-            download.stateChanged.connect(function (state) {
-                const i = root.rowIndexFor(download);
-                if (i >= 0)
-                    downloadsModel.setProperty(i, "downloadState", state);
-                if (download.isFinished)
+                    downloadsModel.setProperty(i, "downloadState", downloadObj.state);
+                if (downloadObj.isFinished)
                     root.activeCount = Math.max(0, root.activeCount - 1);
-            });
+            }
         }
     }
 

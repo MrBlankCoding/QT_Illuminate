@@ -6,7 +6,6 @@
 #include <include/cef_download_item.h>
 #include <include/cef_download_handler.h>
 
-// CEF: Replaces QWebEngineDownloadRequest for QML DownloadsPanel.
 class CefDownloadWrapper : public QObject
 {
     Q_OBJECT

@@ -5,7 +5,6 @@ import QT_Illuminate.ui
 
 pragma ComponentBehavior: Bound
 
-// rendered instead of a WebEngineView
 // "newtab://newtab".
 
 Item {

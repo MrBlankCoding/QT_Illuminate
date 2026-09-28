@@ -22,8 +22,8 @@ void CefFindHandlerImpl::OnFindResult(CefRefPtr<CefBrowser> browser,
     if (!m_wrapper)
         return;
 
-    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, count, activeMatchOrdinal, finalUpdate]() {
+    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, count, activeMatchOrdinal, finalUpdate]()
+                              {
         if (wrapper)
-            wrapper->onFindResult(count, activeMatchOrdinal, finalUpdate);
-    }, Qt::QueuedConnection);
+            wrapper->onFindResult(count, activeMatchOrdinal, finalUpdate); }, Qt::QueuedConnection);
 }

@@ -29,7 +29,6 @@ void BrowserController::setProfile(Profile *profile)
         saveSession();
 
     m_profile = profile;
-    m_webEngineProfile = profile ? profile->webProfile() : nullptr;
 
     delete m_settings;
     m_settings = profile
@@ -42,12 +41,10 @@ void BrowserController::setProfile(Profile *profile)
     emit webProfileChanged();
     updateAdaptiveAccent();
 
-    if (m_webEngineProfile)
-        restoreSession();
 }
 
 BrowserController::BrowserController(Profile *profile, QObject *parent)
-    : QObject(parent), m_profile(profile), m_webEngineProfile(profile->webProfile()), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_model(new TabModel(this)), m_appSettings(new QSettings(this))
+    : QObject(parent), m_profile(profile), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_model(new TabModel(this)), m_appSettings(new QSettings(this))
 {
     m_isFirstRun = !m_appSettings->value("setup/completed", false).toBool();
 
@@ -85,6 +82,10 @@ void BrowserController::rewireActiveTab()
 // Property getter
 
 TabModel *BrowserController::tabModel() const { return m_model; }
+CefProfile *BrowserController::webProfile() const
+{
+    return m_profile ? m_profile->webProfile() : nullptr;
+}
 int BrowserController::activeIndex() const { return m_model->activeIndex(); }
 
 QString BrowserController::activeUrl() const
@@ -161,22 +162,21 @@ qreal BrowserController::backgroundLuminance() const
 
 namespace
 {
-// bump when ColorExtractor's output changes so stale cached palettes are recomputed
-constexpr int kPaletteCacheVersion = 2;
+    constexpr int kPaletteCacheVersion = 2;
 
-// identifies one version of the file on disk, so an edited image is re-analysed
-QString paletteCacheKey(const QString &source)
-{
-    const QString local = source.startsWith(QLatin1String("file:")) ? QUrl(source).toLocalFile() : source;
-    const QFileInfo info(local);
-    if (!info.exists())
-        return {};
-    return QStringLiteral("%1|%2|%3|%4")
-        .arg(kPaletteCacheVersion)
-        .arg(source)
-        .arg(info.lastModified().toMSecsSinceEpoch())
-        .arg(info.size());
-}
+    // identifies one version of the file on disk, so an edited image is re-analysed
+    QString paletteCacheKey(const QString &source)
+    {
+        const QString local = source.startsWith(QLatin1String("file:")) ? QUrl(source).toLocalFile() : source;
+        const QFileInfo info(local);
+        if (!info.exists())
+            return {};
+        return QStringLiteral("%1|%2|%3|%4")
+            .arg(kPaletteCacheVersion)
+            .arg(source)
+            .arg(info.lastModified().toMSecsSinceEpoch())
+            .arg(info.size());
+    }
 }
 
 void BrowserController::updateAdaptiveAccent()
@@ -330,7 +330,7 @@ void BrowserController::restoreSession()
 
         // don't spin up a renderer for every restored tab; the active one
         // wakes in setActiveIndex, the rest when first switched to
-        if (BrowserTab *tab = m_model->addTab(url, m_webEngineProfile, true))
+        if (BrowserTab *tab = m_model->addTab(url, m_profile->webProfile(), /*suspended=*/true))
             tab->setTitle(obj[QStringLiteral("title")].toString());
     }
 
@@ -355,8 +355,7 @@ void BrowserController::openInitialTab()
     }
 
     const BrowserSettings *prefs = BrowserSettings::instance();
-    if (prefs && prefs->startupBehavior() == QLatin1String(BrowserSettings::kStartupHomepage)
-        && !prefs->homepageUrl().isEmpty())
+    if (prefs && prefs->startupBehavior() == QLatin1String(BrowserSettings::kStartupHomepage) && !prefs->homepageUrl().isEmpty())
     {
         newTab(prefs->homepageUrl());
         return;
@@ -396,7 +395,7 @@ void BrowserController::completeFirstRun()
 
 void BrowserController::newTab(const QString &urlStr)
 {
-    if (m_model->rowCount() >= TabModel::kMaxTabs || !m_webEngineProfile)
+    if (m_model->rowCount() >= TabModel::kMaxTabs)
         return;
 
     const BrowserSettings *prefs = BrowserSettings::instance();
@@ -404,7 +403,7 @@ void BrowserController::newTab(const QString &urlStr)
                          ? QUrl(NEW_TAB_URL)
                          : UrlResolver::resolve(urlStr, prefs ? prefs->searchUrlTemplate() : QString());
 
-    if (!m_model->addTab(url, m_webEngineProfile))
+    if (!m_model->addTab(url, m_profile->webProfile()))
         return;
     m_model->setActiveIndex(m_model->rowCount() - 1);
     if (urlStr.isEmpty())
@@ -461,7 +460,6 @@ void BrowserController::navigate(const QString &input)
 void BrowserController::reload() { emit navigationRequested(QStringLiteral("reload")); }
 void BrowserController::goBack() { emit navigationRequested(QStringLiteral("back")); }
 void BrowserController::goForward() { emit navigationRequested(QStringLiteral("forward")); }
-CefProfile *BrowserController::webProfile() const { return m_webEngineProfile; }
 
 void BrowserController::toggleDevTools() { emit navigationRequested(QStringLiteral("devtools")); }
 

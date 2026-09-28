@@ -20,7 +20,6 @@ public:
     int progress() const; // 0–100
     bool loading() const;
     qint64 renderProcessPid() const; // 0 until Chromium starts the renderer
-    // restored from the session but never shown: no web view exists yet
     bool suspended() const;
 
     // called by browser controller
@@ -32,13 +31,11 @@ public:
     void setRenderProcessPid(qint64 pid);
     void setSuspended(bool suspended);
 
-    CefProfile *webEngineProfile() const;
-
     // navigate time!
     // emits loadRequested.
     void requestLoad(const QUrl &url);
 
-    signals:
+signals:
     void loadRequested(const QUrl &url); // -> QML view
     void urlChanged(const QUrl &url);
     void titleChanged(const QString &title);
@@ -56,5 +53,4 @@ private:
     bool m_loading = false;
     qint64 m_renderProcessPid = 0;
     bool m_suspended = false;
-    CefProfile *m_webEngineProfile = nullptr;
 };

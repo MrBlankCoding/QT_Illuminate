@@ -34,7 +34,8 @@ bool CefDownloadHandlerImpl::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
 
     if (m_wrapper)
     {
-        QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, download]() {
+        QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, download]()
+                                  {
             if (!wrapper)
                 return;
             download->setParent(wrapper);
@@ -49,8 +50,7 @@ bool CefDownloadHandlerImpl::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
             }
 
             // no UI to ask, so don't drop the download
-            download->accept();
-        }, Qt::QueuedConnection);
+            download->accept(); }, Qt::QueuedConnection);
     }
 
     return true;
@@ -64,10 +64,10 @@ void CefDownloadHandlerImpl::OnDownloadUpdated(CefRefPtr<CefBrowser> browser,
     const uint32_t id = download_item->GetId();
     if (auto download = m_activeDownloads.value(id))
     {
-        QMetaObject::invokeMethod(download, [download, download_item, callback]() {
+        QMetaObject::invokeMethod(download, [download, download_item, callback]()
+                                  {
             if (download)
-                download->update(download_item, callback);
-        }, Qt::QueuedConnection);
+                download->update(download_item, callback); }, Qt::QueuedConnection);
 
         if (download_item->IsComplete() || download_item->IsCanceled())
             m_activeDownloads.remove(id);

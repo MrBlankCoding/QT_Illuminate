@@ -39,6 +39,7 @@ Rectangle {
         readonly property int maxLabelWidth: 150
         property bool renaming: false
         property bool useFallback: model.iconUrl === ""
+        property bool faviconFailed: false
 
         readonly property bool overflowed: x + width > chipRow.width
         onOverflowedChanged: Qt.callLater(root.updateFirstHidden)
@@ -78,12 +79,19 @@ Rectangle {
                     fillMode: Image.PreserveAspectFit
                     smooth: true
                     asynchronous: true
+                    sourceSize.width: 32
+                    sourceSize.height: 32
                     visible: status === Image.Ready
-                    source: chip.useFallback ? root.faviconFallback(chip.model.url) : chip.model.iconUrl
+                    source: chip.faviconFailed ? ""
+                           : (chip.useFallback ? root.faviconFallback(chip.model.url) : chip.model.iconUrl)
 
                     onStatusChanged: {
-                        if (status === Image.Error && !chip.useFallback)
-                            chip.useFallback = true;
+                        if (status === Image.Error) {
+                            if (!chip.useFallback)
+                                chip.useFallback = true;
+                            else
+                                chip.faviconFailed = true;
+                        }
                     }
                 }
 

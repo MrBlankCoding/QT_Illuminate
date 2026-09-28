@@ -32,7 +32,7 @@ public:
         BrowserLogger::instance().info(category, message);
     }
 
-     Q_INVOKABLE void warning(const QString &category, const QString &message)
+    Q_INVOKABLE void warning(const QString &category, const QString &message)
     {
         BrowserLogger::instance().warning(category, message);
     }

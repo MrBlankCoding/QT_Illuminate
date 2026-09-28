@@ -6,7 +6,6 @@
 #include <QtQml/qqmlregistration.h>
 #include "utils/ExternalQmlSingleton.h"
 
-// CEF: Replaced QWebEnginePermission with custom PermissionType enum
 // preserving exact integer values for QSettings compatibility.
 class QSettings;
 class PermissionHandler : public QObject, public ExternalQmlSingleton<PermissionHandler>

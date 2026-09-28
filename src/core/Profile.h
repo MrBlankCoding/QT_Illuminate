@@ -7,7 +7,6 @@
 #include <memory>
 #include "CefProfile.h"
 
-// CEF: Replaced QQuickWebEngineProfile with CefProfile wrapper
 class Profile : public QObject
 {
     Q_DISABLE_COPY_MOVE(Profile)
