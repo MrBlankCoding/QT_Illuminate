@@ -73,6 +73,9 @@ private slots:
         QCOMPARE(combo(kVkF12, 0), QKeySequence(QStringLiteral("F12")));
         QCOMPARE(combo(kVkThree, kCmd), QKeySequence(QStringLiteral("Ctrl+3")));
         QCOMPARE(combo('I', kCmd | EVENTFLAG_ALT_DOWN), QKeySequence(QStringLiteral("Ctrl+Alt+I")));
+        // Cmd+Shift+F is the letter F, not the F6 function key: only the
+        // physical F-key row reports 0x70..0x7B
+        QCOMPARE(combo('F', kCmdShift), QKeySequence(QStringLiteral("Ctrl+Shift+F")));
     }
 
     void qmlShortcutFiresAndUnmatchedKeysFallThrough()

@@ -15,12 +15,21 @@ Window {
     color: Theme.bg
     readonly property bool frameless: Qt.platform.os !== "osx"
     flags: frameless ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
-
-    // HTML5 element fullscreen (e.g. YouTube): the page fills the whole screen
     readonly property bool contentFullScreen: viewStack.activeWebView ? viewStack.activeWebView.fullScreen : false
     property bool fullScreenForContent: false
     property bool contentFullScreenShown: false
     property int visibilityBeforeContentFullScreen: Window.Windowed
+    property int visibilityBeforeWindowFullScreen: Window.Windowed
+    function toggleFullScreen() {
+        if (root.visibility === Window.FullScreen) {
+            if (root.visibilityBeforeWindowFullScreen === Window.Maximized)
+                root.showMaximized();
+            else
+                root.showNormal();
+            return;
+        }
+        root.showFullScreen();
+    }
 
     onContentFullScreenChanged: {
         if (contentFullScreen) {
@@ -40,6 +49,9 @@ Window {
     }
 
     onVisibilityChanged: {
+        if (root.visibility !== Window.FullScreen)
+            root.visibilityBeforeWindowFullScreen = root.visibility;
+
         if (!root.contentFullScreen)
             return;
         if (root.visibility === Window.FullScreen)
@@ -178,6 +190,69 @@ Window {
         }
     }
 
+    Dialog {
+        id: aboutDialog
+        title: "About " + Qt.application.name
+        // Popup isn't an Item, so position it by hand
+        x: Math.round((root.width - width) / 2)
+        y: Math.round((root.height - height) / 2)
+        modal: true
+        width: Math.min(360, root.width - 80)
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            radius: 10
+            color: Theme.surface
+            border.color: Theme.border
+            border.width: 1
+        }
+
+        header: Text {
+            text: aboutDialog.title
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeM
+            font.weight: Font.Medium
+            color: Theme.text
+            padding: 16
+            bottomPadding: 0
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 6
+
+            Text {
+                text: "Version " + (Qt.application.version || "unknown")
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeM
+                color: Theme.text
+                Layout.fillWidth: true
+            }
+
+            Text {
+                text: "A Qt Quick browser built on the Chromium Embedded Framework."
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeM
+                color: Theme.textMuted
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+        }
+
+        footer: RowLayout {
+            spacing: 8
+
+            Item { Layout.fillWidth: true }
+
+            PillButton {
+                text: "Close"
+                fillColor: Theme.accent
+                hoverFillColor: Qt.darker(Theme.accent, 1.1)
+                textColor: Theme.onAccent
+                onClicked: aboutDialog.close()
+            }
+        }
+    }
+
     property bool pointerLockActive: false
     property PointerLockEmu pointerLockEmu: PointerLockEmu {}
 
@@ -201,11 +276,24 @@ Window {
     Component.onCompleted: {
         Logger.info("BrowserWindow", "Window ready, platform=" + Qt.platform.os);
         WindowHelper.applyTitleBarStyle(root, Theme.tabBarHeight);
+        // macOS draws the bar at the top of the screen from here on; elsewhere
+        // this only tells the tree which window it belongs to
+        AppMenu.attach(root);
     }
+
+    // switching profiles replaces the window, so the bar has to let this one go
+    // before the replacement attaches
+    Component.onDestruction: AppMenu.detach(root)
 
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
+
+        // the menu bar, for the platforms that have none of their own
+        AppMenuBar {
+            Layout.fillWidth: true
+            visible: !root.contentFullScreen
+        }
 
         // tab strip
         TabBar {
@@ -245,6 +333,13 @@ Window {
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
             visible: !root.contentFullScreen && Bookmarks.count > 0 && Browser.activeUrl === "newtab://newtab"
+
+            onNavigate: function (url) {
+                Browser.navigate(url);
+            }
+            onOpenInNewTab: function (url) {
+                Browser.newTab(url);
+            }
         }
 
         // content area
@@ -331,6 +426,22 @@ Window {
         onSettingsRequested: root.openSettings()
         onPrintRequested: root.printActivePage()
         onSavePdfRequested: root.savePdfActivePage()
+        onFullScreenRequested: root.toggleFullScreen()
+        onCloseWindowRequested: root.requestWindowClose()
+        onProfilePickerRequested: root.openProfileSelector()
+        onProfileSwitchRequested: profile => root.switchProfile(profile)
+        onWindowRequested: function (action) {
+            if (action === "minimize") {
+                root.showMinimized();
+            } else if (root.visibility === Window.Maximized) {
+                root.showNormal();
+            } else {
+                root.showMaximized();
+            }
+        }
+        onAboutRequested: aboutDialog.open()
+        // aboutToQuit saves the session and shuts CEF down
+        onQuitRequested: Qt.quit()
     }
 
     Connections {

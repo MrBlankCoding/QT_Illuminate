@@ -70,6 +70,7 @@ QList<ShortcutRegistry::Command> ShortcutRegistry::buildTable()
     add("View", "zoomIn", "Zoom in", {standard(QKeySequence::StandardKey::ZoomIn), QStringLiteral("Ctrl+=")});
     add("View", "zoomOut", "Zoom out", {standard(QKeySequence::StandardKey::ZoomOut)});
     add("View", "zoomReset", "Reset zoom", {QStringLiteral("Ctrl+0")});
+    add("View", "toggleFullScreen", "Toggle full screen", {QStringLiteral("Ctrl+Shift+F")});
 
     add("Developer",
         "toggleDevTools",
@@ -77,6 +78,10 @@ QList<ShortcutRegistry::Command> ShortcutRegistry::buildTable()
         {QStringLiteral("Ctrl+Shift+I"), QStringLiteral("Ctrl+Alt+I"), QStringLiteral("F12")});
 
     add("Application", "settings", "Open settings", {QStringLiteral("Ctrl+,")});
+    // both are only reachable from the menu bar, but a menu row that shows a
+    // key still has to make that key work
+    add("Application", "closeWindow", "Close window", {QStringLiteral("Ctrl+Shift+W")});
+    add("Application", "quit", "Quit", {QStringLiteral("Ctrl+Q")});
 
     return table;
 }

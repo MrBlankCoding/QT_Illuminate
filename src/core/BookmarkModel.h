@@ -5,10 +5,14 @@
 #include <QVariantMap>
 #include <QVector>
 #include <QtQml/qqmlregistration.h>
+#include "../utils/ExternalQmlSingleton.h"
 
 // stored as JSON under AppLocalDataLocation
 // is this best?
-class BookmarkModel : public QAbstractListModel
+//
+// An ExternalQmlSingleton rather than an engine-owned singleton, so the app menu
+// can read the same list from C++ that QML shows.
+class BookmarkModel : public QAbstractListModel, public ExternalQmlSingleton<BookmarkModel>
 {
     Q_OBJECT
     QML_NAMED_ELEMENT(Bookmarks)
@@ -23,7 +27,8 @@ public:
         IconUrlRole,
     };
 
-    explicit BookmarkModel(QObject *parent = nullptr);
+    // no default: an ExternalQmlSingleton must not be default-constructible
+    explicit BookmarkModel(QObject *parent);
 
     int rowCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;

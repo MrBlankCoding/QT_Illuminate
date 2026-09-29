@@ -11,6 +11,8 @@
 #include "core/BrowserSettings.h"
 #include "core/ShortcutRegistry.h"
 #include "core/CefManager.h"
+#include "core/AppMenu.h"
+#include "core/BookmarkModel.h"
 #include "core/BrowserController.h"
 #include "core/PermissionHandler.h"
 #include "core/ProfileManager.h"
@@ -152,6 +154,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     app.setApplicationName("QT_Illuminate");
     app.setOrganizationName("QT_Illuminate");
+    app.setApplicationVersion(QStringLiteral(QT_ILLUMINATE_VERSION));
 
 #if defined(Q_OS_LINUX)
     app.setDesktopFileName(QStringLiteral("qt-illuminate.desktop"));
@@ -174,6 +177,7 @@ int main(int argc, char *argv[])
     ProfileManager profileManager(nullptr);
     PermissionHandler permissionHandler(nullptr);
     ShortcutRegistry shortcutRegistry(nullptr);
+    BookmarkModel bookmarks(nullptr);
 
     // QML establishes befor eengine load
     BrowserSettings browserSettings(profileManager.activeProfile(), nullptr);
@@ -192,15 +196,24 @@ int main(int argc, char *argv[])
         browserSettings.setProfile(profileManager.activeProfile());
     });
 
+    // singletons, registered before the menu bar below starts reading them
+    BrowserController::setQmlInstance(&controller);
+    ProfileManager::setQmlInstance(&profileManager);
+    PermissionHandler::setQmlInstance(&permissionHandler);
+    ShortcutRegistry::setQmlInstance(&shortcutRegistry);
+    BookmarkModel::setQmlInstance(&bookmarks);
+    qmlRegisterSingletonType<PermissionHandler>("QT_Illuminate.ui", 1, 0, "DefaultBrowser", PermissionHandler::create);
+
+    AppMenu appMenu(nullptr);
+    AppMenu::setQmlInstance(&appMenu);
+
     listenForSecondLaunches(instanceServer, controller);
     UrlOpenFilter urlOpenFilter(controller);
     app.installEventFilter(&urlOpenFilter);
     for (const QString &url : launchUrls)
         controller.newTab(url);
 
-    // persist profiles session on exit and shutdown CEF
     std::unique_ptr<QQmlApplicationEngine> engine;
-    // about to quit can arrive more than once
     bool shuttingDown = false;
     QObject::connect(&app, &QCoreApplication::aboutToQuit, [&controller, &engine, &shuttingDown]() {
         if (std::exchange(shuttingDown, true))
@@ -212,14 +225,6 @@ int main(int argc, char *argv[])
     });
     engine = std::make_unique<QQmlApplicationEngine>();
     engine->addImportPath("qrc:/");
-
-    // singletons
-    BrowserController::setQmlInstance(&controller);
-    ProfileManager::setQmlInstance(&profileManager);
-    PermissionHandler::setQmlInstance(&permissionHandler);
-    ShortcutRegistry::setQmlInstance(&shortcutRegistry);
-    qmlRegisterSingletonType<PermissionHandler>("QT_Illuminate.ui", 1, 0, "DefaultBrowser", PermissionHandler::create);
-
 
     QObject::connect(
         engine.get(), &QQmlApplicationEngine::warnings,

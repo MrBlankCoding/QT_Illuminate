@@ -45,6 +45,10 @@ pragma ComponentBehavior: Bound
         addressInput.selectAll();
     }
 
+    function dismissAddressBar() {
+        addressInput.focus = false;
+    }
+
     // called on star and shortcut
     function toggleBookmark() {
         if (root.currentUrl === "" || root.currentUrl === "newtab://newtab")
@@ -78,7 +82,7 @@ function acceptSuggestion(i) {
         // model row and reading it after clearSuggestions() yields empty.
         const input = (item.isBookmark ? item.url : item.text) || item.text;
         clearSuggestions();
-        addressInput.focus = false;
+        root.dismissAddressBar();
         root.navigate(input);
     }
 
@@ -340,7 +344,7 @@ onActiveFocusChanged: {
                                 // resets text to currentUrl ("" on the new tab page)
                                 const input = text.trim();
                                 root.clearSuggestions();
-                                focus = false;
+                                root.dismissAddressBar();
                                 root.navigate(input);
                             }
                         }
@@ -545,7 +549,10 @@ onActiveFocusChanged: {
 
                     MenuItem {
                         text: "Memory Usage"
-                        onTriggered: Browser.newTab("illuminate://memory")
+                        onTriggered: {
+                            root.dismissAddressBar();
+                            Browser.newTab("illuminate://memory");
+                        }
                     }
 
                     MenuSeparator {}
@@ -610,5 +617,6 @@ onActiveFocusChanged: {
     onCurrentUrlChanged: {
         if (!addressInput.activeFocus)
             addressInput.text = root.currentUrl;
+        Logger.info("DBG", "currentUrl=" + root.currentUrl + " focused=" + addressInput.activeFocus + " text=" + addressInput.text);
     }
 }

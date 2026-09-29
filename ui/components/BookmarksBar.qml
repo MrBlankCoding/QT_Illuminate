@@ -12,12 +12,23 @@ Rectangle {
 
     readonly property var hostRegex: /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//
 
+    signal navigate(string url)
+    signal openInNewTab(string url)
+
     property int firstHidden: chipRepeater.count
     readonly property bool hasOverflow: firstHidden < chipRepeater.count
 
     function faviconFallback(url) {
         const host = String(url).replace(root.hostRegex, "").split("/")[0];
         return "https://www.google.com/s2/favicons?sz=64&domain=" + host;
+    }
+
+    // a pristine new tab gets reused, anything else opens alongside it
+    function openBookmark(url) {
+        if (Browser.activeUrl === "newtab://newtab")
+            root.navigate(url);
+        else
+            root.openInNewTab(url);
     }
 
     function updateFirstHidden() {
@@ -142,17 +153,13 @@ Rectangle {
             }
         }
 
-        ToolTip.visible: chipHover.hovered && !chip.renaming
-        ToolTip.delay: 600
-        ToolTip.text: chip.model.title + "\n" + chip.model.url
-
         Menu {
             id: chipMenu
             popupType: Popup.Native
 
             MenuItem {
                 text: "Open in New Tab"
-                onTriggered: Browser.newTab(chip.model.url)
+                onTriggered: root.openInNewTab(chip.model.url)
             }
             MenuSeparator {}
             MenuItem {
@@ -168,12 +175,12 @@ Rectangle {
         HoverHandler { id: chipHover }
         TapHandler {
             enabled: !chip.renaming
-            onTapped: Browser.navigate(chip.model.url)
+            onTapped: root.openBookmark(chip.model.url)
         }
         TapHandler {
             enabled: !chip.renaming
             acceptedButtons: Qt.MiddleButton
-            onTapped: Browser.newTab(chip.model.url)
+            onTapped: root.openInNewTab(chip.model.url)
         }
         TapHandler {
             enabled: !chip.renaming
@@ -240,7 +247,7 @@ Rectangle {
                     required property int index
                     text: model.title || model.url
                     visible: index >= root.firstHidden
-                    onTriggered: Browser.navigate(model.url)
+                    onTriggered: root.openBookmark(model.url)
                 }
                 onObjectAdded: (index, object) => overflowMenu.insertItem(index, object)
                 onObjectRemoved: (index, object) => overflowMenu.removeItem(object)

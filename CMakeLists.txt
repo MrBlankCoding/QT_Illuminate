@@ -1,16 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 project(QT_Illuminate VERSION 1.0.0 LANGUAGES CXX)
 
-# The deployment target must be at least as new as the minimum of every binary
-# we link: Homebrew Qt 6.11 is built for macOS 14.0 (qtbase) up to 27.0
-# (qtdeclarative), and the CEF framework for 13.0. Anything lower makes ld warn
-# "built for newer version" once per framework. Callers may override with
-# -DCMAKE_OSX_DEPLOYMENT_TARGET=<x.y>.
 if(APPLE)
     if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
         set(CMAKE_OSX_DEPLOYMENT_TARGET "27.0")
     endif()
-    # CEF resets the variable below; keep our own copy to restore.
     set(QT_ILLUMINATE_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}")
 
     enable_language(OBJCXX)
@@ -28,10 +22,8 @@ find_package(Qt6 REQUIRED COMPONENTS
     Widgets PrintSupport Pdf
 )
 
-# QHotkey - cross-platform global keyboard shortcut library
-# Replaces manual ShortcutBridge with Qt private headers
 include(FetchContent)
-set(CMAKE_POLICY_VERSION_MINIMUM 3.5)  # QHotkey still uses cmake_minimum_required(VERSION 3.1)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 FetchContent_Declare(
     QHotkey
     GIT_REPOSITORY https://github.com/Skycoder42/QHotkey.git
@@ -40,10 +32,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(QHotkey)
 unset(CMAKE_POLICY_VERSION_MINIMUM)  # restore for the rest of our project
-
-# CEF configuration
-# CEF ships a CMake Find module (FindCEF.cmake), NOT a CONFIG file, so we
-# must use MODULE mode.  CEF_ROOT points at the extracted cef_binary_* dir.
 if(DEFINED ENV{CEF_ROOT})
     set(CEF_ROOT $ENV{CEF_ROOT})
 elseif(DEFINED CEF_ROOT)
@@ -56,11 +44,6 @@ if(CEF_ROOT)
     find_package(CEF REQUIRED)
     set(CEF_FOUND ON)
 
-    # CEF's cef_variables.cmake hardcodes its own floor (CEF_TARGET_SDK) into
-    # CMAKE_OSX_DEPLOYMENT_TARGET and CEF_COMPILER_FLAGS. That leaks into this
-    # scope and drags every target defined below down to it, so the app links
-    # Qt/CEF at their real minimums. Put ours back before the wrapper and the
-    # helpers are added.
     if(APPLE)
         set(CMAKE_OSX_DEPLOYMENT_TARGET "${QT_ILLUMINATE_DEPLOYMENT_TARGET}")
         list(FILTER CEF_COMPILER_FLAGS EXCLUDE REGEX "^-mmacosx-version-min=")
@@ -68,12 +51,9 @@ if(CEF_ROOT)
 endif()
 
 if(CEF_FOUND)
-    # Compile libcef_dll_wrapper from CEF's own sources.
     add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper)
 
-    # CEF: Unified imported target for the CEF library + include paths.
     if(OS_MAC)
-        # macOS: CEF ships as the "Chromium Embedded Framework" framework.
         set(_CEF_FW_PATH "${CEF_BINARY_DIR_RELEASE}/Chromium Embedded Framework.framework")
         add_library(cef::cef UNKNOWN IMPORTED)
         set_target_properties(cef::cef PROPERTIES
@@ -101,6 +81,7 @@ qt_add_executable(QT_Illuminate
 )
 
 target_include_directories(QT_Illuminate PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_definitions(QT_Illuminate PRIVATE QT_ILLUMINATE_VERSION="${PROJECT_VERSION}")
 
 target_link_libraries(QT_Illuminate PRIVATE
     Qt6::Core
@@ -137,11 +118,7 @@ if(OS_MAC AND CEF_FOUND)
         COMMAND ln -sf "Versions/A/Info.plist" "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Info.plist"
         COMMENT "Copying Chromium Embedded Framework.framework into the bundle with proper structure"
     )
-    # On macOS, CEF resources live inside Chromium Embedded Framework.framework/Resources.
-    # Non-macOS platforms copy them directly from CEF_BINARY_DIR_RELEASE.
 
-    # CEF sub-processes (renderer, GPU, ...) run from separate helper bundles that
-    # CEF looks up at Contents/Frameworks/<app> Helper<suffix>.app.
     foreach(_suffix_list ${CEF_HELPER_APP_SUFFIXES})
         string(REPLACE ":" ";" _suffix_list ${_suffix_list})
         list(GET _suffix_list 0 _name_suffix)
@@ -177,10 +154,7 @@ if(OS_MAC AND CEF_FOUND)
             COMMENT "Copying ${_helper_output_name}.app into the bundle"
             VERBATIM
         )
-        # CEF's framework install name is @executable_path/../Frameworks/..., which
-        # from <bundle>/Frameworks/<helper>.app/Contents/MacOS/ resolves inside the
-        # helper's own bundle. Give each helper the same private-Frameworks symlink
-        # Electron/CEF use so sub-processes link against the single top-level copy.
+
         add_custom_command(TARGET QT_Illuminate POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory "${_helper_staged}/Contents/Frameworks"
             COMMAND ${CMAKE_COMMAND} -E rm -rf "${_helper_staged}/Contents/Frameworks/Chromium Embedded Framework.framework"
@@ -205,8 +179,6 @@ set_target_properties(QT_Illuminate PROPERTIES
 )
 
 if(APPLE)
-    # MACOSX_BUNDLE_ICON_FILE only fills in CFBundleIconFile; the .icns itself
-    # has to land in Contents/Resources for Finder/Dock to pick it up
     set(APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/packaging/icons/AppIcon.icns")
     if(NOT EXISTS "${APP_ICON}")
         message(FATAL_ERROR "Missing app icon: ${APP_ICON}")
@@ -228,6 +200,12 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/BrowserSettings.cpp
     src/core/ShortcutRegistry.h
     src/core/ShortcutRegistry.cpp
+    src/core/MenuItem.h
+    src/core/MenuItem.cpp
+    src/core/AppMenu.h
+    src/core/AppMenu.cpp
+    src/core/NativeMenuBar.h
+    src/core/NativeMenuBar.cpp
     src/core/TabModel.h
     src/core/TabModel.cpp
     src/core/BrowserController.h
@@ -352,6 +330,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/pages/ProfilePicker.qml
         ui/pages/SettingsWindow.qml
         ui/pages/SetupPage.qml
+        ui/components/AppMenuBar.qml
         ui/components/BookmarksBar.qml
         ui/components/ContextMenu.qml
         ui/components/DownloadsPanel.qml
