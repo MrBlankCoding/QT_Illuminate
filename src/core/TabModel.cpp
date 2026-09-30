@@ -7,8 +7,6 @@
 TabModel::TabModel(QObject *parent)
     : QAbstractListModel(parent)
 {
-    // first time a restored tab is shown: let QML create its web view.
-    // hooked to the signal since removeTab/moveTab change the index directly
     connect(this, &TabModel::activeIndexChanged, this, [this]() {
         if (BrowserTab *tab = tabAt(m_activeIndex))
             tab->setSuspended(false);
@@ -98,10 +96,13 @@ BrowserTab *TabModel::addTab(const QUrl &url, CefProfile *profile, bool suspende
     return tab;
 }
 
-void TabModel::removeTab(int index)
+bool TabModel::removeTab(int index)
 {
     if (index < 0 || index >= m_tabs.size())
-        return;
+        return false;
+
+    if (m_tabs.size() <= 1)
+        return false;
 
     beginRemoveRows({}, index, index);
     BrowserTab *tab = m_tabs.takeAt(index);
@@ -121,6 +122,8 @@ void TabModel::removeTab(int index)
 
     if (index <= oldActive)
         emit activeIndexChanged();
+
+    return true;
 }
 
 void TabModel::clear()

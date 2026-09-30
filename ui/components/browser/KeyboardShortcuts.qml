@@ -157,6 +157,10 @@ Item {
         onActivated: root.perform("tab.new")
     }
     Shortcut {
+        // the native menu bar registers the same sequence on a QAction, so
+        // leaving this enabled on top of it delivers one key press to
+        // perform("tab.close") twice -- one real close, one surplus
+        enabled: !AppMenu.native
         sequences: Shortcuts.sequences("closeTab")
         onActivated: root.perform("tab.close")
     }

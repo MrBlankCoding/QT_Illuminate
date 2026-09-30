@@ -44,9 +44,11 @@ ApplicationWindow {
         if (root.savedWin)
             root.savedWin.deleteLater();
         root.savedWin = w;
-        w.closing.connect(function () {
+        // windowClosed, not closing: `closing` also fires when the browser
+        // window's own handler vetoes the close to show its confirmation
+        // dialog, and quitting on that would make the dialog pointless
+        w.windowClosed.connect(function () {
             root.savedWin = null;
-            // no picker was ever shown, so closing the browser quits
             if (root.autoOpened)
                 Qt.quit();
             else

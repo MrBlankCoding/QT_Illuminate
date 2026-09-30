@@ -116,6 +116,7 @@ private:
     QSettings *m_settings;
     QSettings *m_appSettings = nullptr;
     bool m_isFirstRun = true;
+    bool m_closeInProgress = false;
 
     static const int MIN_TABS_FOR_CYCLE = 2;
     static const int NO_TAB_CYCLE_DELTA = 0;

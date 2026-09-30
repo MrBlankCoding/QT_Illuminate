@@ -79,9 +79,12 @@ Window {
     }
 
     property Window settingsWindow: null
-    // set when the close is one the user already confirmed, or one the app
-    // asked for (profile switch), so the dialog never guards it
     property bool skipCloseConfirm: false
+
+    // `closing` is emitted *before* the accept/reject decision is applied, so
+    // anything listening to it runs even when onClosing below vetoes. This
+    // fires only once the close has actually been allowed to happen.
+    signal windowClosed
 
     function requestWindowClose() {
         if (Browser.confirmCloseRequired()) {
@@ -93,8 +96,10 @@ Window {
     }
 
     onClosing: function(close) {
-        if (root.skipCloseConfirm || !Browser.confirmCloseRequired())
+        if (root.skipCloseConfirm || !Browser.confirmCloseRequired()) {
+            root.windowClosed()
             return;
+        }
         close.accepted = false
         closeDialog.open()
     }
@@ -130,7 +135,6 @@ Window {
     Dialog {
         id: closeDialog
         title: "Close window?"
-        // Popup isn't an Item, so position it by hand
         x: Math.round((root.width - width) / 2)
         y: Math.round((root.height - height) / 2)
         modal: true
@@ -281,8 +285,6 @@ Window {
         AppMenu.attach(root);
     }
 
-    // switching profiles replaces the window, so the bar has to let this one go
-    // before the replacement attaches
     Component.onDestruction: AppMenu.detach(root)
 
     ColumnLayout {
@@ -384,11 +386,9 @@ Window {
             viewStack.refreshActiveWebView();
         }
         function onNewTabOpened() {
-            // defer so the new tab's view doesn't steal focus back
             Qt.callLater(toolbar.focusAddressBar);
         }
-        // closing the last tab can't quit from C++: the window has to close,
-        // and the confirm dialog lives in QML
+
         function onCloseWindowRequested() {
             root.requestWindowClose();
         }

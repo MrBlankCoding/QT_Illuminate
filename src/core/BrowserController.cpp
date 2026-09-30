@@ -14,6 +14,7 @@
 #include <QImageReader>
 #include <QDateTime>
 #include <QFutureWatcher>
+#include <QMetaObject>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -41,6 +42,9 @@ void BrowserController::setProfile(Profile *profile)
     emit webProfileChanged();
     updateAdaptiveAccent();
 
+    // the new profile's tabs have to be opened straight away: an empty model
+    // reads as "last tab" to closeTab, so the next close would take the window
+    restoreSession();
 }
 
 BrowserController::BrowserController(Profile *profile, QObject *parent)
@@ -271,6 +275,7 @@ void BrowserController::saveSession() const
         return;
 
     QJsonArray tabsArray;
+    int savedActiveIndex = 0;
     for (int i = 0; i < m_model->rowCount(); ++i)
     {
         BrowserTab *tab = m_model->tabAt(i);
@@ -282,10 +287,13 @@ void BrowserController::saveSession() const
         obj[QStringLiteral("url")] = url.toString();
         obj[QStringLiteral("title")] = tab->title();
         tabsArray.append(obj);
+
+        if (i == m_model->activeIndex())
+            savedActiveIndex = tabsArray.size() - 1;
     }
 
     QJsonObject root;
-    root[QStringLiteral("activeIndex")] = m_model->activeIndex();
+    root[QStringLiteral("activeIndex")] = savedActiveIndex;
     root[QStringLiteral("tabs")] = tabsArray;
 
     QFile file(path);
@@ -324,12 +332,11 @@ void BrowserController::restoreSession()
         if (!value.isObject())
             continue;
         const QJsonObject obj = value.toObject();
-        const QUrl url(obj[QStringLiteral("url")].toString());
-        if (!url.isValid() || m_model->rowCount() >= TabModel::kMaxTabs)
+        const QString urlText = obj[QStringLiteral("url")].toString();
+        const QUrl url(urlText);
+        if (urlText.isEmpty() || !url.isValid() || m_model->rowCount() >= TabModel::kMaxTabs)
             continue;
 
-        // don't spin up a renderer for every restored tab; the active one
-        // wakes in setActiveIndex, the rest when first switched to
         if (BrowserTab *tab = m_model->addTab(url, m_profile->webProfile(), /*suspended=*/true))
             tab->setTitle(obj[QStringLiteral("title")].toString());
     }
@@ -412,13 +419,21 @@ void BrowserController::newTab(const QString &urlStr)
 
 void BrowserController::closeTab(int index)
 {
+    if (m_closeInProgress)
+        return;
+
     if (m_model->rowCount() <= 1)
     {
-        // last tab: hand the close to the window so it can confirm first
+        // last tab: the model keeps it, the window goes instead
+        m_closeInProgress = true;
         emit closeWindowRequested();
+        QMetaObject::invokeMethod(this, [this]() { m_closeInProgress = false; }, Qt::QueuedConnection);
         return;
     }
+
+    m_closeInProgress = true;
     m_model->removeTab(index);
+    QMetaObject::invokeMethod(this, [this]() { m_closeInProgress = false; }, Qt::QueuedConnection);
 }
 
 void BrowserController::activateTab(int index)

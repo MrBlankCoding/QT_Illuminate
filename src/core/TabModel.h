@@ -42,7 +42,9 @@ public:
     // tab CRUD
     // suspended: no web view until the tab is first activated (session restore)
     BrowserTab *addTab(const QUrl &url, CefProfile *profile, bool suspended = false);
-    void removeTab(int index);
+    // refuses to remove the last remaining tab, so the model can never be
+    // emptied by a stray removal. false means nothing was removed.
+    bool removeTab(int index);
     void clear();
     BrowserTab *tabAt(int index) const;
     Q_INVOKABLE BrowserTab *tabAt(int index);

@@ -211,13 +211,6 @@ Item {
         }
     }
 
-    component SectionHeader: Text {
-        Layout.topMargin: 12
-        color: Theme.text
-        font.pixelSize: 15
-        font.weight: Font.DemiBold
-    }
-
     Rectangle {
         anchors.fill: parent
         color: Theme.bg

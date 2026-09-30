@@ -330,26 +330,41 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/pages/ProfilePicker.qml
         ui/pages/SettingsWindow.qml
         ui/pages/SetupPage.qml
-        ui/components/AppMenuBar.qml
-        ui/components/BookmarksBar.qml
-        ui/components/ContextMenu.qml
-        ui/components/DownloadsPanel.qml
-        ui/components/FindBar.qml
-        ui/components/KeyboardShortcuts.qml
+        ui/pages/settings/PrivacySettingsPage.qml
+        ui/pages/settings/SearchSettingsPage.qml
+        ui/pages/settings/ShortcutsSettingsPage.qml
+        ui/pages/settings/StartupSettingsPage.qml
+        ui/pages/settings/TabsSettingsPage.qml
         ui/components/LucideIcon.qml
         ui/components/PillButton.qml
-        ui/components/PrintController.qml
-        ui/components/ProfileEditor.qml
-        ui/components/ProfileTile.qml
-        ui/components/ResizeGrips.qml
-        ui/components/ShortcutField.qml
-        ui/components/SuggestionBox.qml
-        ui/components/TabBar.qml
-        ui/components/TabItem.qml
-        ui/components/TabSlot.qml
-        ui/components/Toolbar.qml
-        ui/components/WindowControls.qml
-        ui/components/ZoomIndicator.qml
+        ui/components/chrome/ResizeGrips.qml
+        ui/components/chrome/WindowControls.qml
+        ui/components/chrome/WindowDragRegion.qml
+        ui/components/browser/BookmarksBar.qml
+        ui/components/browser/KeyboardShortcuts.qml
+        ui/components/browser/PrintController.qml
+        ui/components/browser/TabBar.qml
+        ui/components/browser/TabItem.qml
+        ui/components/browser/TabSlot.qml
+        ui/components/browser/Toolbar.qml
+        ui/components/overlays/AppMenuBar.qml
+        ui/components/overlays/ContextMenu.qml
+        ui/components/overlays/DownloadsPanel.qml
+        ui/components/overlays/FindBar.qml
+        ui/components/overlays/SuggestionBox.qml
+        ui/components/overlays/ZoomIndicator.qml
+        ui/components/profiles/ProfileEditor.qml
+        ui/components/profiles/ProfileTile.qml
+        ui/components/settings/Footnote.qml
+        ui/components/settings/NavItem.qml
+        ui/components/settings/SectionHeader.qml
+        ui/components/settings/SettingCombo.qml
+        ui/components/settings/SettingField.qml
+        ui/components/settings/SettingItem.qml
+        ui/components/settings/SettingsCard.qml
+        ui/components/settings/SettingsPage.qml
+        ui/components/settings/SettingSwitch.qml
+        ui/components/settings/ShortcutField.qml
     RESOURCES
         ui/resources/js/pointer-lock-shim.js
         ui/resources/js/devtools-bridge.js
