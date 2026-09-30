@@ -8,15 +8,15 @@
 #include <QLocalSocket>
 #include <QWindow>
 
-#include "core/BrowserSettings.h"
-#include "core/ShortcutRegistry.h"
-#include "core/CefManager.h"
-#include "core/AppMenu.h"
-#include "core/BookmarkModel.h"
-#include "core/BrowserController.h"
-#include "core/PermissionHandler.h"
-#include "core/ProfileManager.h"
-#include "core/SystemInfo.h"
+#include "core/browser/BrowserSettings.h"
+#include "core/menus/ShortcutRegistry.h"
+#include "core/cef/CefManager.h"
+#include "core/menus/AppMenu.h"
+#include "core/models/BookmarkModel.h"
+#include "core/browser/BrowserController.h"
+#include "core/system/PermissionHandler.h"
+#include "core/profiles/ProfileManager.h"
+#include "core/system/SystemInfo.h"
 #include "utils/BrowserLogger.h"
 
 #include <QByteArray>

@@ -9,7 +9,6 @@
 
 namespace {
 
-// kept alive for the app's lifetime; location prompts need a live manager
 CLLocationManager *locationManager()
 {
     static CLLocationManager *manager = [[CLLocationManager alloc] init];

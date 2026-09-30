@@ -108,6 +108,7 @@ ApplicationWindow {
     }
 
     Shortcut {
+        context: Qt.WindowShortcut
         sequence: "Esc"
         onActivated: root.close()
     }

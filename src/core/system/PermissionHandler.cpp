@@ -232,7 +232,6 @@ QString PermissionHandler::labelForResource(int resource) const
     return QString();
 }
 
-// ── default browser ────────────────────────────────────────────────
 
 bool PermissionHandler::isDefaultBrowser() const
 {
@@ -240,8 +239,6 @@ bool PermissionHandler::isDefaultBrowser() const
     {
         auto *self = const_cast<PermissionHandler *>(this);
         self->m_defaultBrowserChecked = true;
-        // seed the value without notifying: this runs while QML is evaluating
-        // a binding on the property, and a notify here reads as a binding loop
         self->m_isDefaultBrowser = platformIsDefaultBrowser();
     }
     return m_isDefaultBrowser;
@@ -302,7 +299,6 @@ void PermissionHandler::finishDefaultBrowserRequest(bool ok, const QString &erro
     }
 }
 
-// ── platform: Linux ────────────────────────────────────────────────
 
 #if defined(Q_OS_LINUX)
 
@@ -351,7 +347,6 @@ void PermissionHandler::platformMakeDefaultBrowser()
              {QStringLiteral("set"), QStringLiteral("default-web-browser"), kDesktopFile});
 }
 
-// ── platform: Windows ──────────────────────────────────────────────
 
 #elif defined(Q_OS_WIN)
 
@@ -412,8 +407,6 @@ bool PermissionHandler::platformIsDefaultBrowser()
 
 void PermissionHandler::platformMakeDefaultBrowser()
 {
-    // Windows won't let apps set this themselves; register as a candidate
-    // under HKCU and open Default Apps filtered to us
     const QString exe = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
 
     QSettings progId(QStringLiteral("HKEY_CURRENT_USER\\Software\\Classes\\") + kProgId,
@@ -446,7 +439,6 @@ void PermissionHandler::platformMakeDefaultBrowser()
     });
 }
 
-// ── platform: other (macOS lives in PermissionHandler_mac.mm) ──────
 
 #elif !defined(Q_OS_MACOS)
 

@@ -74,16 +74,19 @@ Window {
         if (!w)
             return;
         w.show();
+        root.retire();
+    }
+
+    function retire() {
         root.skipCloseConfirm = true
+        root.replacedByNewWindow = true
         root.close();
+        Qt.callLater(function () { root.destroy(); });
     }
 
     property Window settingsWindow: null
     property bool skipCloseConfirm: false
-
-    // `closing` is emitted *before* the accept/reject decision is applied, so
-    // anything listening to it runs even when onClosing below vetoes. This
-    // fires only once the close has actually been allowed to happen.
+    property bool replacedByNewWindow: false
     signal windowClosed
 
     function requestWindowClose() {
@@ -97,7 +100,11 @@ Window {
 
     onClosing: function(close) {
         if (root.skipCloseConfirm || !Browser.confirmCloseRequired()) {
-            root.windowClosed()
+            // A window that is merely being replaced is not the user closing the
+            // browser, so the profile picker waiting on windowClosed must not
+            // bring itself back on top of the replacement.
+            if (!root.replacedByNewWindow)
+                root.windowClosed()
             return;
         }
         close.accepted = false
@@ -127,9 +134,9 @@ Window {
         const picker = component.createObject(null) as Window;
         if (!picker)
             return;
+        // before retiring, so the app never has a moment with no window
         picker.show();
-        root.skipCloseConfirm = true
-        root.close();
+        root.retire();
     }
 
     Dialog {
@@ -468,6 +475,7 @@ Window {
     }
 
     Shortcut {
+        context: Qt.WindowShortcut
         sequence: "Esc"
         enabled: root.pointerLockActive
         onActivated: root.releasePointerLock()

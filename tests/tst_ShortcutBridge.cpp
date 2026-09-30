@@ -98,6 +98,33 @@ private slots:
         QCOMPARE(root->property("activatedCount").toInt(), 2);
     }
 
+    void closedWindowDoesNotStealShortcuts()
+    {
+        QObject *outgoing = createWindowWithShortcut();
+        auto *outgoingWindow = qobject_cast<QQuickWindow *>(outgoing);
+        QVERIFY(outgoingWindow);
+        outgoing->setProperty("shortcutContext", static_cast<int>(Qt::WindowShortcut));
+        outgoingWindow->show();
+        QCoreApplication::processEvents();
+
+        QObject *incoming = freshWindow();
+        auto *incomingWindow = qobject_cast<QQuickWindow *>(incoming);
+        QVERIFY(incomingWindow);
+        incoming->setProperty("shortcutContext", static_cast<int>(Qt::WindowShortcut));
+        incomingWindow->show();
+        incomingWindow->requestActivate();
+        QCoreApplication::processEvents();
+
+        // outlives its usefulness, exactly as a switched-away window did
+        outgoingWindow->close();
+        QCoreApplication::processEvents();
+
+        QVERIFY(ShortcutBridge::dispatchKeyPress(incomingWindow, kVkT, kCmd));
+        QCOMPARE(incoming->property("activatedCount").toInt(), 1);
+
+        delete outgoingWindow;
+    }
+
     void disabledShortcutsAreNotConsumed()
     {
         QObject *root = freshWindow();
@@ -121,8 +148,8 @@ private slots:
 
 
 private:
-    // A WindowShortcut whose window is the focus window: the context the app
-    // relies on. CEF's native view holding first responder inside that same
+    // A WindowShortcut whose window is the focus window: the narrower of the two
+    // contexts. CEF's native view holding first responder inside that same
     // window is only reproducible in the app itself, not here.
     QQuickWindow *focusedWindow()
     {
@@ -135,8 +162,8 @@ private:
             return nullptr;
         }
         auto *window = qobject_cast<QQuickWindow *>(root);
-        window->show();
-        window->requestActivate();
+        // let the `context: win.shortcutContext` bindings re-evaluate before
+        // the key press is dispatched
         QCoreApplication::processEvents();
         if (QGuiApplication::focusWindow() != window)
         {
@@ -146,18 +173,24 @@ private:
         return window;
     }
 
-    // one window at a time: shortcuts from a still-alive window would make the
-    // next key press ambiguous, and QML reports that as activatedAmbiguously
     QObject *freshWindow()
     {
         delete m_window;
         m_window = createWindowWithShortcut();
+        auto *window = qobject_cast<QQuickWindow *>(m_window);
+        if (!window)
+            return m_window;
+
+        window->show();
+        window->requestActivate();
+        QCoreApplication::processEvents();
+        if (QGuiApplication::focusWindow() != window)
+            qWarning("test window never became the focus window");
         return m_window;
     }
 
-    // ApplicationShortcut context: the matcher ignores window focus, which a
-    // test process cannot rely on having. WindowShortcut is covered by
-    // windowShortcutMatchesWhenFocused when the window really is the focus one.
+    // The default Qt.ApplicationShortcut context, so a match does not depend on
+    // which of the app's windows has focus.
     static QObject *createWindowWithShortcut()
     {
         static QQmlEngine engine;

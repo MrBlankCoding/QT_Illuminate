@@ -194,63 +194,74 @@ endif()
 set_source_files_properties(ui/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_library(QT_Illuminatemodule STATIC
-    src/core/BrowserTab.h
-    src/core/BrowserTab.cpp
-    src/core/BrowserSettings.h
-    src/core/BrowserSettings.cpp
-    src/core/ShortcutRegistry.h
-    src/core/ShortcutRegistry.cpp
-    src/core/MenuItem.h
-    src/core/MenuItem.cpp
-    src/core/AppMenu.h
-    src/core/AppMenu.cpp
-    src/core/NativeMenuBar.h
-    src/core/NativeMenuBar.cpp
-    src/core/TabModel.h
-    src/core/TabModel.cpp
-    src/core/BrowserController.h
-    src/core/BrowserController.cpp
-    src/core/BookmarkModel.h
-    src/core/BookmarkModel.cpp
-     src/core/InternalPageManager.h
-     src/core/InternalPageManager.cpp
-     src/core/MemoryMonitor.h
-     src/core/MemoryMonitor.cpp
-    src/core/PermissionHandler.h
-    src/core/PermissionHandler.cpp
-     src/core/Profile.h
-    src/core/Profile.cpp
-    src/core/ProfileManager.h
-    src/core/ProfileManager.cpp
-    src/core/SystemInfo.h
-    src/core/SystemInfo.cpp
-    src/core/CefManager.h
-    src/core/CefManager.cpp
-    src/core/CefBrowserWrapper.h
-    src/core/CefBrowserWrapper.cpp
-    src/core/CefProfile.h
-    src/core/CefProfile.cpp
-    src/core/CefDownloadWrapper.h
-    src/core/CefDownloadWrapper.cpp
-    src/core/CefMainBrowserId.h
-    src/core/CefLoadHandler.h
-    src/core/CefLoadHandler.cpp
-    src/core/CefDisplayHandler.h
-    src/core/CefDisplayHandler.cpp
-    src/core/CefContextMenuHandler.h
-    src/core/CefContextMenuHandler.cpp
-    src/core/CefDownloadHandler.h
-    src/core/CefDownloadHandler.cpp
-    src/core/CefFindHandler.h
-    src/core/CefFindHandler.cpp
-    src/core/CefPermissionHandler.h
-    src/core/CefPermissionHandler.cpp
-    src/core/CefRequestHandler.h
-    src/core/CefRequestHandler.cpp
-    src/core/CefTabClient.h
-    src/core/CefTabClient.cpp
-    src/core/CefQuickItem.h
-    src/core/CefQuickItem.cpp
+    # --- core/browser: top-level browser orchestration ---
+    src/core/browser/BrowserTab.h
+    src/core/browser/BrowserTab.cpp
+    src/core/browser/BrowserSettings.h
+    src/core/browser/BrowserSettings.cpp
+    src/core/browser/BrowserController.h
+    src/core/browser/BrowserController.cpp
+    src/core/browser/InternalPageManager.h
+    src/core/browser/InternalPageManager.cpp
+
+    # --- core/models: Qt models exposed to QML ---
+    src/core/models/TabModel.h
+    src/core/models/TabModel.cpp
+    src/core/models/BookmarkModel.h
+    src/core/models/BookmarkModel.cpp
+
+    # --- core/profiles ---
+    src/core/profiles/Profile.h
+    src/core/profiles/Profile.cpp
+    src/core/profiles/ProfileManager.h
+    src/core/profiles/ProfileManager.cpp
+
+    # --- core/menus: native menu bar and keyboard shortcuts ---
+    src/core/menus/MenuItem.h
+    src/core/menus/MenuItem.cpp
+    src/core/menus/AppMenu.h
+    src/core/menus/AppMenu.cpp
+    src/core/menus/NativeMenuBar.h
+    src/core/menus/NativeMenuBar.cpp
+    src/core/menus/ShortcutRegistry.h
+    src/core/menus/ShortcutRegistry.cpp
+
+    # --- core/system: diagnostics and permission prompts ---
+    src/core/system/SystemInfo.h
+    src/core/system/SystemInfo.cpp
+    src/core/system/MemoryMonitor.h
+    src/core/system/MemoryMonitor.cpp
+    src/core/system/PermissionHandler.h
+    src/core/system/PermissionHandler.cpp
+
+    # --- core/cef: Chromium Embedded Framework integration ---
+    src/core/cef/CefManager.h
+    src/core/cef/CefManager.cpp
+    src/core/cef/CefBrowserWrapper.h
+    src/core/cef/CefBrowserWrapper.cpp
+    src/core/cef/CefTabClient.h
+    src/core/cef/CefTabClient.cpp
+    src/core/cef/CefQuickItem.h
+    src/core/cef/CefQuickItem.cpp
+    src/core/cef/CefProfile.h
+    src/core/cef/CefProfile.cpp
+    src/core/cef/CefDownloadWrapper.h
+    src/core/cef/CefDownloadWrapper.cpp
+    src/core/cef/CefMainBrowserId.h
+    src/core/cef/CefLoadHandler.h
+    src/core/cef/CefLoadHandler.cpp
+    src/core/cef/CefDisplayHandler.h
+    src/core/cef/CefDisplayHandler.cpp
+    src/core/cef/CefContextMenuHandler.h
+    src/core/cef/CefContextMenuHandler.cpp
+    src/core/cef/CefDownloadHandler.h
+    src/core/cef/CefDownloadHandler.cpp
+    src/core/cef/CefFindHandler.h
+    src/core/cef/CefFindHandler.cpp
+    src/core/cef/CefPermissionHandler.h
+    src/core/cef/CefPermissionHandler.cpp
+    src/core/cef/CefRequestHandler.h
+    src/core/cef/CefRequestHandler.cpp
 
     src/utils/cef_helpers.h
     src/utils/UrlResolver.h
@@ -277,8 +288,8 @@ qt_add_library(QT_Illuminatemodule STATIC
 if(APPLE)
     target_sources(QT_Illuminatemodule PRIVATE src/utils/WindowRounding_mac.mm)
     target_sources(QT_Illuminatemodule PRIVATE src/utils/PointerLockEmulation.mm)
-    target_sources(QT_Illuminatemodule PRIVATE src/core/PermissionHandler_mac.mm)
-    target_sources(QT_Illuminatemodule PRIVATE src/core/CefManager_mac.mm src/core/CefBrowserWrapper_mac.mm)
+    target_sources(QT_Illuminatemodule PRIVATE src/core/system/PermissionHandler_mac.mm)
+    target_sources(QT_Illuminatemodule PRIVATE src/core/cef/CefManager_mac.mm src/core/cef/CefBrowserWrapper_mac.mm)
     set_source_files_properties(src/utils/PointerLockEmulation.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_link_libraries(QT_Illuminatemodule PRIVATE
         "-framework Cocoa" "-framework AppKit" "-framework AVFoundation" "-framework CoreLocation" "-framework IOSurface")
@@ -294,6 +305,12 @@ endif()
 target_include_directories(QT_Illuminatemodule PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/browser
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/cef
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/menus
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/profiles
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/system
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
 )
 

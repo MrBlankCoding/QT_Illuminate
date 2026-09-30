@@ -8,8 +8,6 @@
 class QQmlEngine;
 class QJSEngine;
 
-// samples memory of the browser process and every Chromium helper it spawned
-// (gpu, network, renderers, ...). backs illuminate://memory.
 class MemoryMonitor : public QObject
 {
     Q_OBJECT

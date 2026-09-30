@@ -8,6 +8,13 @@
 #include <QHash>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QWindow>
+
+#include <QCoreApplication>
+#include <QKeyEvent>
+#include <QList>
+#include <QObject>
+#include <QString>
 
 namespace {
 
@@ -103,6 +110,59 @@ Qt::KeyboardModifiers modifiersFromCefImpl(uint32_t cefEventFlags)
     return modifiers;
 }
 
+// QML `Shortcut` items are QQuickShortcut, a QtQuick-private class. It is
+// matched by name so this file needs no private headers, which is the house
+// rule (see the QHotkey note in CMakeLists.txt). Matching on the name also
+// keeps unrelated `activated` signals out: QQuickItem emits one on click.
+constexpr const char *kQmlShortcutClassName = "QQuickShortcut";
+
+bool isQmlShortcut(const QObject *object)
+{
+    return object && qstrcmp(object->metaObject()->className(), kQmlShortcutClassName) == 0;
+}
+
+// Records whether any QML `Shortcut` in the window handled the replayed key.
+// The key event itself cannot report this: on a shown window Qt leaves
+// isAccepted() false whether or not a shortcut matched, so the activation has to
+// be observed on the signal. A real slot is needed because Qt 6 dropped the
+// connect() overload that paired a string-based signal with a lambda.
+class ShortcutActivationSpy : public QObject
+{
+    Q_OBJECT
+
+public:
+    bool fired = false;
+
+public slots:
+    void onActivated() { fired = true; }
+};
+
+bool replayIntoWindowShortcuts(QWindow *window, Qt::Key key, Qt::KeyboardModifiers modifiers)
+{
+    if (!window)
+        return false;
+
+    ShortcutActivationSpy spy;
+    bool anyShortcut = false;
+    const QList<QObject *> descendants = window->findChildren<QObject *>();
+    for (QObject *object : descendants)
+    {
+        if (!isQmlShortcut(object))
+            continue;
+        anyShortcut = true;
+        object->connect(object, SIGNAL(activated()), &spy, SLOT(onActivated()));
+    }
+
+    // Nothing to match against: leave the key for Chromium.
+    if (!anyShortcut)
+        return false;
+
+    QKeyEvent press(QEvent::KeyPress, key, modifiers);
+    QCoreApplication::sendEvent(window, &press);
+
+    return spy.fired;
+}
+
 } // namespace
 
 Qt::Key ShortcutBridge::keyFromWindowsKeyCode(int code)
@@ -117,33 +177,33 @@ Qt::KeyboardModifiers ShortcutBridge::modifiersFromCef(uint32_t cefEventFlags)
 
 bool ShortcutBridge::dispatchKeyPress(QWindow *window, int windowsKeyCode, uint32_t cefEventFlags)
 {
-    Q_UNUSED(window);
-
     const Qt::Key key = keyFromWindowsKeyCodeImpl(windowsKeyCode);
     if (key == Qt::Key_unknown)
         return false;
 
     const Qt::KeyboardModifiers modifiers = modifiersFromCefImpl(cefEventFlags);
-    const QKeyCombination combination(modifiers, key);
-    const QString sequence = QKeySequence(combination).toString();
 
-    ShortcutBridge::Callback callbackToInvoke;
+    ShortcutBridge::Callback hotkeyCallback = nullptr;
     bool matched = false;
-
     {
+        const QString sequence = QKeySequence(QKeyCombination(modifiers, key)).toString();
         QMutexLocker locker(&shortcutRegistryMutex());
         auto it = shortcutRegistry().constFind(sequence);
         if (it != shortcutRegistry().constEnd() && it->hotkey && it->hotkey->isRegistered())
         {
-            callbackToInvoke = it->callback;
+            hotkeyCallback = it->callback;
             matched = true;
         }
     }
 
-    if (matched && callbackToInvoke)
-        callbackToInvoke();
+    if (matched)
+    {
+        if (hotkeyCallback)
+            hotkeyCallback();
+        return true;
+    }
 
-    return matched;
+    return replayIntoWindowShortcuts(window, key, modifiers);
 }
 
 bool ShortcutBridge::registerShortcut(const QString &sequence, Callback callback)
@@ -217,3 +277,5 @@ void ShortcutBridge::unregisterAll()
     }
     shortcutRegistry().clear();
 }
+
+#include "ShortcutBridge.moc"
