@@ -2,6 +2,7 @@
 #include "CefBrowserWrapper.h"
 #include "../utils/cef_helpers.h"
 
+#include <QCoreApplication>
 #include <QMetaObject>
 
 CefContextMenuParamsWrapper::CefContextMenuParamsWrapper(CefRefPtr<CefContextMenuParams> params,
@@ -36,11 +37,16 @@ void CefContextMenuHandlerImpl::OnBeforeContextMenu(CefRefPtr<CefBrowser> browse
     model->Clear();
 
     auto *paramsWrapper = new CefContextMenuParamsWrapper(params);
-    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, paramsWrapper]() {
+    paramsWrapper->moveToThread(QCoreApplication::instance()->thread());
+    QMetaObject::invokeMethod(QCoreApplication::instance(), [wrapper = m_wrapper, paramsWrapper]() {
         if (wrapper)
         {
+            const auto previous = wrapper->findChildren<CefContextMenuParamsWrapper *>(
+                Qt::FindDirectChildrenOnly);
             paramsWrapper->setParent(wrapper);
             emit wrapper->contextMenuRequested(paramsWrapper);
+            for (auto *old : previous)
+                old->deleteLater();
         }
         else
         {

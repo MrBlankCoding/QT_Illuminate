@@ -25,6 +25,13 @@ MenuItem MenuItem::subMenu(const QString &label, QVector<MenuItem> children)
     return item;
 }
 
+bool MenuItem::operator==(const MenuItem &other) const
+{
+    return kind == other.kind && id == other.id && label == other.label && shortcut == other.shortcut
+           && enabled == other.enabled && checked == other.checked && payload == other.payload
+           && menuRole == other.menuRole && children == other.children;
+}
+
 QVariantMap MenuItem::toVariantMap() const
 {
     QVariantMap map;

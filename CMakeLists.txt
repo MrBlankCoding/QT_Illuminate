@@ -365,7 +365,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/components/browser/TabSlot.qml
         ui/components/browser/Toolbar.qml
         ui/components/overlays/AppMenuBar.qml
-        ui/components/overlays/ContextMenu.qml
+        ui/components/overlays/WebContextMenu.qml
         ui/components/overlays/DownloadsPanel.qml
         ui/components/overlays/FindBar.qml
         ui/components/overlays/SuggestionBox.qml

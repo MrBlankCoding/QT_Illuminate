@@ -6,17 +6,12 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-// The registry persists through QSettings, so every test runs against a
-// throwaway store rather than the real user preferences.
 class TestShortcutRegistry : public QObject
 {
     Q_OBJECT
 
 private:
     QTemporaryDir m_dir;
-
-    // a fresh instance reads the same backing store, which is how a restart
-    // is modelled
     ShortcutRegistry *fresh()
     {
         auto *registry = new ShortcutRegistry(this);
@@ -93,6 +88,23 @@ private slots:
 
         const QKeySequence displayed(registry->displaySequence(QStringLiteral("copyUrl")));
         QCOMPARE(displayed.toString(QKeySequence::PortableText), QStringLiteral("Ctrl+Alt+U"));
+    }
+
+    void bindingsMapFollowsRebinds()
+    {
+        auto *registry = fresh();
+
+        QVariantMap bindings = registry->bindings();
+        QCOMPARE(bindings.size(), registry->commands().size());
+        QCOMPARE(bindings.value(QStringLiteral("copyUrl")).toStringList(), QStringList{QStringLiteral("Ctrl+Shift+C")});
+
+        QVERIFY(registry->setSequence(QStringLiteral("copyUrl"), QStringLiteral("Ctrl+Alt+U")));
+        bindings = registry->bindings();
+        QCOMPARE(bindings.value(QStringLiteral("copyUrl")).toStringList(), QStringList{QStringLiteral("Ctrl+Alt+U")});
+
+        registry->reset(QStringLiteral("copyUrl"));
+        bindings = registry->bindings();
+        QCOMPARE(bindings.value(QStringLiteral("copyUrl")).toStringList(), QStringList{QStringLiteral("Ctrl+Shift+C")});
     }
 
     void rebindingToTheDefaultIsTheSameAsResetting()

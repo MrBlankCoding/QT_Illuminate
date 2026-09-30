@@ -25,6 +25,8 @@ class BrowserSettings : public QObject, public ExternalQmlSingleton<BrowserSetti
     Q_PROPERTY(QString searchEngineName READ searchEngineName NOTIFY searchEngineChanged)
     Q_PROPERTY(QString customSearchUrl READ customSearchUrl WRITE setCustomSearchUrl NOTIFY searchEngineChanged)
     Q_PROPERTY(QVariantList searchEngines READ searchEngines CONSTANT)
+    Q_PROPERTY(QString searchUrlTemplate READ searchUrlTemplate NOTIFY searchEngineChanged)
+    Q_PROPERTY(bool searchSuggestionsEnabled READ searchSuggestionsEnabled WRITE setSearchSuggestionsEnabled NOTIFY searchSuggestionsEnabledChanged)
     // privacy
     Q_PROPERTY(bool thirdPartyCookiesEnabled READ thirdPartyCookiesEnabled WRITE setThirdPartyCookiesEnabled NOTIFY thirdPartyCookiesEnabledChanged)
     // tabs
@@ -59,7 +61,9 @@ public:
     void setCustomSearchUrl(const QString &url);
     QVariantList searchEngines() const;
     // the template to hand UrlResolver: the engine's, or the custom one
-    Q_INVOKABLE QString searchUrlTemplate() const;
+    QString searchUrlTemplate() const;
+    bool searchSuggestionsEnabled() const;
+    void setSearchSuggestionsEnabled(bool enabled);
 
     bool thirdPartyCookiesEnabled() const;
     void setThirdPartyCookiesEnabled(bool enabled);
@@ -76,6 +80,7 @@ signals:
     void startupBehaviorChanged();
     void homepageUrlChanged();
     void searchEngineChanged();
+    void searchSuggestionsEnabledChanged();
     void thirdPartyCookiesEnabledChanged();
     void autoUnloadChanged();
     void confirmCloseMultipleTabsChanged();
@@ -94,6 +99,7 @@ private:
     QString m_homepageUrl;
     QString m_searchEngineId;
     QString m_customSearchUrl;
+    bool m_searchSuggestions = true;
     bool m_thirdPartyCookies = true;
     bool m_autoUnload = true;
     int m_autoUnloadMinutes = 5;

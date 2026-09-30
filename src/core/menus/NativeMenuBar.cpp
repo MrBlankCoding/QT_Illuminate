@@ -15,6 +15,7 @@ namespace
     QMenuBar *s_bar = nullptr;
     QList<QMenu *> s_menus;
     AppMenu *s_owner = nullptr;
+    QVector<MenuItem> s_nodes;
 
     QMenu *buildMenu(const MenuItem &node, AppMenu *owner)
     {
@@ -34,12 +35,9 @@ namespace
             action->setChecked(entry.checked);
             if (!entry.shortcut.isEmpty())
                 action->setShortcut(QKeySequence(entry.shortcut));
-            // so the key reaches the window the bar belongs to
             action->setShortcutContext(Qt::WindowShortcut);
             action->setMenuRole(entry.menuRole);
 
-            // the menu is the context object, so choosing a row from a menu
-            // that has already been rebuilt reaches nobody
             const QString id = entry.id;
             const QString payload = entry.payload;
             QObject::connect(action, &QAction::triggered, menu, [owner, id, payload]() {
@@ -55,6 +53,26 @@ namespace
         if (!s_bar || !s_owner)
             return;
 
+        const QVector<MenuItem> &items = s_owner->items();
+        if (items.size() == s_nodes.size() && items.size() == s_menus.size())
+        {
+            for (qsizetype i = 0; i < items.size(); ++i)
+            {
+                if (items.at(i) == s_nodes.at(i))
+                    continue;
+
+                QMenu *fresh = buildMenu(items.at(i), s_owner);
+                QMenu *stale = s_menus.at(i);
+                s_bar->insertMenu(stale->menuAction(), fresh);
+                s_bar->removeAction(stale->menuAction());
+                // it may be the menu whose action led here
+                stale->deleteLater();
+                s_menus[i] = fresh;
+            }
+            s_nodes = items;
+            return;
+        }
+
         s_bar->clear();
         qDeleteAll(s_menus);
         s_menus.clear();
@@ -65,6 +83,7 @@ namespace
             s_menus.append(menu);
             s_bar->addMenu(menu);
         }
+        s_nodes = items;
     }
 }
 
@@ -110,6 +129,7 @@ namespace NativeMenuBar
         s_bar->clear();
         qDeleteAll(s_menus);
         s_menus.clear();
+        s_nodes.clear();
 
         // deleting the last menu bar is what takes the bar off the screen
         delete s_bar;

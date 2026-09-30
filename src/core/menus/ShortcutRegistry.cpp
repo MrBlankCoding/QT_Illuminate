@@ -5,13 +5,7 @@
 
 namespace
 {
-    // app-wide, not per profile: a shortcut that moved with the profile would
-    // mean the same key did different things in different windows
     constexpr char kGroup[] = "shortcuts";
-
-    // resolves a platform standard to portable text, so "Ctrl+T" means Cmd+T
-    // on macOS and Ctrl+T everywhere else -- the same convention the QML
-    // Shortcut items and the CEF key bridge already use
     QString standard(QKeySequence::StandardKey key)
     {
         return QKeySequence(key).toString(QKeySequence::PortableText);
@@ -78,8 +72,6 @@ QList<ShortcutRegistry::Command> ShortcutRegistry::buildTable()
         {QStringLiteral("Ctrl+Shift+I"), QStringLiteral("Ctrl+Alt+I"), QStringLiteral("F12")});
 
     add("Application", "settings", "Open settings", {QStringLiteral("Ctrl+,")});
-    // both are only reachable from the menu bar, but a menu row that shows a
-    // key still has to make that key work
     add("Application", "closeWindow", "Close window", {QStringLiteral("Ctrl+Shift+W")});
     add("Application", "quit", "Quit", {QStringLiteral("Ctrl+Q")});
 
@@ -175,6 +167,14 @@ bool ShortcutRegistry::hasCustomizations() const
     return false;
 }
 
+QVariantMap ShortcutRegistry::bindings() const
+{
+    QVariantMap result;
+    for (const Command &command : table())
+        result.insert(command.id, sequences(command.id));
+    return result;
+}
+
 QString ShortcutRegistry::commandUsing(const QString &sequence, const QString &exceptCommandId) const
 {
     const QString wanted = normalize(sequence);
@@ -213,8 +213,6 @@ bool ShortcutRegistry::setSequence(const QString &commandId, const QString &sequ
         return false;
 
     m_settings->setValue(QLatin1String(kGroup) + QLatin1Char('/') + commandId, normalized);
-    // a second instance has to see the change straight away, the way it would
-    // on the next launch
     m_settings->sync();
     emit shortcutsChanged();
     return true;
@@ -260,8 +258,6 @@ QString ShortcutRegistry::sequenceFromKey(int key, int modifierMask)
         break;
     }
 
-    // QML hands over the raw modifier bitfield; keep only the four that mean
-    // something in a binding and drop keypad/group-switch noise
     constexpr int kBindable = Qt::ControlModifier | Qt::AltModifier | Qt::ShiftModifier | Qt::MetaModifier;
     const auto modifiers = static_cast<Qt::KeyboardModifiers>(modifierMask & kBindable);
 

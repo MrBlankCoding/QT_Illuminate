@@ -3,6 +3,7 @@
 #include "PermissionHandler.h"
 #include "../utils/cef_helpers.h"
 
+#include <QCoreApplication>
 #include <QMetaObject>
 
 CefPermissionRequest::CefPermissionRequest(const QUrl &origin,
@@ -13,22 +14,32 @@ CefPermissionRequest::CefPermissionRequest(const QUrl &origin,
 {
 }
 
-void CefPermissionRequest::grant()
+CefPermissionRequest::~CefPermissionRequest()
+{
+    finish(CEF_PERMISSION_RESULT_DENY);
+}
+
+void CefPermissionRequest::finish(cef_permission_request_result_t result)
 {
     if (m_callback)
     {
-        m_callback->Continue(CEF_PERMISSION_RESULT_ACCEPT);
+        m_callback->Continue(result);
         m_callback = nullptr;
     }
 }
 
+// deleteLater, not delete: callers (PermissionHandler::respond) still read
+// origin/permissionType after answering
+void CefPermissionRequest::grant()
+{
+    finish(CEF_PERMISSION_RESULT_ACCEPT);
+    deleteLater();
+}
+
 void CefPermissionRequest::deny()
 {
-    if (m_callback)
-    {
-        m_callback->Continue(CEF_PERMISSION_RESULT_DENY);
-        m_callback = nullptr;
-    }
+    finish(CEF_PERMISSION_RESULT_DENY);
+    deleteLater();
 }
 
 CefPermissionHandlerImpl::CefPermissionHandlerImpl(CefBrowserWrapper *wrapper)
@@ -76,7 +87,12 @@ bool CefPermissionHandlerImpl::OnShowPermissionPrompt(CefRefPtr<CefBrowser> brow
     if (m_wrapper)
     {
         auto *req = new CefPermissionRequest(origin, type, callback);
-        QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, req]() {
+        // created on the CEF UI thread, which is not the Qt one off macOS:
+        // setParent() and deleteLater() need it to live on the Qt thread
+        req->moveToThread(QCoreApplication::instance()->thread());
+        // the application as context: one on the wrapper would drop the call,
+        // and with it the cleanup below, if the wrapper died first
+        QMetaObject::invokeMethod(QCoreApplication::instance(), [wrapper = m_wrapper, req]() {
             if (wrapper)
             {
                 req->setParent(wrapper);
@@ -84,8 +100,7 @@ bool CefPermissionHandlerImpl::OnShowPermissionPrompt(CefRefPtr<CefBrowser> brow
             }
             else
             {
-                req->deny();
-                delete req;
+                delete req; // denies it
             }
         }, Qt::QueuedConnection);
         return true;

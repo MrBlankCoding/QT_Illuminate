@@ -19,14 +19,19 @@ public:
                                   int type,
                                   CefRefPtr<CefPermissionPromptCallback> callback,
                                   QObject *parent = nullptr);
+    // an unanswered prompt is denied, so CEF never waits on it forever
+    ~CefPermissionRequest() override;
 
     QUrl origin() const { return m_origin; }
     int permissionType() const { return m_type; }
 
+    // both answer once and then deleteLater() the request
     Q_INVOKABLE void grant();
     Q_INVOKABLE void deny();
 
 private:
+    void finish(cef_permission_request_result_t result);
+
     QUrl m_origin;
     int m_type;
     CefRefPtr<CefPermissionPromptCallback> m_callback;

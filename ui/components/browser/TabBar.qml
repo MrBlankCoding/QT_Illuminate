@@ -9,9 +9,7 @@ Item {
     id: root
     property bool isDragging: false
     height: Theme.tabBarHeight
-    // window controls are hidden in fullscreen, so no spacer is needed
     readonly property bool isFullScreen: root.Window.visibility === Window.FullScreen
-    // Windows and Linux are frameless, so the tab strip draws its own controls
     readonly property bool showWindowControls: Qt.platform.os !== "osx" && !isFullScreen
     readonly property real availableForTabs: Math.max(0, width - trafficLightSpacer.width - newTabButton.width - (showWindowControls ? windowControls.width : 0))
 
@@ -89,6 +87,33 @@ Item {
 
             // avoid binding loop
             readonly property real tabWidth: Math.min(Theme.tabMaxWidth, Math.max(Theme.tabMinWidth, root.availableForTabs / Math.max(count, 1)))
+            function revealActive() {
+                const i = Browser.tabModel.activeIndex
+                if (i >= 0 && i < tabList.count)
+                    tabList.positionViewAtIndex(i, ListView.Contain)
+            }
+            onWidthChanged: Qt.callLater(tabList.revealActive)
+            Connections {
+                target: Browser.tabModel
+                function onActiveIndexChanged() { Qt.callLater(tabList.revealActive) }
+                function onCountChanged() { Qt.callLater(tabList.revealActive) }
+            }
+
+            WheelHandler {
+                target: null
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                onWheel: (event) => {
+                    const px = event.pixelDelta
+                    const ad = event.angleDelta
+                    // horizontal gestures first; a plain vertical wheel scrolls too
+                    const delta = (px.x !== 0 || px.y !== 0)
+                        ? (Math.abs(px.x) >= Math.abs(px.y) ? px.x : px.y)
+                        : (Math.abs(ad.x) >= Math.abs(ad.y) ? ad.x : ad.y) / 2
+                    const maxX = tabList.originX + Math.max(0, tabList.contentWidth - tabList.width)
+                    tabList.contentX = Math.max(tabList.originX, Math.min(maxX, tabList.contentX - delta))
+                    event.accepted = true
+                }
+            }
 
             displaced: Transition {
                 enabled: !root.isDragging && tabList.count > 0

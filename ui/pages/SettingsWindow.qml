@@ -94,7 +94,6 @@ ApplicationWindow {
                 model: navRoot.sections
 
                 delegate: NavItem {
-                    id: navEntry
                     required property var modelData
                     required property int index
 

@@ -119,7 +119,6 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
 
                 Image {
-                    id: faviconImg
                     anchors.fill: parent
                     sourceSize.width: 32
                     sourceSize.height: 32
@@ -141,7 +140,8 @@ Item {
 
                 Canvas {
                     anchors.fill: parent
-                    visible: root.tabLoading
+                    // follows opacity so the fade-out gets to play
+                    visible: opacity > 0
                     opacity: root.tabLoading ? 1 : 0
                     Behavior on opacity {
                         NumberAnimation {
@@ -180,6 +180,8 @@ Item {
             Text {
                 Layout.fillWidth: true
                 text: root.tabTitle
+                // page-controlled: never interpret markup (it could load remote images)
+                textFormat: Text.PlainText
                 color: root.isActive ? Theme.text : Theme.textMuted
                 font.pixelSize: Theme.fontSizeM
                 font.family: Theme.fontFamily
@@ -242,8 +244,6 @@ Item {
         onTapped: root.activated()
     }
 
-    // floating 1px vertical separator between tabs (skips the active tab
-    // and its left neighbour so the active tab has no lines beside it)
     Rectangle {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter

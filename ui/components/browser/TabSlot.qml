@@ -21,7 +21,6 @@ Item {
         Browser.onRenderProcessPidChanged(tabSlot.index, tabSlot.webView ? tabSlot.webView.renderProcessPid : 0)
     }
 
-    // 0 means never discard, in which case the timer below stays stopped
     readonly property int discardAfterMs: Prefs.autoUnloadEnabled
         ? Math.max(1, Prefs.autoUnloadMinutes) * 60 * 1000
         : 0
@@ -32,6 +31,13 @@ Item {
             browserWindow.pointerLockActive = tabSlot.pointerLocked
         } else if (tabSlot.pointerLocked) {
             tabSlot.releaseLock()
+        }
+    }
+    Component.onDestruction: {
+        if (tabSlot.pointerLocked && tabSlot.browserWindow) {
+            tabSlot.browserWindow.pointerLockEmu.end()
+            if (tabSlot.visible)
+                tabSlot.browserWindow.pointerLockActive = false
         }
     }
 
@@ -52,14 +58,10 @@ Item {
     readonly property CefBrowser webView: webLoader.item as CefBrowser
     onWebViewChanged: {
         viewStack.refreshActiveWebView()
-        // the dock outlives a web view that got rebuilt (tab restore); re-open
-        // DevTools on the new one, otherwise the panel stays blank
         if (tabSlot.devToolsOpen)
             tabSlot.openDevTools(devToolsLoader.item)
     }
 
-    // The DevTools browser is created by CefBrowserHost::ShowDevTools() into
-    // the dock item, which then owns its native view and geometry.
     function openDevTools(view) {
         const wv = tabSlot.webView
         if (!wv || !view)
@@ -83,8 +85,12 @@ Item {
     property real devToolsSize: devToolsVertical ? height * 0.35 : Math.min(480, width * 0.4)
     readonly property real devToolsMinSize: 200
     readonly property real pageMinSize: 200
+    // real space between page and DevTools for the splitter: both are native
+    // views that sit above QML, so a grab area overlapping them gets no events
+    readonly property real splitterGap: 6
+    readonly property real splitterSpace: devToolsOpen ? splitterGap : 0
     readonly property real clampedDevToolsSize: Math.max(devToolsMinSize,
-        Math.min(devToolsSize, (devToolsVertical ? height : width) - pageMinSize))
+        Math.min(devToolsSize, (devToolsVertical ? height : width) - pageMinSize - splitterGap))
     readonly property string devToolsDockMarker: "__illuminate_devtools_dock__ "
     onDevToolsDockChanged: devToolsSize = devToolsVertical ? height * 0.35 : Math.min(480, width * 0.4)
 
@@ -101,7 +107,7 @@ Item {
         if (pointerLocked)
             pointerLockHint.flash()
         else
-            pointerLockHint.opacity = 0
+            pointerLockHint.close()
     }
 
     Loader {
@@ -114,10 +120,10 @@ Item {
 
     Loader {
         id: webLoader
-        x: tabSlot.devToolsOpen && tabSlot.devToolsDock === "left" ? tabSlot.clampedDevToolsSize : 0
+        x: tabSlot.devToolsOpen && tabSlot.devToolsDock === "left" ? tabSlot.clampedDevToolsSize + tabSlot.splitterSpace : 0
         y: 0
-        width: tabSlot.devToolsOpen && !tabSlot.devToolsVertical ? parent.width - tabSlot.clampedDevToolsSize : parent.width
-        height: tabSlot.devToolsOpen && tabSlot.devToolsVertical ? parent.height - tabSlot.clampedDevToolsSize : parent.height
+        width: tabSlot.devToolsOpen && !tabSlot.devToolsVertical ? parent.width - tabSlot.clampedDevToolsSize - tabSlot.splitterSpace : parent.width
+        height: tabSlot.devToolsOpen && tabSlot.devToolsVertical ? parent.height - tabSlot.clampedDevToolsSize - tabSlot.splitterSpace : parent.height
         // restored tabs stay suspended (no view, no renderer) until first shown
         active: !tabSlot.isInternalPage && !tabSlot.model.suspended
         visible: !tabSlot.isInternalPage
@@ -136,11 +142,12 @@ Item {
                 // set once at creation; a profile switch replaces every tab
                 profile: Browser.webProfile
                 visible: tabSlot.index === Browser.tabModel.activeIndex
+                // hidden tabs are hidden from CEF too (WasHidden), so they
+                // stop painting; after the auto-unload delay they're marked
+                // Discarded
                 lifecycleState: webView.visible
                     ? CefBrowser.Active
-                    : (webView.recommendedState === CefBrowser.Discarded
-                        ? (tabSlot.discardable ? CefBrowser.Discarded : CefBrowser.Frozen)
-                        : webView.recommendedState)
+                    : (tabSlot.discardable ? CefBrowser.Discarded : CefBrowser.Frozen)
                 onLifecycleStateChanged: tabSlot.syncRenderPid()
 
                 // avoids a white flash before the first paint
@@ -149,14 +156,15 @@ Item {
                 // JS injection: hide WebGPU and install pointer-lock shim
                 // CEF: scripts injected via CefBrowserWrapper on OnLoadStart
                 Component.onCompleted: {
-                    Logger.info("WebView", "Tab " + tabSlot.index + " created, url=" + tabSlot.model.url);
+                    // no URLs: the log file persists across sessions
+                    Logger.debug("WebView", "Tab " + tabSlot.index + " created");
                 }
 
                 onLoadingChanged: function () {
                     Browser.onLoadingChanged(tabSlot.index, webView.loading);
                     tabSlot.syncRenderPid();
                     if (webView.loading)
-                        Logger.info("WebView", "Tab " + tabSlot.index + " loading: " + webView.url);
+                        Logger.debug("WebView", "Tab " + tabSlot.index + " loading");
                 }
 
                 onJavaScriptConsoleMessage: function (level, message, lineNumber, sourceId) {
@@ -180,7 +188,6 @@ Item {
 
                 onUrlChanged: function () {
                     Browser.onUrlChanged(tabSlot.index, webView.url.toString());
-                    Logger.debug("WebView", "Tab " + tabSlot.index + " url → " + webView.url);
                 }
 
                 onLoadProgressChanged: function (p) { Browser.onLoadProgressChanged(tabSlot.index, p) }
@@ -205,7 +212,7 @@ Item {
                     tabSlot.handlePermission(permission)
                 }
 
-                ContextMenu {
+                WebContextMenu {
                     id: contextMenu
                     webView: webView
                     onToggleDevTools: tabSlot.devToolsOpen = !tabSlot.devToolsOpen
@@ -242,18 +249,6 @@ Item {
         }
     }
 
-    MouseArea {
-        id: lockOverlay
-        visible: tabSlot.pointerLocked
-        x: webLoader.x
-        y: webLoader.y
-        width: webLoader.width
-        height: webLoader.height
-        z: 5
-        hoverEnabled: true
-        cursorShape: Qt.BlankCursor
-    }
-
     Loader {
         id: devToolsLoader
         x: tabSlot.devToolsDock === "right" ? parent.width - width : 0
@@ -279,76 +274,85 @@ Item {
         }
     }
 
-    Rectangle {
-        id: devToolsSplitter
+    // the gap between page and DevTools, with a 1px line in the middle
+    MouseArea {
+        id: splitterArea
         visible: tabSlot.devToolsOpen
         z: 10
-        color: splitterArea.pressed || splitterArea.containsMouse ? Theme.accent : Theme.border
-        x: tabSlot.devToolsDock === "right" ? devToolsLoader.x - width / 2
-         : tabSlot.devToolsDock === "left" ? devToolsLoader.width - width / 2 : 0
-        y: tabSlot.devToolsVertical ? devToolsLoader.y - height / 2 : 0
-        width: tabSlot.devToolsVertical ? parent.width : 1
-        height: tabSlot.devToolsVertical ? 1 : parent.height
+        x: tabSlot.devToolsDock === "right" ? devToolsLoader.x - width
+         : tabSlot.devToolsDock === "left" ? devToolsLoader.width : 0
+        y: tabSlot.devToolsVertical ? devToolsLoader.y - height : 0
+        width: tabSlot.devToolsVertical ? parent.width : tabSlot.splitterGap
+        height: tabSlot.devToolsVertical ? tabSlot.splitterGap : parent.height
+        hoverEnabled: true
+        cursorShape: tabSlot.devToolsVertical ? Qt.SizeVerCursor : Qt.SizeHorCursor
+        preventStealing: true
 
-        MouseArea {
-            id: splitterArea
-            // wider than the 1px line so it's easy to grab
-            anchors.fill: parent
-            anchors.margins: -3
-            hoverEnabled: true
-            cursorShape: tabSlot.devToolsVertical ? Qt.SizeVerCursor : Qt.SizeHorCursor
-            preventStealing: true
+        onPositionChanged: function (mouse) {
+            if (!pressed)
+                return
+            const p = mapToItem(tabSlot, mouse.x, mouse.y)
+            const half = tabSlot.splitterGap / 2
+            if (tabSlot.devToolsDock === "right")
+                tabSlot.devToolsSize = tabSlot.width - p.x - half
+            else if (tabSlot.devToolsDock === "left")
+                tabSlot.devToolsSize = p.x - half
+            else
+                tabSlot.devToolsSize = tabSlot.height - p.y - half
+        }
 
-            onPositionChanged: function (mouse) {
-                if (!pressed)
-                    return
-                const p = mapToItem(tabSlot, mouse.x, mouse.y)
-                if (tabSlot.devToolsDock === "right")
-                    tabSlot.devToolsSize = tabSlot.width - p.x
-                else if (tabSlot.devToolsDock === "left")
-                    tabSlot.devToolsSize = p.x
-                else
-                    tabSlot.devToolsSize = tabSlot.height - p.y
-            }
+        Rectangle {
+            anchors.centerIn: parent
+            width: tabSlot.devToolsVertical ? parent.width : 1
+            height: tabSlot.devToolsVertical ? 1 : parent.height
+            color: splitterArea.pressed || splitterArea.containsMouse ? Theme.accent : Theme.border
         }
     }
 
-    Rectangle {
+    // a window of its own: it sits over the page, which is a native view
+    // drawn above anything QML renders in the main window
+    Popup {
         id: pointerLockHint
-        anchors.top: parent.top
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.topMargin: 24
+        popupType: Popup.Window
+        modal: false
+        focus: false
+        closePolicy: Popup.NoAutoClose
+        x: Math.round((tabSlot.width - width) / 2)
+        y: 24
         width: hintText.implicitWidth + 32
         height: 36
-        radius: height / 2
-        color: Theme.surface
-        border.color: Theme.border
-        border.width: 1
-        opacity: 0
-        visible: opacity > 0
-        z: 50
+        padding: 0
 
         function flash() {
-            opacity = 1
+            open()
             hintTimer.restart()
         }
 
-        Behavior on opacity {
-            NumberAnimation {
-                duration: Theme.durationFast
-            }
+        enter: Transition {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.durationFast }
+        }
+        exit: Transition {
+            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.durationFast }
         }
 
         Timer {
             id: hintTimer
             interval: 3000
-            onTriggered: pointerLockHint.opacity = 0
+            onTriggered: pointerLockHint.close()
         }
 
-        Text {
+        background: Rectangle {
+            radius: height / 2
+            color: Theme.surface
+            border.color: Theme.border
+            border.width: 1
+        }
+
+        contentItem: Text {
             id: hintText
-            anchors.centerIn: parent
             text: "Press Esc to show your cursor"
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
             color: Theme.text
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeS
@@ -358,20 +362,47 @@ Item {
     // ── permission prompt ─────────────────────────────────────────────
     // decisions and OS access checks live in Permissions (PermissionHandler);
     // this only shows the prompt when nothing was remembered
-    property var pendingPermission: null
+    // QtObject, not var: reset to null if the request is deleted (its web
+    // view went away)
+    property QtObject pendingPermission: null
     property string pendingPermissionLabel: ""
     // OS resource blocking the pending request (Permissions.SystemResource), or -1
     property int pendingBlockedResource: -1
+    // requests that arrived while one was already being shown
+    property var permissionQueue: []
 
     function handlePermission(permission) {
         if (Permissions.resolve(permission))
             return
+        // also while the previous prompt is still animating out
+        if (tabSlot.pendingPermission || permissionPopup.visible) {
+            tabSlot.permissionQueue.push(permission)
+            return
+        }
+        tabSlot.showPermission(permission)
+    }
+
+    function showPermission(permission) {
         const type = permission.permissionType
         tabSlot.pendingPermission = permission
         tabSlot.pendingPermissionLabel = Permissions.labelForType(type)
         tabSlot.pendingBlockedResource = Permissions.blockedResourceForType(type)
         rememberChk.checked = false
         permissionPopup.open()
+    }
+
+    function showNextPermission() {
+        if (tabSlot.pendingPermission || permissionPopup.visible)
+            return
+        while (tabSlot.permissionQueue.length > 0) {
+            const p = tabSlot.permissionQueue.shift()
+            // skip requests deleted with their web view; the answer to the
+            // previous prompt may also have been remembered for this one
+            if (!p || p.permissionType === undefined || Permissions.resolve(p))
+                continue
+            tabSlot.showPermission(p)
+            return
+        }
     }
 
     function applyPermission(allow) {
@@ -381,6 +412,11 @@ Item {
         Permissions.respond(p, allow, rememberChk.checked)
         tabSlot.pendingPermission = null
         permissionPopup.close()
+    }
+
+    onPendingPermissionChanged: {
+        if (!tabSlot.pendingPermission && permissionPopup.visible)
+            permissionPopup.close()
     }
 
     Connections {
@@ -394,11 +430,24 @@ Item {
 
     Popup {
         id: permissionPopup
+        // a window of its own, so the page's native view can't cover it
+        popupType: Popup.Window
         modal: true
         focus: true
-        padding: 0
+        padding: 20
         width: 320
+        x: Math.round((tabSlot.width - width) / 2)
+        y: Math.round((tabSlot.height - height) / 2)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        // dismissed without a choice (Esc, click outside): answer CEF anyway,
+        // then move on to any request that queued up behind this one
+        onClosed: {
+            const p = tabSlot.pendingPermission
+            tabSlot.pendingPermission = null
+            if (p)
+                p.deny()
+            Qt.callLater(tabSlot.showNextPermission)
+        }
         Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.35) }
         background: Rectangle {
             radius: 16
@@ -407,14 +456,13 @@ Item {
             border.width: 1
         }
 
-        ColumnLayout {
-            anchors.margins: 20
-            anchors.fill: parent
+        contentItem: ColumnLayout {
             spacing: 16
 
             Text {
                 Layout.fillWidth: true
                 text: (tabSlot.pendingPermission ? tabSlot.pendingPermission.origin.host : "") + " " + tabSlot.pendingPermissionLabel + "?"
+                textFormat: Text.PlainText
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeM
                 color: Theme.text

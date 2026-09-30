@@ -30,15 +30,8 @@ SettingsPage {
                 ]
                 textRole: "name"
                 valueRole: "value"
-                currentIndex: Math.max(0, startupCombo.indexOfValue(Prefs.startupBehavior))
+                value: Prefs.startupBehavior
                 onActivated: Prefs.startupBehavior = startupCombo.currentValue
-
-                Connections {
-                    target: Prefs
-                    function onStartupBehaviorChanged() {
-                        startupCombo.currentIndex = Math.max(0, startupCombo.indexOfValue(Prefs.startupBehavior));
-                    }
-                }
             }
         }
 

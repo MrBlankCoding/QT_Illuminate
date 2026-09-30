@@ -16,10 +16,18 @@ Item {
 
     property real total: 0
     property real tabsTotal: 0
-    property var processes: []
-    property var tabs: []
-    property var history: []
     property real peak: 0
+    property real tabsMax: 1
+    property real processesMax: 1
+    property var tabRefs: []
+    readonly property var history: []
+
+    ListModel {
+        id: tabsModel
+    }
+    ListModel {
+        id: processesModel
+    }
 
     function formatBytes(bytes) {
         if (bytes <= 0)
@@ -30,13 +38,36 @@ Item {
         return mb.toFixed(mb >= 100 ? 0 : 1) + " MB";
     }
 
+    function syncModel(model, rows) {
+        for (let i = 0; i < rows.length; ++i) {
+            if (i < model.count)
+                model.set(i, rows[i]);
+            else
+                model.append(rows[i]);
+        }
+        if (model.count > rows.length)
+            model.remove(rows.length, model.count - rows.length);
+    }
+
+    function activateTab(row) {
+        const tab = root.tabRefs[row];
+        if (!tab)
+            return;
+        const tabModel = Browser.tabModel;
+        for (let i = 0; i < tabModel.count; ++i) {
+            if (tabModel.tabAt(i) === tab) {
+                Browser.activateTab(i);
+                return;
+            }
+        }
+    }
+
     function refresh() {
         const snap = MemoryMonitor.snapshot();
         const byPid = {};
         for (const p of snap.processes)
             byPid[p.pid] = p;
 
-        // renderers are shared when tabs land in the same site instance
         const tabsPerPid = {};
         const tabModel = Browser.tabModel;
         const rows = [];
@@ -45,7 +76,8 @@ Item {
             const pid = Number(t.renderPid);
             const url = t.url.toString();
             rows.push({
-                index: i,
+                position: i,
+                tab: tabModel.tabAt(i),
                 title: t.title,
                 url: url,
                 pid: pid,
@@ -53,8 +85,11 @@ Item {
                 loading: t.loading,
                 bytes: byPid[pid] ? byPid[pid].bytes : 0
             });
-            if (pid > 0)
-                tabsPerPid[pid] = (tabsPerPid[pid] || []).concat([t.title]);
+            if (pid > 0) {
+                if (!tabsPerPid[pid])
+                    tabsPerPid[pid] = [];
+                tabsPerPid[pid].push(t.title);
+            }
         }
 
         let rendererBytes = 0;
@@ -63,19 +98,29 @@ Item {
 
         for (const r of rows)
             r.sharedWith = r.pid > 0 ? tabsPerPid[r.pid].length : 0;
-        rows.sort((a, b) => b.bytes - a.bytes || a.index - b.index);
+        rows.sort((a, b) => b.bytes - a.bytes || a.position - b.position);
 
-        root.processes = snap.processes.map(p => ({
+        // the object stays out of the ListModel, which only takes plain values
+        root.tabRefs = rows.map(r => r.tab);
+        for (const r of rows)
+            delete r.tab;
+
+        const processes = snap.processes.map(p => ({
             pid: p.pid,
             bytes: p.bytes,
             type: tabsPerPid[p.pid] ? "Renderer" : p.type,
             detail: tabsPerPid[p.pid] ? tabsPerPid[p.pid].join(", ") : (p.self ? "This process" : "")
         }));
-        root.tabs = rows;
+        root.tabsMax = rows.length > 0 ? rows[0].bytes : 1;
+        root.processesMax = processes.length > 0 ? processes[0].bytes : 1;
+        root.syncModel(tabsModel, rows);
+        root.syncModel(processesModel, processes);
         root.tabsTotal = rendererBytes;
         root.total = snap.total;
         root.peak = Math.max(root.peak, snap.total);
-        root.history = root.history.concat([snap.total]).slice(-root.historyLength);
+        root.history.push(snap.total);
+        if (root.history.length > root.historyLength)
+            root.history.splice(0, root.history.length - root.historyLength);
         sparkline.requestPaint();
     }
 
@@ -96,22 +141,35 @@ Item {
         radius: 10
         color: Theme.surface
 
+        // share the row evenly instead of by text length, so a narrow window
+        // squeezes every card alike
+        Layout.preferredWidth: 0
+        Layout.minimumWidth: 0
+
         Column {
             anchors.left: parent.left
+            anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             anchors.leftMargin: 16
+            anchors.rightMargin: 12
             spacing: 4
 
             Text {
+                width: parent.width
                 text: card.label
                 color: Theme.textMuted
                 font.pixelSize: Theme.fontSizeS
+                elide: Text.ElideRight
             }
             Text {
+                width: parent.width
                 text: card.value
                 color: Theme.text
                 font.pixelSize: 22
                 font.weight: Font.DemiBold
+                elide: Text.ElideRight
+                fontSizeMode: Text.HorizontalFit
+                minimumPixelSize: 14
             }
         }
     }
@@ -169,6 +227,8 @@ Item {
                 Text {
                     width: parent.width
                     text: row.label
+                    // titles and urls come from the page
+                    textFormat: Text.PlainText
                     color: Theme.text
                     font.pixelSize: Theme.fontSizeM
                     elide: Text.ElideRight
@@ -176,6 +236,7 @@ Item {
                 Text {
                     width: parent.width
                     text: row.detail
+                    textFormat: Text.PlainText
                     visible: text !== ""
                     color: Theme.textMuted
                     font.pixelSize: Theme.fontSizeS
@@ -387,43 +448,42 @@ Item {
             }
 
             SectionHeader {
-                text: "Tabs (" + root.tabs.length + ")"
+                text: "Tabs (" + tabsModel.count + ")"
             }
 
             Repeater {
-                model: root.tabs
+                model: tabsModel
 
                 UsageRow {
-                    required property var modelData
-                    label: modelData.title
-                    detail: modelData.internal ? "Internal page" : modelData.url
-                    // no renderer: either mid-navigation, or suspended/discarded
-                    // until the tab is shown again
-                    badge: modelData.sharedWith > 1 ? "shared ×" + modelData.sharedWith
-                         : modelData.internal || modelData.pid > 0 ? ""
-                         : modelData.loading ? "loading" : "sleeping"
-                    bytes: modelData.bytes
-                    value: modelData.internal || modelData.pid <= 0 ? "—" : root.formatBytes(modelData.bytes)
-                    maxBytes: root.tabs.length > 0 ? root.tabs[0].bytes : 1
+                    required property var model
+                    required property int index
+                    label: model.title
+                    detail: model.internal ? "Internal page" : model.url
+                    badge: model.sharedWith > 1 ? "shared ×" + model.sharedWith
+                         : model.internal || model.pid > 0 ? ""
+                         : model.loading ? "loading" : "sleeping"
+                    bytes: model.bytes
+                    value: model.internal || model.pid <= 0 ? "—" : root.formatBytes(model.bytes)
+                    maxBytes: root.tabsMax
                     clickable: true
-                    onClicked: Browser.activateTab(modelData.index)
+                    onClicked: root.activateTab(index)
                 }
             }
 
             SectionHeader {
-                text: "Processes (" + root.processes.length + ")"
+                text: "Processes (" + processesModel.count + ")"
             }
 
             Repeater {
-                model: root.processes
+                model: processesModel
 
                 UsageRow {
-                    required property var modelData
-                    label: modelData.type + "  ·  pid " + modelData.pid
-                    detail: modelData.detail
-                    bytes: modelData.bytes
-                    value: root.formatBytes(modelData.bytes)
-                    maxBytes: root.processes.length > 0 ? root.processes[0].bytes : 1
+                    required property var model
+                    label: model.type + "  ·  pid " + model.pid
+                    detail: model.detail
+                    bytes: model.bytes
+                    value: root.formatBytes(model.bytes)
+                    maxBytes: root.processesMax
                 }
             }
         }

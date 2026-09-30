@@ -57,8 +57,12 @@ namespace
 }
 
 AppMenu::AppMenu(QObject *parent)
-    : QObject(parent)
+    : QObject(parent), m_rebuildTimer(new QTimer(this))
 {
+    m_rebuildTimer->setSingleShot(true);
+    m_rebuildTimer->setInterval(100);
+    connect(m_rebuildTimer, &QTimer::timeout, this, &AppMenu::rebuild);
+
     BrowserController *controller = BrowserController::instance();
     TabModel *tabs = controller ? controller->tabModel() : nullptr;
     BookmarkModel *bookmarks = BookmarkModel::instance();
@@ -66,37 +70,37 @@ AppMenu::AppMenu(QObject *parent)
     ShortcutRegistry *shortcuts = ShortcutRegistry::instance();
 
     if (controller)
-        connect(controller, &BrowserController::activeIndexChanged, this, [this]() { rebuild(); });
+        connect(controller, &BrowserController::activeIndexChanged, this, [this]() { scheduleRebuild(); });
     if (tabs)
     {
-        connect(tabs, &TabModel::rowsInserted, this, [this]() { rebuild(); });
-        connect(tabs, &TabModel::rowsRemoved, this, [this]() { rebuild(); });
-        connect(tabs, &TabModel::rowsMoved, this, [this]() { rebuild(); });
-        connect(tabs, &TabModel::modelReset, this, [this]() { rebuild(); });
+        connect(tabs, &TabModel::rowsInserted, this, [this]() { scheduleRebuild(); });
+        connect(tabs, &TabModel::rowsRemoved, this, [this]() { scheduleRebuild(); });
+        connect(tabs, &TabModel::rowsMoved, this, [this]() { scheduleRebuild(); });
+        connect(tabs, &TabModel::modelReset, this, [this]() { scheduleRebuild(); });
         connect(tabs, &TabModel::dataChanged, this,
                 [this](const QModelIndex &, const QModelIndex &, const QVector<int> &roles) {
                     if (roles.isEmpty() || roles.contains(TabModel::TitleRole) || roles.contains(TabModel::UrlRole))
-                        rebuild();
+                        scheduleRebuild();
                 });
     }
     if (bookmarks)
     {
-        connect(bookmarks, &BookmarkModel::rowsInserted, this, [this]() { rebuild(); });
-        connect(bookmarks, &BookmarkModel::rowsRemoved, this, [this]() { rebuild(); });
-        connect(bookmarks, &BookmarkModel::modelReset, this, [this]() { rebuild(); });
-        connect(bookmarks, &BookmarkModel::dataChanged, this, [this]() { rebuild(); });
+        connect(bookmarks, &BookmarkModel::rowsInserted, this, [this]() { scheduleRebuild(); });
+        connect(bookmarks, &BookmarkModel::rowsRemoved, this, [this]() { scheduleRebuild(); });
+        connect(bookmarks, &BookmarkModel::modelReset, this, [this]() { scheduleRebuild(); });
+        connect(bookmarks, &BookmarkModel::dataChanged, this, [this]() { scheduleRebuild(); });
     }
     if (profiles)
     {
         connect(profiles, &ProfileManager::profilesChanged, this, [this]() {
             watchProfiles();
-            rebuild();
+            scheduleRebuild();
         });
-        connect(profiles, &ProfileManager::activeProfileChanged, this, [this]() { rebuild(); });
+        connect(profiles, &ProfileManager::activeProfileChanged, this, [this]() { scheduleRebuild(); });
         watchProfiles();
     }
     if (shortcuts)
-        connect(shortcuts, &ShortcutRegistry::shortcutsChanged, this, [this]() { rebuild(); });
+        connect(shortcuts, &ShortcutRegistry::shortcutsChanged, this, [this]() { scheduleRebuild(); });
 
     rebuild();
 }
@@ -174,7 +178,7 @@ void AppMenu::watchProfiles()
 
 void AppMenu::onProfileNameChanged()
 {
-    rebuild();
+    scheduleRebuild();
 }
 
 
@@ -424,9 +428,17 @@ QVector<MenuItem> AppMenu::tabEntries() const
     return entries;
 }
 
+void AppMenu::scheduleRebuild()
+{
+    if (!m_rebuildTimer->isActive())
+        m_rebuildTimer->start();
+}
+
 void AppMenu::rebuild()
 {
-    m_tree = {
+    m_rebuildTimer->stop();
+
+    QVector<MenuItem> tree = {
         fileMenu(),
         editMenu(),
         viewMenu(),
@@ -438,11 +450,14 @@ void AppMenu::rebuild()
 
     const MenuItem app = applicationMenu();
     if (!app.label.isEmpty())
-        m_tree.prepend(app);
+        tree.prepend(app);
 
 #if defined(Q_OS_MACOS)
-    m_tree.append(windowMenu());
+    tree.append(windowMenu());
 #endif
+    if (tree == m_tree)
+        return;
+    m_tree = std::move(tree);
 
     emit treeChanged();
     NativeMenuBar::refresh(this);

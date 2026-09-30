@@ -7,9 +7,22 @@ ComboBox {
     id: root
     implicitWidth: 220
     implicitHeight: 30
-    width: implicitWidth
     font.pixelSize: Theme.fontSizeM
     font.family: Theme.fontFamily
+
+    // the stored preference to show. Bind it instead of currentIndex:
+    // indexOfValue() is an invokable that answers -1 until the model has been
+    // populated, so a currentIndex binding on it lands on item 0 for good.
+    // Writing the user's pick back is still up to the caller, in onActivated.
+    property var value
+    onValueChanged: root.syncToValue()
+    onCountChanged: root.syncToValue()
+    Component.onCompleted: root.syncToValue()
+
+    function syncToValue() {
+        if (root.count > 0)
+            root.currentIndex = Math.max(0, root.indexOfValue(root.value));
+    }
 
     background: Rectangle {
         radius: 6

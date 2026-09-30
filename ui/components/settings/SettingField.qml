@@ -7,7 +7,6 @@ TextField {
     id: root
     implicitWidth: 260
     implicitHeight: 30
-    width: implicitWidth
     leftPadding: 10
     rightPadding: 10
     verticalAlignment: TextInput.AlignVCenter

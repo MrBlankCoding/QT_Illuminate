@@ -32,6 +32,9 @@ Window {
     }
 
     onContentFullScreenChanged: {
+        // views torn down on the way out must not re-show the window
+        if (root.retiring)
+            return;
         if (contentFullScreen) {
             if (root.visibility !== Window.FullScreen) {
                 root.visibilityBeforeContentFullScreen = root.visibility;
@@ -64,29 +67,36 @@ Window {
     function switchProfile(profile) {
         if (!profile)
             return;
-        ProfileManager.activeProfile = profile;
         const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/BrowserWindow.qml");
         if (component.status !== Component.Ready) {
             Logger.error("BrowserWindow", "Failed to load window for profile switch: " + component.errorString());
             return;
         }
+        root.retiring = true;
+        ProfileManager.activeProfile = profile;
         const w = component.createObject(null) as Window;
-        if (!w)
+        if (!w) {
+            root.retiring = false;
             return;
+        }
+        Browser.adoptWindow(w);
         w.show();
         root.retire();
     }
 
+    // closing (with skipCloseConfirm set) releases the window in onClosing
     function retire() {
+        root.retiring = true
         root.skipCloseConfirm = true
         root.replacedByNewWindow = true
         root.close();
-        Qt.callLater(function () { root.destroy(); });
     }
 
     property Window settingsWindow: null
     property bool skipCloseConfirm: false
     property bool replacedByNewWindow: false
+    // set while this window is being replaced: its tab views are torn down
+    property bool retiring: false
     signal windowClosed
 
     function requestWindowClose() {
@@ -105,6 +115,9 @@ Window {
             // bring itself back on top of the replacement.
             if (!root.replacedByNewWindow)
                 root.windowClosed()
+            // a closed window is never shown again; left alive it would keep
+            // creating views for the shared tab model and reacting to menus
+            Browser.releaseWindow(root)
             return;
         }
         close.accepted = false
@@ -134,6 +147,7 @@ Window {
         const picker = component.createObject(null) as Window;
         if (!picker)
             return;
+        Browser.adoptWindow(picker);
         // before retiring, so the app never has a moment with no window
         picker.show();
         root.retire();
@@ -142,6 +156,8 @@ Window {
     Dialog {
         id: closeDialog
         title: "Close window?"
+        // own native window: the page's CEF view would cover an in-scene popup
+        popupType: Popup.Window
         x: Math.round((root.width - width) / 2)
         y: Math.round((root.height - height) / 2)
         modal: true
@@ -184,6 +200,8 @@ Window {
                 text: "Cancel"
                 fillColor: "transparent"
                 textColor: Theme.text
+                Layout.topMargin: 12
+                Layout.bottomMargin: 16
                 onClicked: closeDialog.close()
             }
 
@@ -192,6 +210,9 @@ Window {
                 fillColor: Theme.accent
                 hoverFillColor: Qt.darker(Theme.accent, 1.1)
                 textColor: Theme.onAccent
+                Layout.topMargin: 12
+                Layout.bottomMargin: 16
+                Layout.rightMargin: 16
                 onClicked: {
                     closeDialog.close()
                     root.skipCloseConfirm = true
@@ -204,6 +225,7 @@ Window {
     Dialog {
         id: aboutDialog
         title: "About " + Qt.application.name
+        popupType: Popup.Window
         // Popup isn't an Item, so position it by hand
         x: Math.round((root.width - width) / 2)
         y: Math.round((root.height - height) / 2)
@@ -259,6 +281,9 @@ Window {
                 fillColor: Theme.accent
                 hoverFillColor: Qt.darker(Theme.accent, 1.1)
                 textColor: Theme.onAccent
+                Layout.topMargin: 12
+                Layout.bottomMargin: 16
+                Layout.rightMargin: 16
                 onClicked: aboutDialog.close()
             }
         }
@@ -306,7 +331,6 @@ Window {
 
         // tab strip
         TabBar {
-            id: tabBar
             Layout.fillWidth: true
             visible: !root.contentFullScreen
         }
@@ -320,7 +344,7 @@ Window {
 
             currentUrl: Browser.activeUrl === "newtab://newtab" ? "" : Browser.activeUrl
             currentTitle: Browser.activeTitle
-            currentIconUrl: Browser.tabModel.activeIndex >= 0 ? Browser.tabModel.itemAt(Browser.tabModel.activeIndex).iconUrl : ""
+            currentIconUrl: Browser.activeIconUrl
             isLoading: Browser.activeLoading
             loadProgress: Browser.activeProgress
             canGoBack: viewStack.activeWebView ? viewStack.activeWebView.canGoBack : false
@@ -386,24 +410,25 @@ Window {
                 id: downloadsPanel
             }
 
-    Connections {
-        target: Browser
-        function onActiveIndexChanged() {
-            findBar.close();
-            viewStack.refreshActiveWebView();
-        }
-        function onNewTabOpened() {
-            Qt.callLater(toolbar.focusAddressBar);
-        }
+            Connections {
+                target: Browser
+                enabled: !root.retiring
+                function onActiveIndexChanged() {
+                    findBar.close();
+                    viewStack.refreshActiveWebView();
+                }
+                function onNewTabOpened() {
+                    Qt.callLater(toolbar.focusAddressBar);
+                }
 
-        function onCloseWindowRequested() {
-            root.requestWindowClose();
-        }
-    }
+                function onCloseWindowRequested() {
+                    root.requestWindowClose();
+                }
+            }
 
             Repeater {
                 id: viewRepeater
-                model: Browser.tabModel
+                model: root.retiring ? null : Browser.tabModel
 
                 delegate: TabSlot {
                     browserWindow: root
@@ -425,7 +450,6 @@ Window {
     }
 
     KeyboardShortcuts {
-        id: keyboardShortcuts
         toolbar: toolbar
         findBar: findBar
         zoomIndicator: zoomIndicator

@@ -41,13 +41,13 @@ ApplicationWindow {
             root.visible = true;
             return;
         }
+        // parentless, so keep it rooted; it releases itself once closed
+        Browser.adoptWindow(w);
         if (root.savedWin)
-            root.savedWin.deleteLater();
+            Browser.releaseWindow(root.savedWin);
         root.savedWin = w;
-        // windowClosed, not closing: `closing` also fires when the browser
-        // window's own handler vetoes the close to show its confirmation
-        // dialog, and quitting on that would make the dialog pointless
         w.windowClosed.connect(function () {
+            // the window deletes itself after this; don't hold on to it
             root.savedWin = null;
             if (root.autoOpened)
                 Qt.quit();
@@ -57,6 +57,8 @@ ApplicationWindow {
         root.visible = false;
         w.showMaximized();
     }
+
+    onClosing: Browser.releaseWindow(root)
 
     Component.onCompleted: {
         const profiles = ProfileManager.profiles;
@@ -141,7 +143,8 @@ ApplicationWindow {
             GridLayout {
                 id: profileGrid
                 anchors.horizontalCenter: parent.horizontalCenter
-                columns: Math.min(Math.max(profileRepeater.count, 1), 4)
+                columns: Math.max(1, Math.min(profileRepeater.count, 4,
+                    Math.floor((parent.width + columnSpacing) / (120 + columnSpacing))))
                 columnSpacing: 12
                 rowSpacing: 12
 

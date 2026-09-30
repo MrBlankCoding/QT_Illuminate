@@ -7,8 +7,8 @@ pragma ComponentBehavior: Bound
 Item {
     id: root
 
-    // draw here
     readonly property bool showBar: !AppMenu.native
+    readonly property var tree: showBar ? AppMenu.tree : []
     implicitHeight: showBar ? Theme.menuBarHeight : 0
     visible: showBar
 
@@ -28,7 +28,6 @@ Item {
 
     component MenuButton: Item {
         id: button
-        // one entry from AppMenu.tree: {label, children, ...}
         required property var node
 
         implicitWidth: label.implicitWidth + 2 * Theme.fontSizeM
@@ -47,7 +46,8 @@ Item {
         Text {
             id: label
             anchors.centerIn: parent
-            text: button.node.label
+            text: button.node ? button.node.label : ""
+            textFormat: Text.PlainText
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeS
             color: Theme.text
@@ -103,7 +103,7 @@ Item {
             }
 
             property var built: []
-            onAboutToShow: build(button.node.children)
+            onAboutToShow: build(button.node ? button.node.children : [])
         }
     }
 
@@ -113,11 +113,11 @@ Item {
         anchors.bottom: parent.bottom
 
         Repeater {
-            model: AppMenu.tree
+            model: root.tree.length
 
             delegate: MenuButton {
-                required property var modelData
-                node: modelData
+                required property int index
+                node: root.tree[index]
             }
         }
     }

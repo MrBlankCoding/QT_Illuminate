@@ -107,8 +107,6 @@ bool TabModel::removeTab(int index)
     beginRemoveRows({}, index, index);
     BrowserTab *tab = m_tabs.takeAt(index);
     tab->deleteLater();
-    endRemoveRows();
-    emit countChanged();
 
     const int oldActive = m_activeIndex;
     if (index < m_activeIndex)
@@ -120,6 +118,8 @@ bool TabModel::removeTab(int index)
         m_activeIndex = (std::max)(0, static_cast<int>(m_tabs.size() - 1));
     }
 
+    endRemoveRows();
+    emit countChanged();
     if (index <= oldActive)
         emit activeIndexChanged();
 

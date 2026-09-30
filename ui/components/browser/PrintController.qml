@@ -3,11 +3,8 @@ import QtQuick
 import QtQuick.Dialogs
 import QT_Illuminate.ui
 
-// system-print + save-as-PDF logic for the tab view
 Item {
     id: printController
-
-    // the currently selected CefBrowser (null for internal/suspended tabs)
     required property var activeWebView
 
     property var pendingPrintView: null
@@ -63,8 +60,6 @@ Item {
         }
     }
 
-    // StandardPaths and FileDialog report locations as file:// URLs; the
-    // CefBrowser bridge expects a plain native path
     function toLocalPath(value) {
         const s = String(value);
         if (!s.startsWith("file:"))
@@ -104,7 +99,7 @@ Item {
         defaultSuffix: "pdf"
         onAccepted: {
             const view = printController.pendingPrintView;
-            const path = printController.toLocalPath(printController.printFileDialog.selectedFile);
+            const path = printController.toLocalPath(printFileDialog.selectedFile);
             if (!view) {
                 Logger.warning("BrowserWindow", "Save PDF: no tab to save");
                 return;

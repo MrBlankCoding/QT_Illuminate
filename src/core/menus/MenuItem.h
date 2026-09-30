@@ -33,6 +33,8 @@ struct MenuItem
     QVector<MenuItem> children;
 
     bool isSeparator() const { return kind == Kind::Separator; }
+    bool operator==(const MenuItem &other) const;
+    bool operator!=(const MenuItem &other) const { return !(*this == other); }
     QVariantMap toVariantMap() const;
     static QVariantList toVariantList(const QVector<MenuItem> &items);
 };

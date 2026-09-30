@@ -6,7 +6,7 @@ QtObject {
     id: root
 
     // theme mode: "system" | "dark" | "light"
-    property string mode: (Browser && Browser.themeMode) ? Browser.themeMode : "system"
+    readonly property string mode: (Browser && Browser.themeMode) ? Browser.themeMode : "system"
     readonly property bool isDark: mode === "dark" || (mode === "system" && Application.styleHints.colorScheme === Qt.Dark)
     readonly property string adaptiveAccent: Browser ? (isDark ? Browser.adaptiveAccentDark : Browser.adaptiveAccentLight) : ""
     readonly property bool hasAdaptiveColor: adaptiveAccent !== ""

@@ -3,8 +3,6 @@
 #include "TabModel.h"
 #include "BrowserTab.h"
 
-// BrowserTab ignores its CefProfile, so the model is exercisable without CEF
-// having been initialised.
 class TestTabModel : public QObject
 {
     Q_OBJECT
@@ -24,9 +22,6 @@ class TestTabModel : public QObject
     }
 
 private slots:
-    // The window is closed on the last tab instead, so the model must not be
-    // able to lose it. closeTab leans on this: anything that gets the model
-    // down to one tab can then be talked into closing the window.
     void theLastTabIsNeverRemoved()
     {
         TabModel model;
@@ -98,14 +93,34 @@ private slots:
         QCOMPARE(model.activeIndex(), 1);
     }
 
+    void activeIndexIsCorrectWhenRowsRemovedIsDelivered()
+    {
+        TabModel model;
+        fill(model, 4);
+        model.setActiveIndex(2);
+
+        int seen = -1;
+        connect(&model, &TabModel::rowsRemoved, &model, [&]() { seen = model.activeIndex(); });
+        QSignalSpy activeSpy(&model, &TabModel::activeIndexChanged);
+
+        QVERIFY(model.removeTab(0));
+        QCOMPARE(seen, 1);
+        QCOMPARE(model.activeIndex(), 1);
+        QCOMPARE(activeSpy.size(), 1);
+
+        // the active tab itself: the index is unchanged, but it is a new tab
+        activeSpy.clear();
+        QVERIFY(model.removeTab(1));
+        QCOMPARE(seen, 1);
+        QCOMPARE(model.tabAt(1)->url(), url(3));
+        QCOMPARE(activeSpy.size(), 1);
+    }
+
     void clearStillEmptiesTheModel()
     {
         TabModel model;
         fill(model, 4);
         model.setActiveIndex(1);
-
-        // clear is the profile switch: it means "start over", so it is allowed
-        // to leave zero tabs behind
         model.clear();
         QCOMPARE(model.rowCount(), 0);
         QCOMPARE(model.activeIndex(), -1);

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <QList>
 #include <QObject>
+#include <QPointer>
 #include <QSize>
 #include <QUrl>
 #include <QString>
@@ -23,10 +25,11 @@ class BrowserController : public QObject, public ExternalQmlSingleton<BrowserCon
     // MOC revice tab model
     Q_PROPERTY(TabModel *tabModel READ tabModel CONSTANT)
     Q_PROPERTY(int activeIndex READ activeIndex NOTIFY activeIndexChanged)
-    Q_PROPERTY(QString activeUrl READ activeUrl NOTIFY activeStateChanged)
-    Q_PROPERTY(QString activeTitle READ activeTitle NOTIFY activeStateChanged)
-    Q_PROPERTY(bool activeLoading READ activeLoading NOTIFY activeStateChanged)
-    Q_PROPERTY(int activeProgress READ activeProgress NOTIFY activeStateChanged)
+    Q_PROPERTY(QString activeUrl READ activeUrl NOTIFY activeUrlChanged)
+    Q_PROPERTY(QString activeTitle READ activeTitle NOTIFY activeTitleChanged)
+    Q_PROPERTY(QString activeIconUrl READ activeIconUrl NOTIFY activeIconUrlChanged)
+    Q_PROPERTY(bool activeLoading READ activeLoading NOTIFY activeLoadingChanged)
+    Q_PROPERTY(int activeProgress READ activeProgress NOTIFY activeProgressChanged)
     Q_PROPERTY(QString newTabBackground READ newTabBackground WRITE setNewTabBackground NOTIFY newTabBackgroundChanged)
     Q_PROPERTY(QString themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
     // true until page has been dismissed
@@ -45,6 +48,7 @@ public:
     int activeIndex() const;
     QString activeUrl() const;
     QString activeTitle() const;
+    QString activeIconUrl() const;
     bool activeLoading() const;
     int activeProgress() const;
     QString newTabBackground() const;
@@ -80,12 +84,18 @@ public:
     Q_INVOKABLE void onIconUrlChanged(int tabIndex, const QString &iconUrl);
     Q_INVOKABLE void onRenderProcessPidChanged(int tabIndex, qint64 pid);
     Q_INVOKABLE void onNewWindowRequested(int tabIndex, const QString &url);
-    // CefDownloadWrapper, owned by the tab that started it
     Q_INVOKABLE void onDownloadRequested(QObject *download);
+    Q_INVOKABLE void adoptWindow(QObject *window);
+    Q_INVOKABLE void releaseWindow(QObject *window);
+    void destroyAdoptedWindows();
 
 signals:
     void activeIndexChanged();
-    void activeStateChanged();
+    void activeUrlChanged();
+    void activeTitleChanged();
+    void activeIconUrlChanged();
+    void activeLoadingChanged();
+    void activeProgressChanged();
     void firstRunChanged();
     void newTabBackgroundChanged();
     void themeModeChanged();
@@ -95,12 +105,11 @@ signals:
     void loadRequested(int tabIndex, const QUrl &url);
     void navigationRequested(const QString &action); // "back"|"forward"|"reload"|"devtools"
     void downloadRequested(QObject *download);
-    // the last tab is gone: the window should close, asking first if the
-    // preference wants it. QML owns the window, so QML has to do the closing.
     void closeWindowRequested();
 
 private:
     void rewireActiveTab();
+    void emitActiveStateChanged();
     void updateAdaptiveAccent();
     void applyPalette(const ImagePalette &palette);
     void restoreSession();
@@ -110,6 +119,7 @@ private:
     TabModel *m_model;
     Profile *m_profile;
     QObject *m_activeTabCtx = nullptr;
+    QList<QPointer<QObject>> m_adoptedWindows;
     ImagePalette m_palette;
     // bumped per extraction so a slow result for an old image is dropped
     int m_paletteGeneration = 0;

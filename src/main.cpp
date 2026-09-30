@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
         if (std::exchange(shuttingDown, true))
             return;
         controller.saveSession();
-        // QML owns CEF
+        controller.destroyAdoptedWindows();
         engine.reset();
         CefManager::shutdown();
     });

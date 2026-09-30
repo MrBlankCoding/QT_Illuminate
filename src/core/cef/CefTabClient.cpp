@@ -11,6 +11,7 @@
 #include "../utils/cef_helpers.h"
 #include "../utils/ShortcutBridge.h"
 
+#include <QCoreApplication>
 #include <QMetaObject>
 #include <QQuickWindow>
 
@@ -95,12 +96,22 @@ void CefTabClient::OnAfterCreated(CefRefPtr<CefBrowser> browser)
         return;
     }
 
+    // the item can go away while CreateBrowser is in flight; nobody else holds
+    // this browser then, so close it instead of leaving it orphaned. The
+    // application is the context: one on the wrapper would drop the call,
+    // close included, if the wrapper died before it ran.
     if (m_wrapper)
     {
-        QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, browser]() {
+        QMetaObject::invokeMethod(QCoreApplication::instance(), [wrapper = m_wrapper, browser]() {
             if (wrapper)
                 wrapper->setBrowser(browser);
+            else if (auto host = browser->GetHost())
+                host->CloseBrowser(true);
         }, Qt::QueuedConnection);
+    }
+    else if (auto host = browser->GetHost())
+    {
+        host->CloseBrowser(true);
     }
 }
 

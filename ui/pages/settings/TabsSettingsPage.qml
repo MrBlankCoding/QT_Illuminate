@@ -58,15 +58,8 @@ SettingsPage {
                 ]
                 textRole: "name"
                 valueRole: "value"
-                currentIndex: Math.max(0, unloadDelayCombo.indexOfValue(Prefs.autoUnloadMinutes))
+                value: Prefs.autoUnloadMinutes
                 onActivated: Prefs.autoUnloadMinutes = unloadDelayCombo.currentValue
-
-                Connections {
-                    target: Prefs
-                    function onAutoUnloadChanged() {
-                        unloadDelayCombo.currentIndex = Math.max(0, unloadDelayCombo.indexOfValue(Prefs.autoUnloadMinutes));
-                    }
-                }
             }
         }
     }

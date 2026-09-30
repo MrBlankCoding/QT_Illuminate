@@ -4,6 +4,7 @@
 #include <QPointer>
 #include <QQuickWindow>
 #include <QString>
+#include <QTimer>
 #include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 #include "../utils/ExternalQmlSingleton.h"
@@ -19,7 +20,6 @@ class AppMenu : public QObject, public ExternalQmlSingleton<AppMenu>
     Q_PROPERTY(QVariantList tree READ tree NOTIFY treeChanged)
 
 public:
-    // no default: an ExternalQmlSingleton must not be default-constructible
     explicit AppMenu(QObject *parent);
     ~AppMenu() override;
 
@@ -53,10 +53,12 @@ private:
     QVector<MenuItem> profileEntries() const;
     QVector<MenuItem> tabEntries() const;
 
+    void scheduleRebuild();
     void rebuild();
     void watchProfiles();
     void onProfileNameChanged();
 
     QVector<MenuItem> m_tree;
     QPointer<QQuickWindow> m_window;
+    QTimer *m_rebuildTimer = nullptr;
 };

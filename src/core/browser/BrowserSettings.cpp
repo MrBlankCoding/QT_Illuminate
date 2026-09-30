@@ -15,6 +15,7 @@ namespace
     constexpr char kStartupHomepageKey[] = "startup/homepage";
     constexpr char kSearchEngineKey[] = "search/engine";
     constexpr char kSearchCustomUrlKey[] = "search/customUrl";
+    constexpr char kSearchSuggestionsKey[] = "search/suggestions";
     constexpr char kThirdPartyCookiesKey[] = "privacy/thirdPartyCookies";
     constexpr char kAutoUnloadKey[] = "tabs/autoUnload";
     constexpr char kAutoUnloadMinutesKey[] = "tabs/autoUnloadMinutes";
@@ -111,6 +112,7 @@ void BrowserSettings::reloadProfileSettings()
     // an engine dropped from the table must not leave the address bar unusable
     m_searchEngineId = engineName(engineId).isEmpty() ? QStringLiteral("duckduckgo") : engineId;
     m_customSearchUrl = readValue(m_profileSettings, kSearchCustomUrlKey, QString()).toString();
+    m_searchSuggestions = readValue(m_profileSettings, kSearchSuggestionsKey, true).toBool();
 
     m_thirdPartyCookies = readValue(m_profileSettings, kThirdPartyCookiesKey, true).toBool();
 
@@ -122,6 +124,7 @@ void BrowserSettings::reloadProfileSettings()
     emit startupBehaviorChanged();
     emit homepageUrlChanged();
     emit searchEngineChanged();
+    emit searchSuggestionsEnabledChanged();
     emit thirdPartyCookiesEnabledChanged();
     emit autoUnloadChanged();
 }
@@ -213,6 +216,20 @@ QString BrowserSettings::searchUrlTemplate() const
     }
     const QString tmpl = engineTemplate(m_searchEngineId);
     return tmpl.isEmpty() ? UrlResolver::kFallbackSearchTemplate : tmpl;
+}
+
+bool BrowserSettings::searchSuggestionsEnabled() const
+{
+    return m_searchSuggestions;
+}
+
+void BrowserSettings::setSearchSuggestionsEnabled(bool enabled)
+{
+    if (m_searchSuggestions == enabled)
+        return;
+    m_searchSuggestions = enabled;
+    writeValue(m_profileSettings, kSearchSuggestionsKey, enabled);
+    emit searchSuggestionsEnabledChanged();
 }
 
 // privacy

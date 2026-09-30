@@ -17,15 +17,8 @@ SettingsPage {
                 model: Prefs.searchEngines
                 textRole: "name"
                 valueRole: "id"
-                currentIndex: Math.max(0, engineCombo.indexOfValue(Prefs.searchEngineId))
+                value: Prefs.searchEngineId
                 onActivated: Prefs.searchEngineId = engineCombo.currentValue
-
-                Connections {
-                    target: Prefs
-                    function onSearchEngineChanged() {
-                        engineCombo.currentIndex = Math.max(0, engineCombo.indexOfValue(Prefs.searchEngineId));
-                    }
-                }
             }
         }
 
@@ -49,6 +42,17 @@ SettingsPage {
                 }
             }
         }
+
+        SettingItem {
+            title: "Show search suggestions"
+            description: "Suggestions are fetched from Google as you type in the address bar."
+
+            SettingSwitch {
+                id: suggestionsSwitch
+                checked: Prefs.searchSuggestionsEnabled
+                onToggled: Prefs.searchSuggestionsEnabled = !suggestionsSwitch.checked
+            }
+        }
     }
 
     SectionHeader {
@@ -67,7 +71,8 @@ SettingsPage {
             anchors.verticalCenter: parent.verticalCenter
             anchors.leftMargin: 12
             anchors.rightMargin: 12
-            text: Prefs.searchUrlTemplate()
+            text: Prefs.searchUrlTemplate
+            textFormat: Text.PlainText
             color: Theme.textMuted
             font.family: "Menlo"
             font.pixelSize: 11

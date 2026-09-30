@@ -56,9 +56,6 @@ Item {
         Logger.info("SetupPage", "First-run setup shown");
     }
 
-    // Fades/scales the current step out, swaps it, then fades/scales it back in.
-    // Also doubles as the guard (see `transitioning`) that stops a fast double-tap
-    // on Continue from skipping a step mid-animation.
     SequentialAnimation {
         id: stepTransition
         property int pendingStep: 0
@@ -102,369 +99,381 @@ Item {
         color: Theme.bg
     }
 
-    ColumnLayout {
-        id: stack
-        anchors.centerIn: parent
-        width: Math.min(parent.width - 48, 460)
-        spacing: 28
-        opacity: 0
+    Flickable {
+        id: setupFlick
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: Math.max(height, stack.height + 48)
+        interactive: contentHeight > height
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+        ScrollBar.vertical: ScrollBar {}
 
-        Component.onCompleted: introAnim.start()
+        ColumnLayout {
+            id: stack
+            x: (setupFlick.width - width) / 2
+            y: Math.max(24, (setupFlick.height - height) / 2)
+            width: Math.min(setupFlick.width - 48, 460)
+            spacing: 28
+            opacity: 0
 
-        NumberAnimation {
-            id: introAnim
-            target: stack
-            property: "opacity"
-            from: 0
-            to: 1
-            duration: 320
-            easing.type: Easing.OutCubic
-        }
+            Component.onCompleted: introAnim.start()
 
-        // progress
-        Row {
-            Layout.alignment: Qt.AlignHCenter
-            spacing: 6
-
-            Repeater {
-                model: root.stepCount
-                delegate: Rectangle {
-                    required property int index
-                    width: index === root.step ? 22 : 8
-                    height: 8
-                    radius: 4
-                    color: index <= root.step ? Theme.accent : Theme.surfaceHigh
-                    Behavior on width { NumberAnimation { duration: Theme.durationMid; easing.type: Easing.OutCubic } }
-                    Behavior on color { ColorAnimation { duration: Theme.durationMid } }
-                }
-            }
-        }
-
-        StackLayout {
-            id: contentStack
-            Layout.fillWidth: true
-            Layout.preferredHeight: 380
-            currentIndex: root.step
-
-            // 0 — welcome
-            ColumnLayout {
-                spacing: 14
-
-                LucideIcon {
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.bottomMargin: 6
-                    size: 44
-                    source: "qrc:/QT_Illuminate/ui/ui/icons/activity.svg"
-                    color: Theme.accent
-                }
-
-                SetupHeading {
-                    Layout.fillWidth: true
-                    title: "Welcome to Illuminate"
-                    subtitle: "A few quick steps to set up your profile, default browser and look. Anything you skip can be changed later in Settings."
-                }
-
-                Item { Layout.fillHeight: true }
+            NumberAnimation {
+                id: introAnim
+                target: stack
+                property: "opacity"
+                from: 0
+                to: 1
+                duration: 320
+                easing.type: Easing.OutCubic
             }
 
-            // 1 — profile
-            ColumnLayout {
-                spacing: 18
+            // progress
+            Row {
+                Layout.alignment: Qt.AlignHCenter
+                spacing: 6
 
-                SetupHeading {
-                    Layout.fillWidth: true
-                    title: "Set up your profile"
-                    subtitle: "Profiles keep history, cookies and logins separate. You can add more from the profile menu."
+                Repeater {
+                    model: root.stepCount
+                    delegate: Rectangle {
+                        required property int index
+                        width: index === root.step ? 22 : 8
+                        height: 8
+                        radius: 4
+                        color: index <= root.step ? Theme.accent : Theme.surfaceHigh
+                        Behavior on width { NumberAnimation { duration: Theme.durationMid; easing.type: Easing.OutCubic } }
+                        Behavior on color { ColorAnimation { duration: Theme.durationMid } }
+                    }
                 }
-
-                ProfileEditor {
-                    id: profileEditor
-                    Layout.fillWidth: true
-                    Layout.topMargin: 6
-                    placeholderText: "Your name"
-                    onAccepted: root.next()
-                }
-                Item { Layout.fillHeight: true }
             }
 
-            // 2 — default browser
-            ColumnLayout {
-                spacing: 18
+            StackLayout {
+                id: contentStack
+                Layout.fillWidth: true
+                Layout.preferredHeight: 380
+                currentIndex: root.step
 
-                SetupHeading {
-                    Layout.fillWidth: true
-                    title: DefaultBrowser.isDefaultBrowser ? "Illuminate is your default browser"
-                                                    : "Make Illuminate your default browser?"
-                    subtitle: DefaultBrowser.isDefaultBrowser
-                              ? "Links you open from other apps will open here."
-                              : DefaultBrowser.defaultBrowserOpensSystemSettings
-                                ? "Windows will open Default Apps. Choose Illuminate under Web browser."
-                                : "Links you open from mail, chat and other apps will open here. Your system will ask you to confirm."
-                }
+                // 0 — welcome
+                ColumnLayout {
+                    spacing: 14
 
-                RowLayout {
-                    Layout.topMargin: 6
-                    spacing: 12
-
-                    PillButton {
-                        visible: !DefaultBrowser.isDefaultBrowser
-                        enabled: !DefaultBrowser.defaultBrowserBusy
-                        text: DefaultBrowser.defaultBrowserBusy ? "Waiting for confirmation…"
-                                                  : DefaultBrowser.defaultBrowserOpensSystemSettings ? "Open Default Apps" : "Make default"
-                        textColor: Theme.onAccent
-                        fillColor: Theme.accent
-                        hoverFillColor: Qt.darker(Theme.accent, 1.1)
-                        onClicked: DefaultBrowser.makeDefaultBrowser()
+                    LucideIcon {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.bottomMargin: 6
+                        size: 44
+                        source: "qrc:/QT_Illuminate/ui/ui/icons/activity.svg"
+                        color: Theme.accent
                     }
 
+                    SetupHeading {
+                        Layout.fillWidth: true
+                        title: "Welcome to Illuminate"
+                        subtitle: "A few quick steps to set up your profile, default browser and look. Anything you skip can be changed later in Settings."
+                    }
+
+                    Item { Layout.fillHeight: true }
+                }
+
+                // 1 — profile
+                ColumnLayout {
+                    spacing: 18
+
+                    SetupHeading {
+                        Layout.fillWidth: true
+                        title: "Set up your profile"
+                        subtitle: "Profiles keep history, cookies and logins separate. You can add more from the profile menu."
+                    }
+
+                    ProfileEditor {
+                        id: profileEditor
+                        Layout.fillWidth: true
+                        Layout.topMargin: 6
+                        placeholderText: "Your name"
+                        onAccepted: root.next()
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+
+                // 2 — default browser
+                ColumnLayout {
+                    spacing: 18
+
+                    SetupHeading {
+                        Layout.fillWidth: true
+                        title: DefaultBrowser.isDefaultBrowser ? "Illuminate is your default browser"
+                                                        : "Make Illuminate your default browser?"
+                        subtitle: DefaultBrowser.isDefaultBrowser
+                                  ? "Links you open from other apps will open here."
+                                  : DefaultBrowser.defaultBrowserOpensSystemSettings
+                                    ? "Windows will open Default Apps. Choose Illuminate under Web browser."
+                                    : "Links you open from mail, chat and other apps will open here. Your system will ask you to confirm."
+                    }
+
+                    RowLayout {
+                        Layout.topMargin: 6
+                        spacing: 12
+
+                        PillButton {
+                            visible: !DefaultBrowser.isDefaultBrowser
+                            enabled: !DefaultBrowser.defaultBrowserBusy
+                            text: DefaultBrowser.defaultBrowserBusy ? "Waiting for confirmation…"
+                                                      : DefaultBrowser.defaultBrowserOpensSystemSettings ? "Open Default Apps" : "Make default"
+                            textColor: Theme.onAccent
+                            fillColor: Theme.accent
+                            hoverFillColor: Qt.darker(Theme.accent, 1.1)
+                            onClicked: DefaultBrowser.makeDefaultBrowser()
+                        }
+
+                        Rectangle {
+                            visible: DefaultBrowser.isDefaultBrowser
+                            Layout.preferredWidth: 36
+                            Layout.preferredHeight: 36
+                            radius: 18
+                            color: Qt.alpha(Theme.accent, 0.16)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "✓"
+                                font.pixelSize: 18
+                                color: Theme.accent
+                            }
+                        }
+                    }
+
+                    Text {
+                        id: defaultError
+                        Layout.fillWidth: true
+                        visible: text.length > 0 && !DefaultBrowser.isDefaultBrowser
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeS
+                        color: Theme.danger
+                        wrapMode: Text.WordWrap
+
+                        Connections {
+                            target: DefaultBrowser
+                            function onDefaultBrowserFailed(message) { defaultError.text = message; }
+                            function onIsDefaultBrowserChanged() { defaultError.text = ""; }
+                        }
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+
+                // 3 — customise
+                ColumnLayout {
+                    spacing: 22
+
+                    SetupHeading {
+                        Layout.fillWidth: true
+                        title: "Customise"
+                        subtitle: "Pick a look, a new tab background and how to handle ads."
+                    }
+
+                    ColumnLayout {
+                        spacing: 8
+
+                        Text {
+                            text: "Look"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 12
+                            color: Theme.textMuted
+                        }
+
+                        Row {
+                            spacing: 8
+
+                            Repeater {
+                                model: [
+                                    { label: "System", value: "system" },
+                                    { label: "Dark",   value: "dark"   },
+                                    { label: "Light",  value: "light"  }
+                                ]
+                                delegate: PillButton {
+                                    required property var modelData
+                                    readonly property bool selected: modelData.value === Browser.themeMode
+                                    text: modelData.label
+                                    textColor: selected ? Theme.onAccent : Theme.text
+                                    fillColor: selected ? Theme.accent : Theme.surface
+                                    hoverFillColor: selected ? Qt.darker(Theme.accent, 1.1) : Theme.surfaceHigh
+                                    onClicked: Browser.themeMode = modelData.value
+                                }
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        spacing: 8
+
+                        Text {
+                            text: "New tab background"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 12
+                            color: Theme.textMuted
+                        }
+
+                        Row {
+                            spacing: 14
+
+                            Rectangle {
+                                id: bgPreview
+                                width: 128
+                                height: 72
+                                radius: 10
+                                color: Theme.surface
+                                border.width: 1
+                                border.color: Theme.border
+                                clip: true
+
+                                Image {
+                                    id: bgThumb
+                                    anchors.fill: parent
+                                    anchors.margins: 1
+                                    source: Browser.newTabBackground
+                                    // thumbnail only; the full image decodes on the new tab page
+                                    sourceSize.width: 256
+                                    sourceSize.height: 144
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                    visible: status === Image.Ready
+                                }
+
+                                LucideIcon {
+                                    anchors.centerIn: parent
+                                    visible: !bgThumb.visible
+                                    size: 20
+                                    source: "qrc:/QT_Illuminate/ui/ui/icons/image.svg"
+                                    color: Theme.textMuted
+                                }
+
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                                TapHandler { onTapped: bgFileDialog.open() }
+                            }
+
+                            Column {
+                                anchors.verticalCenter: bgPreview.verticalCenter
+                                spacing: 8
+
+                                PillButton {
+                                    text: Browser.newTabBackground !== "" ? "Change image…" : "Choose image…"
+                                    fillColor: Theme.surface
+                                    hoverFillColor: Theme.surfaceHigh
+                                    onClicked: bgFileDialog.open()
+                                }
+                                PillButton {
+                                    visible: Browser.newTabBackground !== ""
+                                    text: "Remove"
+                                    textColor: Theme.textMuted
+                                    hoverFillColor: Theme.surface
+                                    onClicked: Browser.newTabBackground = ""
+                                }
+                            }
+                        }
+                    }
+                    Item { Layout.fillHeight: true }
+                }
+
+                // 4 — start
+                ColumnLayout {
+                    spacing: 14
+
                     Rectangle {
-                        visible: DefaultBrowser.isDefaultBrowser
-                        Layout.preferredWidth: 36
-                        Layout.preferredHeight: 36
-                        radius: 18
+                        id: doneBadge
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.bottomMargin: 6
+                        Layout.preferredWidth: 56
+                        Layout.preferredHeight: 56
+                        radius: 28
                         color: Qt.alpha(Theme.accent, 0.16)
+                        scale: 0.6
+                        opacity: 0
 
                         Text {
                             anchors.centerIn: parent
                             text: "✓"
-                            font.pixelSize: 18
+                            font.pixelSize: 26
                             color: Theme.accent
                         }
+
+                        NumberAnimation {
+                            id: doneBadgeScale
+                            target: doneBadge
+                            property: "scale"
+                            to: 1
+                            duration: 360
+                            easing.type: Easing.OutBack
+                        }
+                        NumberAnimation {
+                            id: doneBadgeFade
+                            target: doneBadge
+                            property: "opacity"
+                            to: 1
+                            duration: 220
+                            easing.type: Easing.OutCubic
+                        }
+                        // Small, deliberate "arrival" moment on the last step only —
+                        // everywhere else just uses the shared step crossfade.
+                        Connections {
+                            target: root
+                            function onStepChanged() {
+                                if (root.step === root.stepCount - 1) {
+                                    doneBadge.scale = 0.6;
+                                    doneBadge.opacity = 0;
+                                    doneBadgeScale.restart();
+                                    doneBadgeFade.restart();
+                                }
+                            }
+                        }
                     }
+
+                    SetupHeading {
+                        Layout.fillWidth: true
+                        title: root.profile && root.profile.name !== "Default"
+                               ? "You're all set, " + root.profile.name
+                               : "You're all set"
+                        subtitle: "Everything here can be changed later in Settings."
+                    }
+                    Item { Layout.fillHeight: true }
                 }
+            }
+
+            // navigation
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
 
                 Text {
-                    id: defaultError
-                    Layout.fillWidth: true
-                    visible: text.length > 0 && !DefaultBrowser.isDefaultBrowser
+                    text: root.step === 0 ? "Skip setup" : "Back"
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSizeS
-                    color: Theme.danger
-                    wrapMode: Text.WordWrap
+                    font.pixelSize: Theme.fontSizeM
+                    color: backHover.hovered ? Theme.text : Theme.textMuted
+                    Accessible.role: Accessible.Button
+                    Accessible.name: text
 
-                    Connections {
-                        target: DefaultBrowser
-                        function onDefaultBrowserFailed(message) { defaultError.text = message; }
-                        function onIsDefaultBrowserChanged() { defaultError.text = ""; }
-                    }
-                }
-                Item { Layout.fillHeight: true }
-            }
-
-            // 3 — customise
-            ColumnLayout {
-                spacing: 22
-
-                SetupHeading {
-                    Layout.fillWidth: true
-                    title: "Customise"
-                    subtitle: "Pick a look, a new tab background and how to handle ads."
-                }
-
-                ColumnLayout {
-                    spacing: 8
-
-                    Text {
-                        text: "Look"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textMuted
-                    }
-
-                    Row {
-                        spacing: 8
-
-                        Repeater {
-                            model: [
-                                { label: "System", value: "system" },
-                                { label: "Dark",   value: "dark"   },
-                                { label: "Light",  value: "light"  }
-                            ]
-                            delegate: PillButton {
-                                required property var modelData
-                                readonly property bool selected: modelData.value === Browser.themeMode
-                                text: modelData.label
-                                textColor: selected ? Theme.onAccent : Theme.text
-                                fillColor: selected ? Theme.accent : Theme.surface
-                                hoverFillColor: selected ? Qt.darker(Theme.accent, 1.1) : Theme.surfaceHigh
-                                onClicked: Browser.themeMode = modelData.value
-                            }
-                        }
+                    HoverHandler { id: backHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler {
+                        onTapped: root.step === 0 ? Browser.completeFirstRun() : root.back()
                     }
                 }
 
-                ColumnLayout {
-                    spacing: 8
+                Item { Layout.fillWidth: true }
 
-                    Text {
-                        text: "New tab background"
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                        color: Theme.textMuted
-                    }
-
-                    Row {
-                        spacing: 14
-
-                        Rectangle {
-                            id: bgPreview
-                            width: 128
-                            height: 72
-                            radius: 10
-                            color: Theme.surface
-                            border.width: 1
-                            border.color: Theme.border
-                            clip: true
-
-                            Image {
-                                id: bgThumb
-                                anchors.fill: parent
-                                anchors.margins: 1
-                                source: Browser.newTabBackground
-                                // thumbnail only; the full image decodes on the new tab page
-                                sourceSize.width: 256
-                                sourceSize.height: 144
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                visible: status === Image.Ready
-                            }
-
-                            LucideIcon {
-                                anchors.centerIn: parent
-                                visible: !bgThumb.visible
-                                size: 20
-                                source: "qrc:/QT_Illuminate/ui/ui/icons/image.svg"
-                                color: Theme.textMuted
-                            }
-
-                            HoverHandler { cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: bgFileDialog.open() }
-                        }
-
-                        Column {
-                            anchors.verticalCenter: bgPreview.verticalCenter
-                            spacing: 8
-
-                            PillButton {
-                                text: Browser.newTabBackground !== "" ? "Change image…" : "Choose image…"
-                                fillColor: Theme.surface
-                                hoverFillColor: Theme.surfaceHigh
-                                onClicked: bgFileDialog.open()
-                            }
-                            PillButton {
-                                visible: Browser.newTabBackground !== ""
-                                text: "Remove"
-                                textColor: Theme.textMuted
-                                hoverFillColor: Theme.surface
-                                onClicked: Browser.newTabBackground = ""
-                            }
-                        }
-                    }
-                }
-                Item { Layout.fillHeight: true }
-            }
-
-            // 4 — start
-            ColumnLayout {
-                spacing: 14
-
-                Rectangle {
-                    id: doneBadge
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.bottomMargin: 6
-                    Layout.preferredWidth: 56
-                    Layout.preferredHeight: 56
-                    radius: 28
-                    color: Qt.alpha(Theme.accent, 0.16)
-                    scale: 0.6
-                    opacity: 0
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "✓"
-                        font.pixelSize: 26
-                        color: Theme.accent
-                    }
-
-                    NumberAnimation {
-                        id: doneBadgeScale
-                        target: doneBadge
-                        property: "scale"
-                        to: 1
-                        duration: 360
-                        easing.type: Easing.OutBack
-                    }
-                    NumberAnimation {
-                        id: doneBadgeFade
-                        target: doneBadge
-                        property: "opacity"
-                        to: 1
-                        duration: 220
-                        easing.type: Easing.OutCubic
-                    }
-                    // Small, deliberate "arrival" moment on the last step only —
-                    // everywhere else just uses the shared step crossfade.
-                    Connections {
-                        target: root
-                        function onStepChanged() {
-                            if (root.step === root.stepCount - 1) {
-                                doneBadge.scale = 0.6;
-                                doneBadge.opacity = 0;
-                                doneBadgeScale.restart();
-                                doneBadgeFade.restart();
-                            }
-                        }
-                    }
+                PillButton {
+                    visible: root.step === 1 || (root.step === 2 && !DefaultBrowser.isDefaultBrowser)
+                    text: "Not now"
+                    fillColor: Theme.surface
+                    hoverFillColor: Theme.surfaceHigh
+                    onClicked: root.goToStep(root.step + 1)
                 }
 
-                SetupHeading {
-                    Layout.fillWidth: true
-                    title: root.profile && root.profile.name !== "Default"
-                           ? "You're all set, " + root.profile.name
-                           : "You're all set"
-                    subtitle: "Everything here can be changed later in Settings."
+                PillButton {
+                    text: root.step === 0 ? "Get started"
+                                          : root.step === root.stepCount - 1 ? "Start browsing" : "Continue"
+                    visible: !(root.step === 2 && !DefaultBrowser.isDefaultBrowser)
+                    textColor: Theme.onAccent
+                    fillColor: Theme.accent
+                    hoverFillColor: Qt.darker(Theme.accent, 1.1)
+                    onClicked: root.next()
                 }
-                Item { Layout.fillHeight: true }
-            }
-        }
-
-        // navigation
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 12
-
-            Text {
-                text: root.step === 0 ? "Skip setup" : "Back"
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeM
-                color: backHover.hovered ? Theme.text : Theme.textMuted
-                Accessible.role: Accessible.Button
-                Accessible.name: text
-
-                HoverHandler { id: backHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler {
-                    onTapped: root.step === 0 ? Browser.completeFirstRun() : root.back()
-                }
-            }
-
-            Item { Layout.fillWidth: true }
-
-            PillButton {
-                visible: root.step === 1 || (root.step === 2 && !DefaultBrowser.isDefaultBrowser)
-                text: "Not now"
-                fillColor: Theme.surface
-                hoverFillColor: Theme.surfaceHigh
-                onClicked: root.goToStep(root.step + 1)
-            }
-
-            PillButton {
-                text: root.step === 0 ? "Get started"
-                                      : root.step === root.stepCount - 1 ? "Start browsing" : "Continue"
-                visible: !(root.step === 2 && !DefaultBrowser.isDefaultBrowser)
-                textColor: Theme.onAccent
-                fillColor: Theme.accent
-                hoverFillColor: Qt.darker(Theme.accent, 1.1)
-                onClicked: root.next()
             }
         }
     }

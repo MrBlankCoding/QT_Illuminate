@@ -18,9 +18,10 @@ FocusScope {
     property string message: ""
     property bool conflicted: false
 
-    // resolved through refresh() rather than bound: sequences() is an
-    // invokable, so QML has nothing to invalidate when a binding changes
-    property string sequence: ""
+    // displaySequence() is an invokable; reading the notifying bindings map
+    // first is what makes this re-evaluate when any shortcut is rebound
+    readonly property string sequence: Shortcuts.bindings[root.commandId] !== undefined
+        ? Shortcuts.displaySequence(root.commandId) : ""
 
     readonly property string display: root.capturing
         ? "Press keys…"
@@ -29,10 +30,10 @@ FocusScope {
     implicitWidth: 190
     implicitHeight: 28
 
+    // a rebind anywhere invalidates a refusal shown here
     function refresh() {
         root.message = "";
         root.conflicted = false;
-        root.sequence = Shortcuts.displaySequence(root.commandId);
     }
 
     function beginCapture() {
@@ -41,8 +42,6 @@ FocusScope {
         root.capturing = true;
         root.forceActiveFocus();
     }
-
-    Component.onCompleted: root.refresh()
 
     Connections {
         target: Shortcuts
@@ -85,7 +84,6 @@ FocusScope {
             root.capturing = false;
             root.message = "";
             root.conflicted = false;
-            root.sequence = Shortcuts.displaySequence(root.commandId);
             return;
         }
 

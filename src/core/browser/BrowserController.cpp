@@ -14,11 +14,14 @@
 #include <QImageReader>
 #include <QDateTime>
 #include <QFutureWatcher>
+#include <QJSEngine>
 #include <QMetaObject>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+
+#include <utility>
 
 void BrowserController::setProfile(Profile *profile)
 {
@@ -55,7 +58,7 @@ BrowserController::BrowserController(Profile *profile, QObject *parent)
     connect(m_model, &TabModel::activeIndexChanged, this, [this]()
             {
         emit activeIndexChanged();
-        emit activeStateChanged();
+        emitActiveStateChanged();
         rewireActiveTab(); });
 
     updateAdaptiveAccent();
@@ -74,13 +77,24 @@ void BrowserController::rewireActiveTab()
 
     m_activeTabCtx = new QObject(this);
     connect(tab, &BrowserTab::urlChanged, m_activeTabCtx, [this]
-            { emit activeStateChanged(); });
+            { emit activeUrlChanged(); });
     connect(tab, &BrowserTab::titleChanged, m_activeTabCtx, [this]
-            { emit activeStateChanged(); });
+            { emit activeTitleChanged(); });
+    connect(tab, &BrowserTab::iconUrlChanged, m_activeTabCtx, [this]
+            { emit activeIconUrlChanged(); });
     connect(tab, &BrowserTab::loadingChanged, m_activeTabCtx, [this]
-            { emit activeStateChanged(); });
+            { emit activeLoadingChanged(); });
     connect(tab, &BrowserTab::progressChanged, m_activeTabCtx, [this]
-            { emit activeStateChanged(); });
+            { emit activeProgressChanged(); });
+}
+
+void BrowserController::emitActiveStateChanged()
+{
+    emit activeUrlChanged();
+    emit activeTitleChanged();
+    emit activeIconUrlChanged();
+    emit activeLoadingChanged();
+    emit activeProgressChanged();
 }
 
 // Property getter
@@ -110,6 +124,12 @@ QString BrowserController::activeTitle() const
     if (auto *t = m_model->tabAt(m_model->activeIndex()))
         return t->title().isEmpty() ? QStringLiteral("New Tab") : t->title();
     return QStringLiteral("New Tab");
+}
+QString BrowserController::activeIconUrl() const
+{
+    if (auto *t = m_model->tabAt(m_model->activeIndex()))
+        return t->iconUrl();
+    return {};
 }
 bool BrowserController::activeLoading() const
 {
@@ -392,7 +412,7 @@ void BrowserController::completeFirstRun()
             {
                 tab->setUrl(QUrl(NEW_TAB_URL));
                 tab->requestLoad(QUrl(NEW_TAB_URL));
-                emit activeStateChanged();
+                emit activeUrlChanged();
             }
         }
     }
@@ -526,6 +546,35 @@ void BrowserController::onNewWindowRequested(int i, const QString &url)
 void BrowserController::onDownloadRequested(QObject *download)
 {
     emit downloadRequested(download);
+}
+
+// top-level windows
+
+void BrowserController::adoptWindow(QObject *window)
+{
+    if (!window)
+        return;
+    m_adoptedWindows.removeIf([](const QPointer<QObject> &w) { return w.isNull(); });
+    if (m_adoptedWindows.contains(window))
+        return;
+    QJSEngine::setObjectOwnership(window, QJSEngine::CppOwnership);
+    m_adoptedWindows.append(window);
+}
+
+void BrowserController::releaseWindow(QObject *window)
+{
+    if (!window)
+        return;
+    if (m_adoptedWindows.contains(window)
+        || QJSEngine::objectOwnership(window) == QJSEngine::JavaScriptOwnership)
+        window->deleteLater();
+}
+
+void BrowserController::destroyAdoptedWindows()
+{
+    const QList<QPointer<QObject>> windows = std::exchange(m_adoptedWindows, {});
+    for (const QPointer<QObject> &window : windows)
+        delete window.data();
 }
 
 const QString BrowserController::NEW_TAB_URL = "newtab://newtab";

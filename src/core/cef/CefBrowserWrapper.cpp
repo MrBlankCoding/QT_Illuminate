@@ -23,10 +23,34 @@
 // positions and shows/hides the browser's native view inside the Qt window
 #ifdef __APPLE__
 void cefSetNativeViewGeometry(void *view, const QRect &rect, bool visible); // CefBrowserWrapper_mac.mm
+#elif defined(_WIN32)
+#include <windows.h>
+// |rect| is in physical pixels, relative to the Qt window's client area
+static void cefSetNativeViewGeometry(cef_window_handle_t hwnd, const QRect &rect, bool visible)
+{
+    if (!hwnd)
+        return;
+    ShowWindow(hwnd, visible ? SW_SHOWNA : SW_HIDE);
+    if (!visible)
+        return;
+    SetWindowPos(hwnd, nullptr, rect.x(), rect.y(), rect.width(), rect.height(),
+                 SWP_NOZORDER | SWP_NOACTIVATE);
+}
 #else
-// TODO: Windows/Linux child windows are not repositioned yet
-static void cefSetNativeViewGeometry(void *, const QRect &, bool) {}
+// TODO: X11 child windows are not repositioned yet
+static void cefSetNativeViewGeometry(cef_window_handle_t, const QRect &, bool) {}
 #endif
+
+static QRect toNativeRect(const QRect &rect, const QQuickWindow *window)
+{
+#ifdef _WIN32
+    const qreal dpr = window ? window->devicePixelRatio() : 1.0;
+    return QRectF(rect.x() * dpr, rect.y() * dpr, rect.width() * dpr, rect.height() * dpr).toAlignedRect();
+#else
+    Q_UNUSED(window);
+    return rect;
+#endif
+}
 
 class CefPdfCallbackImpl : public CefPdfPrintCallback
 {
@@ -334,6 +358,11 @@ void CefBrowserWrapper::setBrowser(CefRefPtr<CefBrowser> browser)
     if (m_browser)
     {
         updateNativeGeometry();
+        if (m_lifecycleState != Active)
+        {
+            if (auto host = m_browser->GetHost())
+                host->WasHidden(true);
+        }
 
         m_renderProcessPid = 0;
         emit renderProcessPidChanged(m_renderProcessPid);
@@ -355,7 +384,8 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
     m_creatingBrowser = true;
 
     CefWindowInfo windowInfo;
-    CefRect rect(geometry.x(), geometry.y(), geometry.width(), geometry.height());
+    const QRect nativeGeometry = toNativeRect(geometry, window());
+    CefRect rect(nativeGeometry.x(), nativeGeometry.y(), nativeGeometry.width(), nativeGeometry.height());
 
 #if defined(OS_MAC) || defined(OS_MACOSX)
     windowInfo.SetAsChild(nativeWindowHandle, rect);
@@ -392,7 +422,7 @@ void CefBrowserWrapper::updateGeometry(const QRect &geometry)
     m_nativeVisible = visible;
 
     auto host = m_browser->GetHost();
-    cefSetNativeViewGeometry(host->GetWindowHandle(), geometry, visible);
+    cefSetNativeViewGeometry(host->GetWindowHandle(), toNativeRect(geometry, window()), visible);
     if (resized)
         host->WasResized();
 }
