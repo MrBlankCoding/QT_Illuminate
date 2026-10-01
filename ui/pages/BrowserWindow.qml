@@ -450,6 +450,11 @@ Window {
     }
 
     KeyboardShortcuts {
+        browser: Browser
+        profileManager: ProfileManager
+        logger: Logger
+        appMenu: AppMenu
+        shortcuts: Shortcuts
         toolbar: toolbar
         findBar: findBar
         zoomIndicator: zoomIndicator

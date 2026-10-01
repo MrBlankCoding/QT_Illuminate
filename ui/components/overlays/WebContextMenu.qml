@@ -7,7 +7,7 @@ Menu {
     popupType: Popup.Native
 
     property CefBrowser webView: null
-    property QtObject request: null
+    property var request: null
 
     signal toggleDevTools
     signal inspectElement(int x, int y)

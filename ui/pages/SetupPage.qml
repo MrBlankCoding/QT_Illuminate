@@ -8,6 +8,10 @@ pragma ComponentBehavior: Bound
 Item {
     id: root
 
+    // qmllint disable unqualified
+    readonly property var defaultBrowser: DefaultBrowser
+    // qmllint enable unqualified
+
     readonly property var profile: ProfileManager.activeProfile
     readonly property int stepCount: 5
     readonly property bool transitioning: stepTransition.running
@@ -201,11 +205,11 @@ Item {
 
                     SetupHeading {
                         Layout.fillWidth: true
-                        title: DefaultBrowser.isDefaultBrowser ? "Illuminate is your default browser"
+                        title: root.defaultBrowser.isDefaultBrowser ? "Illuminate is your default browser"
                                                         : "Make Illuminate your default browser?"
-                        subtitle: DefaultBrowser.isDefaultBrowser
+                        subtitle: root.defaultBrowser.isDefaultBrowser
                                   ? "Links you open from other apps will open here."
-                                  : DefaultBrowser.defaultBrowserOpensSystemSettings
+                                  : root.defaultBrowser.defaultBrowserOpensSystemSettings
                                     ? "Windows will open Default Apps. Choose Illuminate under Web browser."
                                     : "Links you open from mail, chat and other apps will open here. Your system will ask you to confirm."
                     }
@@ -215,18 +219,18 @@ Item {
                         spacing: 12
 
                         PillButton {
-                            visible: !DefaultBrowser.isDefaultBrowser
-                            enabled: !DefaultBrowser.defaultBrowserBusy
-                            text: DefaultBrowser.defaultBrowserBusy ? "Waiting for confirmation…"
-                                                      : DefaultBrowser.defaultBrowserOpensSystemSettings ? "Open Default Apps" : "Make default"
+                            visible: !root.defaultBrowser.isDefaultBrowser
+                            enabled: !root.defaultBrowser.defaultBrowserBusy
+                            text: root.defaultBrowser.defaultBrowserBusy ? "Waiting for confirmation…"
+                                                      : root.defaultBrowser.defaultBrowserOpensSystemSettings ? "Open Default Apps" : "Make default"
                             textColor: Theme.onAccent
                             fillColor: Theme.accent
                             hoverFillColor: Qt.darker(Theme.accent, 1.1)
-                            onClicked: DefaultBrowser.makeDefaultBrowser()
+                            onClicked: root.defaultBrowser.makeDefaultBrowser()
                         }
 
                         Rectangle {
-                            visible: DefaultBrowser.isDefaultBrowser
+                            visible: root.defaultBrowser.isDefaultBrowser
                             Layout.preferredWidth: 36
                             Layout.preferredHeight: 36
                             radius: 18
@@ -244,14 +248,14 @@ Item {
                     Text {
                         id: defaultError
                         Layout.fillWidth: true
-                        visible: text.length > 0 && !DefaultBrowser.isDefaultBrowser
+                        visible: text.length > 0 && !root.defaultBrowser.isDefaultBrowser
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeS
                         color: Theme.danger
                         wrapMode: Text.WordWrap
 
                         Connections {
-                            target: DefaultBrowser
+                            target: root.defaultBrowser
                             function onDefaultBrowserFailed(message) { defaultError.text = message; }
                             function onIsDefaultBrowserChanged() { defaultError.text = ""; }
                         }
@@ -458,7 +462,7 @@ Item {
                 Item { Layout.fillWidth: true }
 
                 PillButton {
-                    visible: root.step === 1 || (root.step === 2 && !DefaultBrowser.isDefaultBrowser)
+                    visible: root.step === 1 || (root.step === 2 && !root.defaultBrowser.isDefaultBrowser)
                     text: "Not now"
                     fillColor: Theme.surface
                     hoverFillColor: Theme.surfaceHigh
@@ -468,7 +472,7 @@ Item {
                 PillButton {
                     text: root.step === 0 ? "Get started"
                                           : root.step === root.stepCount - 1 ? "Start browsing" : "Continue"
-                    visible: !(root.step === 2 && !DefaultBrowser.isDefaultBrowser)
+                    visible: !(root.step === 2 && !root.defaultBrowser.isDefaultBrowser)
                     textColor: Theme.onAccent
                     fillColor: Theme.accent
                     hoverFillColor: Qt.darker(Theme.accent, 1.1)

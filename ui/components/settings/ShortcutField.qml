@@ -96,7 +96,7 @@ FocusScope {
     Rectangle {
         anchors.fill: parent
         radius: 6
-        color: root.capturing ? Theme.accentDim : (hover.hovered || root.visualFocus ? Theme.surfaceHigh : Theme.surface)
+        color: root.capturing ? Theme.accentDim : (hover.hovered || root.activeFocus ? Theme.surfaceHigh : Theme.surface)
         border.width: 1
         border.color: root.conflicted ? Theme.danger : (root.capturing ? Theme.accent : Theme.border)
 

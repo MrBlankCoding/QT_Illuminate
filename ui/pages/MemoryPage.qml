@@ -429,6 +429,7 @@ Item {
                 model: SystemInfo.chromiumFlags
 
                 delegate: Rectangle {
+                    id: flagDelegate
                     required property string modelData
                     Layout.fillWidth: true
                     Layout.preferredHeight: 28
@@ -439,7 +440,7 @@ Item {
                         anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.margins: 12
-                        text: modelData
+                        text: flagDelegate.modelData
                         color: Theme.textMuted
                         font.family: "Menlo"
                         font.pixelSize: 11

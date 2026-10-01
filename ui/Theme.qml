@@ -1,16 +1,17 @@
 pragma Singleton
 import QtQuick
+import QT_Illuminate.ui as UI
 
 // central theme
 QtObject {
     id: root
 
     // theme mode: "system" | "dark" | "light"
-    readonly property string mode: (Browser && Browser.themeMode) ? Browser.themeMode : "system"
+    readonly property string mode: (UI.Browser && UI.Browser.themeMode) ? UI.Browser.themeMode : "system"
     readonly property bool isDark: mode === "dark" || (mode === "system" && Application.styleHints.colorScheme === Qt.Dark)
-    readonly property string adaptiveAccent: Browser ? (isDark ? Browser.adaptiveAccentDark : Browser.adaptiveAccentLight) : ""
+    readonly property string adaptiveAccent: UI.Browser ? (isDark ? UI.Browser.adaptiveAccentDark : UI.Browser.adaptiveAccentLight) : ""
     readonly property bool hasAdaptiveColor: adaptiveAccent !== ""
-    readonly property real backgroundLuminance: Browser ? Browser.backgroundLuminance : -1
+    readonly property real backgroundLuminance: UI.Browser ? UI.Browser.backgroundLuminance : -1
 
     // profile avatar choices
     readonly property var avatarColors: [

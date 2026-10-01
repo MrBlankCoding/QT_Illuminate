@@ -3,6 +3,11 @@ import QtQuick
 Item {
     id: root
 
+    required property var browser
+    required property var profileManager
+    required property var logger
+    required property var appMenu
+    required property var shortcuts
     required property var toolbar
     required property var findBar
     required property var zoomIndicator
@@ -22,31 +27,31 @@ Item {
     function perform(id, payload) {
         switch (id) {
         case "tab.new":
-            Browser.newTab()
+            root.browser.newTab()
             return
         case "tab.close":
-            Browser.closeTab(Browser.tabModel.activeIndex)
+            root.browser.closeTab(root.browser.tabModel.activeIndex)
             return
         case "tab.next":
-            Browser.cycleTab(1)
+            root.browser.cycleTab(1)
             return
         case "tab.previous":
-            Browser.cycleTab(-1)
+            root.browser.cycleTab(-1)
             return
         // the open tab list and the Ctrl+1..9 jumps both name a position
         case "tab.activate":
         case "tab.jump":
-            Browser.activateTab(parseInt(payload, 10))
+            root.browser.activateTab(parseInt(payload, 10))
             return
 
         case "history.back":
-            Browser.goBack()
+            root.browser.goBack()
             return
         case "history.forward":
-            Browser.goForward()
+            root.browser.goForward()
             return
         case "history.reload":
-            Browser.reload()
+            root.browser.reload()
             return
 
         case "view.zoomIn":
@@ -67,10 +72,10 @@ Item {
             return
 
         case "dev.devTools":
-            Browser.toggleDevTools()
+            root.browser.toggleDevTools()
             return
         case "dev.memory":
-            Browser.newTab("illuminate://memory")
+            root.browser.newTab("illuminate://memory")
             return
 
         case "page.find":
@@ -85,7 +90,7 @@ Item {
                 root.findBar.search(true)
             return
         case "page.copyUrl":
-            Browser.copyActiveUrl()
+            root.browser.copyActiveUrl()
             return
         case "page.print":
             root.printRequested()
@@ -101,18 +106,18 @@ Item {
             root.toolbar.toggleBookmark()
             return
         case "bookmark.open":
-            Browser.newTab(payload)
+            root.browser.newTab(payload)
             return
 
         case "profile.switch":
-            for (let i = 0; i < ProfileManager.profiles.length; ++i) {
-                const candidate = ProfileManager.profiles[i]
+            for (let i = 0; i < root.profileManager.profiles.length; ++i) {
+                const candidate = root.profileManager.profiles[i]
                 if (candidate && candidate.id === payload) {
                     root.profileSwitchRequested(candidate)
                     return
                 }
             }
-            Logger.warning("KeyboardShortcuts", "No profile with id " + payload)
+            root.logger.warning("KeyboardShortcuts", "No profile with id " + payload)
             return
         case "profile.picker":
             root.profilePickerRequested()
@@ -139,11 +144,11 @@ Item {
             return
         }
 
-        Logger.warning("KeyboardShortcuts", "No handler for action: " + id)
+        console.warn("KeyboardShortcuts", "No handler for action: " + id)
     }
 
     Connections {
-        target: AppMenu
+        target: root.appMenu
         function onActionTriggered(id, payload) {
             root.perform(id, payload)
         }
@@ -151,114 +156,114 @@ Item {
 
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.newTab
+        sequences: root.shortcuts.bindings.newTab
         onActivated: root.perform("tab.new")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        enabled: !AppMenu.native
-        sequences: Shortcuts.bindings.closeTab
+        enabled: !root.appMenu.native
+        sequences: root.shortcuts.bindings.closeTab
         onActivated: root.perform("tab.close")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.nextTab
+        sequences: root.shortcuts.bindings.nextTab
         onActivated: root.perform("tab.next")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.previousTab
+        sequences: root.shortcuts.bindings.previousTab
         onActivated: root.perform("tab.previous")
     }
 
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.tab1
-        onActivated: Browser.activateTab(0)
+        sequences: root.shortcuts.bindings.tab1
+        onActivated: root.browser.activateTab(0)
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.tab2
-        onActivated: Browser.activateTab(1)
+        sequences: root.shortcuts.bindings.tab2
+        onActivated: root.browser.activateTab(1)
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.tab3
-        onActivated: Browser.activateTab(2)
+        sequences: root.shortcuts.bindings.tab3
+        onActivated: root.browser.activateTab(2)
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.tab4
-        onActivated: Browser.activateTab(3)
+        sequences: root.shortcuts.bindings.tab4
+        onActivated: root.browser.activateTab(3)
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.tab5
-        onActivated: Browser.activateTab(4)
+        sequences: root.shortcuts.bindings.tab5
+        onActivated: root.browser.activateTab(4)
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.tab6
-        onActivated: Browser.activateTab(5)
+        sequences: root.shortcuts.bindings.tab6
+        onActivated: root.browser.activateTab(5)
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.tab7
-        onActivated: Browser.activateTab(6)
+        sequences: root.shortcuts.bindings.tab7
+        onActivated: root.browser.activateTab(6)
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.tab8
-        onActivated: Browser.activateTab(7)
+        sequences: root.shortcuts.bindings.tab8
+        onActivated: root.browser.activateTab(7)
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.lastTab
-        onActivated: Browser.activateTab(Browser.tabModel.count - 1)
+        sequences: root.shortcuts.bindings.lastTab
+        onActivated: root.browser.activateTab(root.browser.tabModel.count - 1)
     }
 
     // navigation
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.reload
+        sequences: root.shortcuts.bindings.reload
         onActivated: root.perform("history.reload")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.back
+        sequences: root.shortcuts.bindings.back
         onActivated: root.perform("history.back")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.forward
+        sequences: root.shortcuts.bindings.forward
         onActivated: root.perform("history.forward")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.focusAddressBar
+        sequences: root.shortcuts.bindings.focusAddressBar
         onActivated: root.perform("view.focusAddressBar")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.copyUrl
+        sequences: root.shortcuts.bindings.copyUrl
         onActivated: root.perform("page.copyUrl")
     }
 
     // find
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.find
+        sequences: root.shortcuts.bindings.find
         onActivated: root.perform("page.find")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.findNext
+        sequences: root.shortcuts.bindings.findNext
         enabled: root.findBar.visible
         onActivated: root.perform("page.findNext")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.findPrevious
+        sequences: root.shortcuts.bindings.findPrevious
         enabled: root.findBar.visible
         onActivated: root.perform("page.findPrevious")
     }
@@ -266,78 +271,78 @@ Item {
     // inspect element
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.toggleDevTools
+        sequences: root.shortcuts.bindings.toggleDevTools
         onActivated: root.perform("dev.devTools")
     }
 
     // zoom in/out/reset
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.zoomIn
+        sequences: root.shortcuts.bindings.zoomIn
         onActivated: root.perform("view.zoomIn")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.zoomOut
+        sequences: root.shortcuts.bindings.zoomOut
         onActivated: root.perform("view.zoomOut")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.zoomReset
+        sequences: root.shortcuts.bindings.zoomReset
         onActivated: root.perform("view.zoomReset")
     }
 
     // the window itself, not the page's own element fullscreen
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.toggleFullScreen
+        sequences: root.shortcuts.bindings.toggleFullScreen
         onActivated: root.perform("view.fullScreen")
     }
 
     // settings
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.settings
+        sequences: root.shortcuts.bindings.settings
         onActivated: root.perform("app.settings")
     }
 
     // print
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.print
+        sequences: root.shortcuts.bindings.print
         onActivated: root.perform("page.print")
     }
 
     // save a copy as PDF
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.savePdf
+        sequences: root.shortcuts.bindings.savePdf
         onActivated: root.perform("page.savePdf")
     }
 
     // downloads
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.downloads
+        sequences: root.shortcuts.bindings.downloads
         onActivated: root.perform("page.downloads")
     }
 
     // bookmarks
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.toggleBookmark
+        sequences: root.shortcuts.bindings.toggleBookmark
         onActivated: root.perform("bookmark.toggle")
     }
 
     // window and app
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.closeWindow
+        sequences: root.shortcuts.bindings.closeWindow
         onActivated: root.perform("app.closeWindow")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: Shortcuts.bindings.quit
+        sequences: root.shortcuts.bindings.quit
         onActivated: root.perform("app.quit")
     }
 }

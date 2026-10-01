@@ -35,7 +35,7 @@ ApplicationWindow {
             root.visible = true;
             return;
         }
-        const w = component.createObject(null) as Window;
+        const w = component.createObject(null) as BrowserWindow;
         if (!w) {
             Logger.error("ProfilePicker", "BrowserWindow failed to create: " + component.errorString());
             root.visible = true;

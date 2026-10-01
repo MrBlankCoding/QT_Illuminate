@@ -200,8 +200,8 @@ Item {
                 }
 
                 // pages calling window.print() open the system print dialog
-                onPrintRequested: browserWindow.openSystemPrintFor(webView)
-                onPdfPrintingFinished: (filePath, success) => browserWindow.onPdfPrintingFinished(filePath, success)
+                onPrintRequested: tabSlot.browserWindow.openSystemPrintFor(webView)
+                onPdfPrintingFinished: (filePath, success) => tabSlot.browserWindow.onPdfPrintingFinished(filePath, success)
 
                 onContextMenuRequested: function (request) {
                     contextMenu.request = request;
@@ -364,7 +364,7 @@ Item {
     // this only shows the prompt when nothing was remembered
     // QtObject, not var: reset to null if the request is deleted (its web
     // view went away)
-    property QtObject pendingPermission: null
+    property var pendingPermission: null
     property string pendingPermissionLabel: ""
     // OS resource blocking the pending request (Permissions.SystemResource), or -1
     property int pendingBlockedResource: -1
