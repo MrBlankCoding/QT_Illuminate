@@ -18,9 +18,13 @@ add_test(NAME tst_qmltests COMMAND tst_qmltests)
 
 find_package(Qt6 REQUIRED COMPONENTS Test)
 
-qt_add_executable(tst_colorextractor tst_ColorExtractor.cpp)
-target_link_libraries(tst_colorextractor PRIVATE Qt6::Test QT_Illuminatemodule)
-add_test(NAME tst_colorextractor COMMAND tst_colorextractor)
+qt_add_executable(tst_browsersettings tst_BrowserSettings.cpp)
+target_link_libraries(tst_browsersettings PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_browsersettings COMMAND tst_browsersettings)
+
+qt_add_executable(tst_browsercontroller tst_BrowserController.cpp)
+target_link_libraries(tst_browsercontroller PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_browsercontroller COMMAND tst_browsercontroller)
 
 qt_add_executable(tst_permissionhandler tst_PermissionHandler.cpp)
 target_link_libraries(tst_permissionhandler PRIVATE Qt6::Test QT_Illuminatemodule)
@@ -40,7 +44,7 @@ add_test(NAME tst_tabmodel COMMAND tst_tabmodel)
 
 if(APPLE AND CEF_FOUND)
     # Link tests against CEF framework directly from CEF release directory
-    foreach(_test_target tst_qmltests tst_colorextractor tst_permissionhandler tst_shortcutbridge tst_shortcutregistry tst_tabmodel)
+    foreach(_test_target tst_qmltests tst_browsersettings tst_browsercontroller tst_permissionhandler tst_shortcutbridge tst_shortcutregistry tst_tabmodel)
         add_custom_command(TARGET ${_test_target} POST_BUILD
             COMMAND install_name_tool -change
                 "@executable_path/../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework"

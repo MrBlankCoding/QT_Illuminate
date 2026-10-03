@@ -15,13 +15,11 @@ class ShortcutRegistry : public QObject, public ExternalQmlSingleton<ShortcutReg
     QML_NAMED_ELEMENT(Shortcuts)
     QML_SINGLETON
 
-    // static catalog: [{id, label, category}], ordered by category
     Q_PROPERTY(QVariantList commands READ commands CONSTANT)
     Q_PROPERTY(bool hasCustomizations READ hasCustomizations NOTIFY shortcutsChanged)
     Q_PROPERTY(QVariantMap bindings READ bindings NOTIFY shortcutsChanged)
 
 public:
-    // no default: an ExternalQmlSingleton must not be default-constructible
     explicit ShortcutRegistry(QObject *parent);
 
     // [{id, label, category}]
@@ -49,7 +47,6 @@ private:
         QString id;
         QString label;
         QString category;
-        // the shipped combinations; the user's override replaces all of them
         QStringList defaults;
     };
 

@@ -4,8 +4,6 @@ import QT_Illuminate.ui
 
 pragma ComponentBehavior: Bound
 
-// tabs
-// oh tab.
 Item {
     id: root
 
@@ -14,21 +12,23 @@ Item {
 
     property string tabTitle: model ? model.title : "New Tab"
     property string tabIconUrl: model ? model.iconUrl : ""
+    property string tabUrl: model && model.url ? model.url.toString() : ""
     property bool tabLoading: model ? model.loading : false
+    property bool tabSuspended: model ? model.suspended : false
     property bool isActive: false
     property int tabCount: 1      // total tab count, for drag-reorder clamping
-    property int activeIndex: -1  // active tab's index, so separators skip it
     property bool faviconFailed: false
+
+    visible: tabUrl !== "newtab://newtab"
 
     signal activated
     signal closeClicked
     signal reorderRequested(int targetIndex)   // drag crossed into a neighbour's slot
 
-    readonly property int activeTopInset: 4   // gap above active tab body
-    readonly property int inactiveTopInset: 7
-    readonly property int floatInset: 4       // bottom gap so all tabs float over the toolbar
     readonly property bool dragging: dragHandler.active
-    onTabIconUrlChanged: faviconFailed = root.tabIconUrl === ""
+    readonly property bool hovered: hoverHandler.hovered
+    onTabIconUrlChanged: faviconFailed = false
+    ListView.onPooled: dragTranslate.y = 0
 
     transform: Translate {
         id: dragTranslate
@@ -36,106 +36,83 @@ Item {
 
     DragHandler {
         id: dragHandler
-        yAxis.enabled: false
+        xAxis.enabled: false
         target: null
-
-        property real committedX: 0
+        property real committedY: 0
 
         onActiveChanged: {
-            committedX = 0;
+            committedY = 0;
             if (!active)
-                dragTranslate.x = 0;
+                dragTranslate.y = 0;
         }
 
         onTranslationChanged: {
-            if (!active || root.width <= 0)
+            const list = root.ListView.view;
+            const step = root.height + (list ? list.spacing : 0);
+            if (!active || step <= 0)
                 return;
-            let offset = translation.x - committedX;
-            while (offset > root.width / 2 && root.index < root.tabCount - 1) {
+            let offset = translation.y - committedY;
+            while (offset > step / 2 && root.index < root.tabCount - 1) {
                 root.reorderRequested(root.index + 1);
-                committedX += root.width;
-                offset -= root.width;
+                committedY += step;
+                offset -= step;
             }
-            while (offset < -root.width / 2 && root.index > 0) {
+            while (offset < -step / 2 && root.index > 0) {
                 root.reorderRequested(root.index - 1);
-                committedX -= root.width;
-                offset += root.width;
+                committedY -= step;
+                offset += step;
             }
-            dragTranslate.x = offset;
+            dragTranslate.y = offset;
         }
     }
 
-    // main tab body
     Rectangle {
         id: body
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.leftMargin: root.isActive ? 0 : 1
-        anchors.rightMargin: root.isActive ? 0 : 1
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.topMargin: root.isActive ? root.activeTopInset : root.inactiveTopInset
-        anchors.bottomMargin: root.floatInset
+        anchors.fill: parent
+        radius: Theme.radiusTab
+        scale: tapHandler.pressed && !root.dragging ? Theme.pressScale : 1
+        color: root.isActive ? Theme.itemActive
+             : tapHandler.pressed ? Theme.itemPressed
+             : root.hovered || root.dragging ? Theme.itemHover
+             : "transparent"
+        border.width: root.isActive ? 1 : 0
+        border.color: Theme.itemActiveBorder
 
-        Behavior on anchors.topMargin {
-            NumberAnimation {
-                duration: Theme.durationFast
-            }
-        }
-        Behavior on anchors.bottomMargin {
-            NumberAnimation {
-                duration: Theme.durationFast
-            }
-        }
+        Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
-        radius: Theme.tabRadius
-
-        color: {
-            if (root.isActive)
-                return Theme.tabActive;
-            if (hoverHandler.hovered)
-                return Theme.tabHover;
-            return Theme.tabStripBg;
-        }
-        Behavior on color {
-            ColorAnimation {
-                duration: Theme.durationFast
-            }
-        }
-
-        // content row
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: root.isActive ? 12 : 10
-            anchors.rightMargin: 4
-            anchors.topMargin: 2
-            anchors.bottomMargin: root.isActive ? 0 : 2
-            spacing: 6
-
-            // favicon & spinner
+            anchors.leftMargin: Theme.space3 - 2
+            anchors.rightMargin: Theme.space1 + 2
+            spacing: Theme.space2 + 2
             Item {
-                Layout.preferredWidth: 16
-                Layout.preferredHeight: 16
+                id: faviconBox
+                Layout.preferredWidth: Theme.faviconSize
+                Layout.preferredHeight: Theme.faviconSize
                 Layout.alignment: Qt.AlignVCenter
+                // sleeping tabs read as dimmed
+                opacity: root.tabSuspended ? 0.45 : 1
+
+                readonly property bool showFavicon: root.tabIconUrl !== "" && !root.faviconFailed
 
                 Image {
                     anchors.fill: parent
-                    sourceSize.width: 32
-                    sourceSize.height: 32
+                    sourceSize.width: Theme.faviconSize * 2
+                    sourceSize.height: Theme.faviconSize * 2
                     source: root.faviconFailed ? "" : root.tabIconUrl
-                    visible: !root.tabLoading && root.tabIconUrl !== "" && !root.faviconFailed
+                    visible: !root.tabLoading && faviconBox.showFavicon
                     fillMode: Image.PreserveAspectFit
                     smooth: true
-                    onStatusChanged: if (status === Image.Error)
-                        root.faviconFailed = true
+                    asynchronous: true
+                    onStatusChanged: if (status === Image.Error) root.faviconFailed = true
                 }
 
-                LucideIcon {
-                    anchors.centerIn: parent
-                    visible: !root.tabLoading && (root.tabIconUrl === "" || root.faviconFailed)
-                    source: "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
-                    color: Theme.textMuted
-                    size: 13
+                LetterAvatar {
+                    anchors.fill: parent
+                    visible: !root.tabLoading && !faviconBox.showFavicon
+                    url: root.tabUrl
+                    title: root.tabTitle
                 }
 
                 Canvas {
@@ -143,15 +120,9 @@ Item {
                     // follows opacity so the fade-out gets to play
                     visible: opacity > 0
                     opacity: root.tabLoading ? 1 : 0
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: Theme.durationFast
-                        }
-                    }
+                    Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
-                    // GPU transform
-                    onVisibleChanged: if (visible)
-                        requestPaint()
+                    onVisibleChanged: if (visible) requestPaint()
                     Component.onCompleted: requestPaint()
 
                     onPaint: {
@@ -176,52 +147,38 @@ Item {
                 }
             }
 
-            // title
             Text {
                 Layout.fillWidth: true
                 text: root.tabTitle
                 // page-controlled: never interpret markup (it could load remote images)
                 textFormat: Text.PlainText
                 color: root.isActive ? Theme.text : Theme.textMuted
+                opacity: root.tabSuspended ? 0.7 : 1
                 font.pixelSize: Theme.fontSizeM
                 font.family: Theme.fontFamily
                 font.weight: root.isActive ? Font.Medium : Font.Normal
                 elide: Text.ElideRight
                 verticalAlignment: Text.AlignVCenter
-                Behavior on color {
-                    ColorAnimation {
-                        duration: Theme.durationFast
-                    }
-                }
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
             }
 
-            // close
             Rectangle {
                 objectName: "closeButton"
-                Layout.preferredWidth: 18
-                Layout.preferredHeight: 18
+                Layout.preferredWidth: 22
+                Layout.preferredHeight: 22
                 Layout.alignment: Qt.AlignVCenter
-                radius: 9
-                color: closeHover.hovered ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+                radius: Theme.radiusS
+                color: closeTap.pressed ? Theme.itemPressed : closeHover.hovered ? Theme.itemHover : "transparent"
+                opacity: root.hovered && !root.dragging ? 1 : 0
+                enabled: opacity > 0
 
-                // show when hovered or active
-                opacity: (root.isActive || hoverHandler.hovered) ? 1 : 0
-
-                Behavior on color {
-                    ColorAnimation {
-                        duration: Theme.durationFast
-                    }
-                }
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: Theme.durationFast
-                    }
-                }
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
 
                 LucideIcon {
                     anchors.centerIn: parent
                     source: "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
-                    size: 10
+                    size: 12
                     color: closeHover.hovered ? Theme.text : Theme.textMuted
                 }
 
@@ -229,30 +186,25 @@ Item {
                     id: closeHover
                 }
                 TapHandler {
+                    id: closeTap
+                    gesturePolicy: TapHandler.ReleaseWithinBounds
                     onTapped: root.closeClicked()
                 }
             }
         }
     }
 
-    // interaction
-    // hi lol
     HoverHandler {
         id: hoverHandler
     }
+
     TapHandler {
-        onTapped: root.activated()
+        id: tapHandler
+        onTapped: if (!closeHover.hovered) root.activated()
     }
 
-    Rectangle {
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        width: 1
-        height: 20
-        color: Theme.border
-        opacity: 0.7
-        visible: root.index < root.tabCount - 1
-                 && root.index !== root.activeIndex
-                 && root.index !== root.activeIndex - 1
+    TapHandler {
+        acceptedButtons: Qt.MiddleButton
+        onTapped: root.closeClicked()
     }
 }

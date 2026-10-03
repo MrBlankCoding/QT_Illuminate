@@ -1,22 +1,25 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import QT_Illuminate.ui
 
-Item {
+Popup {
     id: root
+
     property var webView: null
     property int matchCount: 0
     property int activeMatch: 0
     property bool hasSearched: false
 
-    anchors.top: parent.top
-    anchors.right: parent.right
-    anchors.topMargin: 8
-    anchors.rightMargin: 16
+    popupType: Popup.Window
+    modal: false
+    focus: true
+    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+    x: parent.width - width - 16
+    y: 8
     width: 300
     height: 40
-    visible: false
-    z: 100
+    padding: 0
 
     Timer {
         id: debounceTimer
@@ -25,53 +28,82 @@ Item {
         onTriggered: root.search(false)
     }
 
-    // debounce findText() against per-keystroke churn
     function timedSearch() {
         debounceTimer.restart();
     }
 
-    function open() {
-        visible = true;
-        Qt.callLater(function () {
-            input.forceActiveFocus();
-            input.selectAll();
-        });
-        if (input.text.length > 0)
-            search(false);
+    function dismiss() {
+        root.resetSearch();
+        root.close();
     }
 
-    function close() {
-        visible = false;
-        hasSearched = false;
-        matchCount = 0;
-        activeMatch = 0;
-        if (webView)
-            webView.findText("");
-        if (webView)
-            webView.forceActiveFocus();
+    function resetSearch() {
+        root.hasSearched = false;
+        root.matchCount = 0;
+        root.activeMatch = 0;
+        if (root.webView)
+            root.webView.findText("");
     }
 
     function search(backward) {
-        if (!webView || input.text.length === 0) {
-            matchCount = 0;
-            activeMatch = 0;
-            hasSearched = false;
-            if (webView)
-                webView.findText("");
+        if (!root.webView || input.text.length === 0) {
+            root.matchCount = 0;
+            root.activeMatch = 0;
+            root.hasSearched = false;
+            if (root.webView)
+                root.webView.findText("");
             return;
         }
-        hasSearched = true;
+        root.hasSearched = true;
         const flags = backward ? CefBrowser.FindBackward : 0;
-        webView.findText(input.text, flags);
+        root.webView.findText(input.text, flags);
     }
 
-    // rerun search on tab switch
+    onOpened: {
+        if (input.text.length > 0)
+            root.search(false);
+        Qt.callLater(() => {
+            if (!root.visible)
+                return;
+            const popupWindow = input.Window.window;
+            if (popupWindow) {
+                popupWindow.raise();
+                popupWindow.requestActivate();
+                Qt.callLater(() => {
+                    if (root.visible && popupWindow.active)
+                        root.focusInput();
+                });
+            }
+        });
+    }
+    onClosed: {
+        root.resetSearch();
+        if (root.webView)
+            root.webView.forceActiveFocus();
+    }
+
     onWebViewChanged: {
-        if (visible && input.text.length > 0)
-            search(false);
+        if (root.visible && input.text.length > 0)
+            root.search(false);
     }
 
-    // findText() match counts forwarded from CEF find handler.
+    function focusInput() {
+        if (!root.visible)
+            return;
+        input.forceActiveFocus();
+        input.selectAll();
+    }
+
+    Connections {
+        target: input.Window.window
+        function onActiveChanged() {
+            if (input.Window.window && input.Window.window.active) {
+                input.Window.window.raise();
+                root.focusInput();
+            }
+        }
+    }
+
     Connections {
         target: root.webView
         function onFindTextFinished(numberOfMatches, activeMatchOrdinal, finalUpdate) {
@@ -80,110 +112,93 @@ Item {
         }
     }
 
-    Rectangle {
-        anchors.fill: parent
+    background: Rectangle {
         radius: 8
         color: Theme.surface
         border.color: Theme.border
         border.width: 1
+    }
 
-        RowLayout {
-            anchors {
-                fill: parent
-                leftMargin: 12
-                rightMargin: 6
+    contentItem: RowLayout {
+        anchors.fill: parent
+        anchors.leftMargin: 12
+        anchors.rightMargin: 6
+        spacing: 4
+
+        TextInput {
+            id: input
+            objectName: "input"
+            Layout.fillWidth: true
+            focus: root.visible
+            color: Theme.text
+            font.pixelSize: Theme.fontSizeM
+            font.family: Theme.fontFamily
+            selectByMouse: true
+            clip: true
+            verticalAlignment: TextInput.AlignVCenter
+
+            onTextChanged: root.timedSearch()
+
+            Keys.onReturnPressed: function (event) {
+                debounceTimer.stop();
+                root.search((event.modifiers & Qt.ShiftModifier) !== 0);
             }
-            spacing: 4
-
-            TextInput {
-                id: input
-                objectName: "input"
-                Layout.fillWidth: true
-                color: Theme.text
-                font.pixelSize: Theme.fontSizeM
-                font.family: Theme.fontFamily
-                selectByMouse: true
-                clip: true
-                verticalAlignment: TextInput.AlignVCenter
-
-                onTextChanged: root.timedSearch()
-
-                Keys.onReturnPressed: function (event) {
-                    debounceTimer.stop();
-                    root.search((event.modifiers & Qt.ShiftModifier) !== 0);
-                }
-                Keys.onEscapePressed: root.close()
-
-                Text {
-                    anchors.fill: parent
-                    verticalAlignment: Text.AlignVCenter
-                    text: "Find in page"
-                    color: Theme.textMuted
-                    font: input.font
-                    visible: input.text === "" && !input.activeFocus
-                }
-            }
+            Keys.onEscapePressed: root.dismiss()
 
             Text {
-                Layout.alignment: Qt.AlignVCenter
-                Layout.rightMargin: 4
-                text: root.hasSearched ? (root.activeMatch + "/" + root.matchCount) : ""
+                anchors.fill: parent
+                verticalAlignment: Text.AlignVCenter
+                text: "Find in page"
                 color: Theme.textMuted
-                font.pixelSize: Theme.fontSizeS
-                font.family: Theme.fontFamily
+                font: input.font
+                visible: input.text === "" && !input.activeFocus
             }
+        }
 
-            // previous
-            Text {
-                text: "‹"
-                font.pixelSize: 20
-                font.family: Theme.fontFamily
-                color: prevHover.hovered ? Theme.text : Theme.textMuted
-                Layout.alignment: Qt.AlignVCenter
-                Layout.preferredWidth: 20
-                horizontalAlignment: Text.AlignHCenter
+        Text {
+            Layout.alignment: Qt.AlignVCenter
+            Layout.rightMargin: 4
+            text: root.hasSearched ? (root.activeMatch + "/" + root.matchCount) : ""
+            color: Theme.textMuted
+            font.pixelSize: Theme.fontSizeS
+            font.family: Theme.fontFamily
+        }
 
-                HoverHandler {
-                    id: prevHover
-                }
-                TapHandler {
-                    onTapped: root.search(true)
-                }
-            }
+        Text {
+            text: "‹"
+            font.pixelSize: 20
+            font.family: Theme.fontFamily
+            color: prevHover.hovered ? Theme.text : Theme.textMuted
+            Layout.alignment: Qt.AlignVCenter
+            Layout.preferredWidth: 20
+            horizontalAlignment: Text.AlignHCenter
 
-            // next
-            Text {
-                text: "›"
-                font.pixelSize: 20
-                font.family: Theme.fontFamily
-                color: nextHover.hovered ? Theme.text : Theme.textMuted
-                Layout.alignment: Qt.AlignVCenter
-                Layout.preferredWidth: 20
-                horizontalAlignment: Text.AlignHCenter
+            HoverHandler { id: prevHover }
+            TapHandler { onTapped: root.search(true) }
+        }
 
-                HoverHandler {
-                    id: nextHover
-                }
-                TapHandler {
-                    onTapped: root.search(false)
-                }
-            }
+        Text {
+            text: "›"
+            font.pixelSize: 20
+            font.family: Theme.fontFamily
+            color: nextHover.hovered ? Theme.text : Theme.textMuted
+            Layout.alignment: Qt.AlignVCenter
+            Layout.preferredWidth: 20
+            horizontalAlignment: Text.AlignHCenter
 
-            // close
-            LucideIcon {
-                size: 13
-                source: "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
-                color: closeHover.hovered ? Theme.text : Theme.textMuted
-                Layout.alignment: Qt.AlignVCenter
-                Layout.leftMargin: 2
+            HoverHandler { id: nextHover }
+            TapHandler { onTapped: root.search(false) }
+        }
 
-                HoverHandler {
-                    id: closeHover
-                }
-                TapHandler {
-                    onTapped: root.close()
-                }
-            }
+        LucideIcon {
+            size: 13
+            source: "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
+            color: closeHover.hovered ? Theme.text : Theme.textMuted
+            Layout.alignment: Qt.AlignVCenter
+            Layout.leftMargin: 2
+
+            HoverHandler { id: closeHover }
+            TapHandler { onTapped: root.dismiss() }
         }
     }
 }

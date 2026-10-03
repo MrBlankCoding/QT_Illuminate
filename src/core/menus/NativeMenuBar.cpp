@@ -17,9 +17,10 @@ namespace
     AppMenu *s_owner = nullptr;
     QVector<MenuItem> s_nodes;
 
-    QMenu *buildMenu(const MenuItem &node, AppMenu *owner)
+    void populateMenu(QMenu *menu, const MenuItem &node, AppMenu *owner)
     {
-        auto *menu = new QMenu(node.label);
+        menu->clear();
+        menu->setTitle(node.label);
 
         for (const MenuItem &entry : node.children)
         {
@@ -44,7 +45,12 @@ namespace
                 owner->trigger(id, payload);
             });
         }
+    }
 
+    QMenu *buildMenu(const MenuItem &node, AppMenu *owner)
+    {
+        auto *menu = new QMenu(node.label);
+        populateMenu(menu, node, owner);
         return menu;
     }
 
@@ -61,13 +67,7 @@ namespace
                 if (items.at(i) == s_nodes.at(i))
                     continue;
 
-                QMenu *fresh = buildMenu(items.at(i), s_owner);
-                QMenu *stale = s_menus.at(i);
-                s_bar->insertMenu(stale->menuAction(), fresh);
-                s_bar->removeAction(stale->menuAction());
-                // it may be the menu whose action led here
-                stale->deleteLater();
-                s_menus[i] = fresh;
+                populateMenu(s_menus.at(i), items.at(i), s_owner);
             }
             s_nodes = items;
             return;

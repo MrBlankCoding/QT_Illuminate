@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import QtQuick.Layouts
 import QT_Illuminate.ui
 
@@ -12,7 +13,7 @@ Window {
     minimumWidth: 640
     minimumHeight: 420
     title: (Browser.activeTitle || "New Tab") + " — QT_Illuminate"
-    color: Theme.bg
+    color: Theme.sidebarBg
     readonly property bool frameless: Qt.platform.os !== "osx"
     flags: frameless ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
     readonly property bool contentFullScreen: viewStack.activeWebView ? viewStack.activeWebView.fullScreen : false
@@ -20,6 +21,8 @@ Window {
     property bool contentFullScreenShown: false
     property int visibilityBeforeContentFullScreen: Window.Windowed
     property int visibilityBeforeWindowFullScreen: Window.Windowed
+    property bool findBarOpen: false
+    readonly property bool inputOverlayOpen: commandBar.visible || root.findBarOpen
     function toggleFullScreen() {
         if (root.visibility === Window.FullScreen) {
             if (root.visibilityBeforeWindowFullScreen === Window.Maximized)
@@ -124,6 +127,46 @@ Window {
         closeDialog.open()
     }
 
+    readonly property bool sidebarCollapsed: Prefs.sidebarCollapsed
+    property bool sidebarPeeked: false
+    property bool sidebarPeekSuppressed: false
+    onSidebarPeekedChanged: {
+        if (Theme.isMac)
+            WindowHelper.setWindowButtonsVisible(root, !root.sidebarCollapsed || root.sidebarPeeked);
+    }
+    onSidebarCollapsedChanged: {
+        if (Theme.isMac)
+            WindowHelper.setWindowButtonsVisible(root, !root.sidebarCollapsed || root.sidebarPeeked);
+        if (!root.sidebarCollapsed) {
+            root.sidebarPeeked = false;
+            root.sidebarPeekSuppressed = false;
+            sidebarOverlay.close();
+        } else {
+            root.sidebarPeeked = false;
+            root.sidebarPeekSuppressed = true;
+        }
+    }
+
+    function toggleSidebar() {
+        Prefs.sidebarCollapsed = !Prefs.sidebarCollapsed;
+    }
+
+    function openCommandBar(mode) {
+        sidebarOverlay.close();
+        const url = Browser.activeUrl;
+        if (mode === "edit" && url !== "" && url !== "newtab://newtab")
+            commandBar.openEdit(url);
+        else
+            commandBar.openNew();
+    }
+
+    function toggleBookmark() {
+        const url = Browser.activeUrl;
+        if (url === "" || url === "newtab://newtab")
+            return;
+        Bookmarks.toggleBookmark(Browser.activeTitle, url, Browser.activeIconUrl);
+    }
+
     function openSettings() {
         if (!settingsWindow) {
             const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/SettingsWindow.qml");
@@ -150,6 +193,8 @@ Window {
         Browser.adoptWindow(picker);
         // before retiring, so the app never has a moment with no window
         picker.show();
+        picker.raise();
+        picker.requestActivate();
         root.retire();
     }
 
@@ -311,37 +356,134 @@ Window {
 
     Component.onCompleted: {
         Logger.info("BrowserWindow", "Window ready, platform=" + Qt.platform.os);
-        WindowHelper.applyTitleBarStyle(root, Theme.tabBarHeight);
-        // macOS draws the bar at the top of the screen from here on; elsewhere
-        // this only tells the tree which window it belongs to
+        WindowHelper.applyTitleBarStyle(root, Theme.titleBarHeight);
+        WindowHelper.setWindowButtonsVisible(root, !root.sidebarCollapsed || root.sidebarPeeked);
         AppMenu.attach(root);
     }
 
     Component.onDestruction: AppMenu.detach(root)
 
-    ColumnLayout {
+    RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        // the menu bar, for the platforms that have none of their own
-        AppMenuBar {
-            Layout.fillWidth: true
-            visible: !root.contentFullScreen
+        Item {
+            id: dock
+            Layout.fillHeight: true
+            Layout.preferredWidth: (root.sidebarCollapsed && !root.sidebarPeeked) || root.contentFullScreen
+                ? 0 : (dockLoader.item ? dockLoader.item.implicitWidth : 0)
+            clip: true
+            visible: Layout.preferredWidth > 0
+
+            Behavior on Layout.preferredWidth {
+                enabled: !dockLoader.item || dockLoader.item.dragWidth < 0
+                NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+            }
+
+            HoverHandler {
+                id: dockHover
+                enabled: Theme.isMac && root.sidebarCollapsed
+                onHoveredChanged: {
+                    if (hovered)
+                        peekHideDelay.stop();
+                    else if (root.sidebarPeeked)
+                        peekHideDelay.restart();
+                }
+            }
+
+            Loader {
+                id: dockLoader
+                width: item ? item.implicitWidth : 0
+                height: parent.height
+                // kept alive while collapsed so expanding is instant
+                sourceComponent: sidebarComponent
+            }
         }
 
-        // tab strip
-        TabBar {
+        WebContentCard {
+            id: card
             Layout.fillWidth: true
-            visible: !root.contentFullScreen
+            Layout.fillHeight: true
+            Layout.margins: root.contentFullScreen ? 0 : Theme.cardMargin
+            radius: root.contentFullScreen ? 0 : Theme.radiusCard
+            shadowEnabled: !root.contentFullScreen
+            roundContent: InternalPages.isInternal(Browser.activeUrl)
+
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 0
+
+                // content area
+                Item {
+                    id: viewStack
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    property CefBrowser activeWebView: null
+                    readonly property real cornerRadius: card.radius
+
+                    function refreshActiveWebView() {
+                        const tab = viewRepeater.itemAt(Browser.tabModel.activeIndex) as TabSlot;
+                        const next = tab ? tab.webView : null;
+                        if (viewStack.activeWebView && viewStack.activeWebView !== next && viewStack.activeWebView.fullScreen)
+                            viewStack.activeWebView.exitFullScreen();
+                        viewStack.activeWebView = next;
+                    }
+
+                    Component.onCompleted: Qt.callLater(viewStack.refreshActiveWebView)
+
+                    FindBar {
+                        id: findBar
+                        webView: viewStack.activeWebView
+                        onVisibleChanged: root.findBarOpen = visible
+                    }
+
+                    ZoomIndicator {
+                        id: zoomIndicator
+                        webView: viewStack.activeWebView
+                    }
+
+                    DownloadsPanel {
+                        id: downloadsPanel
+                    }
+
+                    Connections {
+                        target: Browser
+                        enabled: !root.retiring
+                        function onActiveIndexChanged() {
+                            findBar.close();
+                            viewStack.refreshActiveWebView();
+                        }
+                        function onNewTabOpened() {
+                            Qt.callLater(() => root.openCommandBar("new"));
+                        }
+
+                        function onCloseWindowRequested() {
+                            root.requestWindowClose();
+                        }
+                    }
+
+                    Repeater {
+                        id: viewRepeater
+                        model: root.retiring ? null : Browser.tabModel
+
+                        delegate: TabSlot {
+                            browserWindow: root
+                            viewStack: viewStack
+                        }
+
+                        onItemAdded: viewStack.refreshActiveWebView()
+                        onItemRemoved: viewStack.refreshActiveWebView()
+                    }
+                }
+            }
         }
+    }
 
-        // toolbar
-        Toolbar {
-            id: toolbar
-            Layout.fillWidth: true
-            z: 100
-            visible: !root.contentFullScreen
+    Component {
+        id: sidebarComponent
 
+        Sidebar {
+            targetWindow: root
             currentUrl: Browser.activeUrl === "newtab://newtab" ? "" : Browser.activeUrl
             currentTitle: Browser.activeTitle
             currentIconUrl: Browser.activeIconUrl
@@ -353,92 +495,144 @@ Window {
             zoomIndicator: zoomIndicator
             downloadsPanel: downloadsPanel
 
-            onNavigate: function (input) {
-                Browser.navigate(input);
-            }
             onSwitchToProfile: profile => root.switchProfile(profile)
             onOpenProfileSelector: root.openProfileSelector()
             onOpenSettings: root.openSettings()
+            onCommandBarRequested: mode => root.openCommandBar(mode)
+            onToggleCollapsed: root.toggleSidebar()
         }
+    }
 
-        // bookmarks bar (new tab page only)
-        BookmarksBar {
-            Layout.fillWidth: true
-            Layout.preferredHeight: implicitHeight
-            visible: !root.contentFullScreen && Bookmarks.count > 0 && Browser.activeUrl === "newtab://newtab"
+    Item {
+        id: revealEdge
+        x: 0
+        y: 0
+        width: Theme.cardMargin + 2
+        height: parent.height
+        visible: root.sidebarCollapsed && !root.contentFullScreen && (!Theme.isMac || !root.sidebarPeeked)
 
-            onNavigate: function (url) {
-                Browser.navigate(url);
-            }
-            onOpenInNewTab: function (url) {
-                Browser.newTab(url);
-            }
-        }
-
-        // content area
-        Item {
-            id: viewStack
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            property CefBrowser activeWebView: null
-
-            function refreshActiveWebView() {
-                const tab = viewRepeater.itemAt(Browser.tabModel.activeIndex) as TabSlot;
-                const next = tab ? tab.webView : null;
-                // a background tab can't stay fullscreen
-                if (viewStack.activeWebView && viewStack.activeWebView !== next && viewStack.activeWebView.fullScreen)
-                    viewStack.activeWebView.exitFullScreen();
-                viewStack.activeWebView = next;
-            }
-
-            Component.onCompleted: Qt.callLater(viewStack.refreshActiveWebView)
-
-            FindBar {
-                id: findBar
-                webView: viewStack.activeWebView
-            }
-
-            ZoomIndicator {
-                id: zoomIndicator
-                webView: viewStack.activeWebView
-                anchors.bottom: parent.bottom
-                anchors.right: parent.right
-                anchors.margins: 16
-            }
-
-            DownloadsPanel {
-                id: downloadsPanel
-            }
-
-            Connections {
-                target: Browser
-                enabled: !root.retiring
-                function onActiveIndexChanged() {
-                    findBar.close();
-                    viewStack.refreshActiveWebView();
+        HoverHandler {
+            id: revealHover
+            onHoveredChanged: {
+                if (hovered) {
+                    if (!root.sidebarPeekSuppressed)
+                        revealDelay.restart();
+                } else {
+                    revealDelay.stop();
+                    root.sidebarPeekSuppressed = false;
                 }
-                function onNewTabOpened() {
-                    Qt.callLater(toolbar.focusAddressBar);
-                }
-
-                function onCloseWindowRequested() {
-                    root.requestWindowClose();
-                }
-            }
-
-            Repeater {
-                id: viewRepeater
-                model: root.retiring ? null : Browser.tabModel
-
-                delegate: TabSlot {
-                    browserWindow: root
-                    viewStack: viewStack
-                }
-
-                onItemAdded: viewStack.refreshActiveWebView()
-                onItemRemoved: viewStack.refreshActiveWebView()
             }
         }
+        Timer {
+            id: revealDelay
+            interval: 15
+            onTriggered: {
+                if (Theme.isMac && !root.sidebarPeekSuppressed)
+                    root.sidebarPeeked = true;
+                else if (!Theme.isMac)
+                    sidebarOverlay.open();
+            }
+        }
+        Timer {
+            id: peekHideDelay
+            interval: 350
+            onTriggered: {
+                if (!dockHover.hovered && root.sidebarCollapsed)
+                    root.sidebarPeeked = false;
+            }
+        }
+    }
+
+    // the window can still be dragged by its top edge while collapsed
+    WindowDragRegion {
+        x: 0
+        y: 0
+        width: parent.width
+        height: Theme.cardMargin
+        visible: root.sidebarCollapsed && !root.contentFullScreen
+    }
+
+    Popup {
+        id: sidebarOverlay
+        readonly property int shadowPad: 16
+
+        popupType: Popup.Window
+        modal: false
+        focus: false
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        padding: shadowPad
+        x: -shadowPad
+        y: Theme.space1 - shadowPad
+        width: Prefs.sidebarWidth + 2 * shadowPad
+        height: root.height - 2 * Theme.space1 + 2 * shadowPad
+
+        enter: Transition {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.durationMid; easing.type: Easing.OutCubic }
+            NumberAnimation { property: "x"; from: -sidebarOverlay.width * 0.25; to: -sidebarOverlay.shadowPad; duration: Theme.durationMid; easing.type: Easing.OutCubic }
+        }
+        exit: Transition {
+            NumberAnimation { property: "opacity"; to: 0; duration: Theme.durationFast; easing.type: Easing.InQuad }
+        }
+
+        background: Item {
+            RectangularShadow {
+                anchors.fill: overlayCard
+                radius: overlayCard.radius
+                blur: 24
+                offset.x: 2
+                color: Theme.shadow
+            }
+            Rectangle {
+                id: overlayCard
+                anchors.fill: parent
+                anchors.margins: sidebarOverlay.shadowPad
+                radius: Theme.radiusCard
+                color: Theme.sidebarBg
+                border.width: 1
+                border.color: Theme.cardBorder
+            }
+        }
+
+        contentItem: Item {
+            Loader {
+                id: overlayLoader
+                anchors.fill: parent
+                active: true
+                sourceComponent: sidebarComponent
+                onLoaded: item.overlay = true
+            }
+
+            HoverHandler {
+                id: overlayHover
+                onHoveredChanged: if (hovered) hideDelay.stop(); else hideDelay.restart()
+            }
+        }
+
+        Timer {
+            id: hideDelay
+            interval: 350
+            onTriggered: {
+                // a native menu opened from the overlay takes the pointer with it
+                if (overlayHover.hovered || (overlayLoader.item && overlayLoader.item.menuOpen))
+                    hideDelay.restart();
+                else
+                    sidebarOverlay.close();
+            }
+        }
+        onOpened: hideDelay.restart()
+    }
+
+    CommandBar {
+        id: commandBar
+        quickActions: [
+            { label: "Toggle Sidebar", icon: "qrc:/QT_Illuminate/ui/ui/icons/panel-left.svg", run: () => root.toggleSidebar() },
+            { label: "Open Settings", icon: "qrc:/QT_Illuminate/ui/ui/icons/more-vertical.svg", run: () => root.openSettings() },
+            { label: "Downloads", icon: "qrc:/QT_Illuminate/ui/ui/icons/download.svg", run: () => downloadsPanel.toggle() },
+            { label: "Find in Page", icon: "qrc:/QT_Illuminate/ui/ui/icons/search.svg", run: () => findBar.open() },
+            { label: "Copy URL", icon: "qrc:/QT_Illuminate/ui/ui/icons/copy.svg", run: () => Browser.copyActiveUrl() },
+            { label: "Developer Tools", icon: "qrc:/QT_Illuminate/ui/ui/icons/activity.svg", run: () => Browser.toggleDevTools() },
+            { label: "Memory Usage", icon: "qrc:/QT_Illuminate/ui/ui/icons/activity.svg", run: () => Browser.newTab("illuminate://memory") }
+        ]
     }
 
     // frameless windows lose the native resize border
@@ -455,11 +649,13 @@ Window {
         logger: Logger
         appMenu: AppMenu
         shortcuts: Shortcuts
-        toolbar: toolbar
         findBar: findBar
         zoomIndicator: zoomIndicator
         downloadsPanel: downloadsPanel
         onSettingsRequested: root.openSettings()
+        onCommandBarRequested: mode => root.openCommandBar(mode)
+        onSidebarToggleRequested: root.toggleSidebar()
+        onBookmarkToggleRequested: root.toggleBookmark()
         onPrintRequested: root.printActivePage()
         onSavePdfRequested: root.savePdfActivePage()
         onFullScreenRequested: root.toggleFullScreen()

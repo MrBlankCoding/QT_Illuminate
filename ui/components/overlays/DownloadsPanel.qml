@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import QT_Illuminate.ui
 
@@ -6,16 +7,17 @@ pragma ComponentBehavior: Bound
 
 // downloads
 // UI shows when one has started
-Item {
+Popup {
     id: root
-    anchors.top: parent.top
-    anchors.right: parent.right
-    anchors.topMargin: 52 // clears FindBar (topMargin 8 + height 40), in case both are open
-    anchors.rightMargin: 16
+    popupType: Popup.Window
+    modal: false
+    focus: true
+    closePolicy: Popup.NoAutoClose
+    x: parent.width - width - 16
+    y: 52
     width: 320
     height: 360
-    visible: false
-    z: 100
+    padding: 0
 
     // number of in progress downloads
     property int activeCount: 0
@@ -24,14 +26,11 @@ Item {
     // used for showing/hiding toolbar
     readonly property alias downloadCount: downloadsModel.count
 
-    function open() {
-        visible = true;
-    }
-    function close() {
-        visible = false;
-    }
     function toggle() {
-        visible = !visible;
+        if (root.visible)
+            root.close();
+        else
+            root.open();
     }
 
     ListModel {
@@ -126,8 +125,7 @@ Item {
         }
     }
 
-    Rectangle {
-        anchors.fill: parent
+    contentItem: Rectangle {
         radius: 8
         color: Theme.surface
         border.color: Theme.border

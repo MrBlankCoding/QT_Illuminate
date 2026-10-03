@@ -18,7 +18,7 @@ include(GNUInstallDirs)
 include(CTest)
 
 find_package(Qt6 REQUIRED COMPONENTS
-    Core Gui Network Qml Quick QuickControls2 Concurrent
+    Core Gui Network Qml Quick QuickControls2
     Widgets PrintSupport Pdf
 )
 
@@ -103,8 +103,7 @@ if(OS_MAC AND CEF_FOUND)
         BUILD_RPATH "@executable_path/../Frameworks"
         INSTALL_RPATH "@executable_path/../Frameworks"
     )
-    # Copy the CEF framework into the bundle at build time with proper macOS
-    # framework structure (Versions/A symlinks) as expected by CEF's runtime.
+
     add_custom_command(TARGET QT_Illuminate POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CEF_BINARY_DIR_RELEASE}/Chromium Embedded Framework.framework"
@@ -194,29 +193,27 @@ endif()
 set_source_files_properties(ui/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_library(QT_Illuminatemodule STATIC
-    # --- core/browser: top-level browser orchestration ---
     src/core/browser/BrowserTab.h
     src/core/browser/BrowserTab.cpp
     src/core/browser/BrowserSettings.h
     src/core/browser/BrowserSettings.cpp
     src/core/browser/BrowserController.h
     src/core/browser/BrowserController.cpp
+    src/core/browser/SearchSuggestionRequest.h
+    src/core/browser/SearchSuggestionRequest.cpp
     src/core/browser/InternalPageManager.h
     src/core/browser/InternalPageManager.cpp
 
-    # --- core/models: Qt models exposed to QML ---
     src/core/models/TabModel.h
     src/core/models/TabModel.cpp
     src/core/models/BookmarkModel.h
     src/core/models/BookmarkModel.cpp
 
-    # --- core/profiles ---
     src/core/profiles/Profile.h
     src/core/profiles/Profile.cpp
     src/core/profiles/ProfileManager.h
     src/core/profiles/ProfileManager.cpp
 
-    # --- core/menus: native menu bar and keyboard shortcuts ---
     src/core/menus/MenuItem.h
     src/core/menus/MenuItem.cpp
     src/core/menus/AppMenu.h
@@ -226,7 +223,6 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/menus/ShortcutRegistry.h
     src/core/menus/ShortcutRegistry.cpp
 
-    # --- core/system: diagnostics and permission prompts ---
     src/core/system/SystemInfo.h
     src/core/system/SystemInfo.cpp
     src/core/system/MemoryMonitor.h
@@ -234,7 +230,6 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/system/PermissionHandler.h
     src/core/system/PermissionHandler.cpp
 
-    # --- core/cef: Chromium Embedded Framework integration ---
     src/core/cef/CefManager.h
     src/core/cef/CefManager.cpp
     src/core/cef/CefBrowserWrapper.h
@@ -268,8 +263,6 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/utils/UrlResolver.cpp
     src/utils/BrowserLogger.h
     src/utils/BrowserLogger.cpp
-    src/utils/ColorExtractor.h
-    src/utils/ColorExtractor.cpp
     src/utils/ExternalQmlSingleton.h
     src/utils/LogBridge.h
     src/utils/PointerLockPermission.h
@@ -292,7 +285,7 @@ if(APPLE)
     target_sources(QT_Illuminatemodule PRIVATE src/core/cef/CefManager_mac.mm src/core/cef/CefBrowserWrapper_mac.mm)
     set_source_files_properties(src/utils/PointerLockEmulation.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_link_libraries(QT_Illuminatemodule PRIVATE
-        "-framework Cocoa" "-framework AppKit" "-framework AVFoundation" "-framework CoreLocation" "-framework IOSurface")
+        "-framework Cocoa" "-framework AppKit" "-framework QuartzCore" "-framework AVFoundation" "-framework CoreLocation" "-framework IOSurface")
 else()
     # generic Qt event-filter/cursor-warp pointer lock for Linux and Windows
     target_sources(QT_Illuminatemodule PRIVATE src/utils/PointerLockEmulation.cpp)
@@ -316,7 +309,6 @@ target_include_directories(QT_Illuminatemodule PUBLIC
 
 target_link_libraries(QT_Illuminatemodule PUBLIC
     Qt6::Core
-    Qt6::Concurrent
     Qt6::Gui
     Qt6::Network
     Qt6::Qml
@@ -331,7 +323,6 @@ if(TARGET cef::cef)
     target_link_libraries(QT_Illuminatemodule PUBLIC cef::cef libcef_dll_wrapper)
 endif()
 
-# QHotkey handles global shortcuts without Qt private headers
 target_link_libraries(QT_Illuminatemodule PRIVATE QHotkey::QHotkey)
 
 qt_add_qml_module(QT_Illuminatemodule
@@ -343,7 +334,6 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/Theme.qml
         ui/pages/BrowserWindow.qml
         ui/pages/MemoryPage.qml
-        ui/pages/NewTabPage.qml
         ui/pages/ProfilePicker.qml
         ui/pages/SettingsWindow.qml
         ui/pages/SetupPage.qml
@@ -352,23 +342,28 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/pages/settings/ShortcutsSettingsPage.qml
         ui/pages/settings/StartupSettingsPage.qml
         ui/pages/settings/TabsSettingsPage.qml
+        ui/components/LetterAvatar.qml
         ui/components/LucideIcon.qml
         ui/components/PillButton.qml
         ui/components/chrome/ResizeGrips.qml
         ui/components/chrome/WindowControls.qml
         ui/components/chrome/WindowDragRegion.qml
-        ui/components/browser/BookmarksBar.qml
+        ui/components/browser/AddressPill.qml
+        ui/components/browser/EssentialsGrid.qml
         ui/components/browser/KeyboardShortcuts.qml
         ui/components/browser/PrintController.qml
-        ui/components/browser/TabBar.qml
+        ui/components/browser/Sidebar.qml
+        ui/components/browser/SidebarButton.qml
+        ui/components/browser/SuggestionProvider.qml
         ui/components/browser/TabItem.qml
         ui/components/browser/TabSlot.qml
-        ui/components/browser/Toolbar.qml
-        ui/components/overlays/AppMenuBar.qml
+        ui/components/browser/WebContentCard.qml
+        ui/components/overlays/AppSubMenu.qml
+        ui/components/overlays/CommandBar.qml
+        ui/components/overlays/ThemePicker.qml
         ui/components/overlays/WebContextMenu.qml
         ui/components/overlays/DownloadsPanel.qml
         ui/components/overlays/FindBar.qml
-        ui/components/overlays/SuggestionBox.qml
         ui/components/overlays/ZoomIndicator.qml
         ui/components/profiles/ProfileEditor.qml
         ui/components/profiles/ProfileTile.qml
@@ -386,20 +381,22 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/resources/js/pointer-lock-shim.js
         ui/resources/js/devtools-bridge.js
         ui/icons/alert-triangle.svg
+        ui/icons/arrow-right.svg
         ui/icons/chevron-left.svg
         ui/icons/chevron-right.svg
         ui/icons/copy.svg
         ui/icons/download.svg
         ui/icons/folder.svg
         ui/icons/globe.svg
-        ui/icons/image.svg
         ui/icons/lock.svg
         ui/icons/activity.svg
         ui/icons/minus.svg
         ui/icons/more-vertical.svg
+        ui/icons/panel-left.svg
         ui/icons/pin.svg
         ui/icons/plus.svg
         ui/icons/rotate-cw.svg
+        ui/icons/search.svg
         ui/icons/square.svg
         ui/icons/star-filled.svg
         ui/icons/star.svg

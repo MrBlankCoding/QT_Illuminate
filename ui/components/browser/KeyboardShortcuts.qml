@@ -8,12 +8,14 @@ Item {
     required property var logger
     required property var appMenu
     required property var shortcuts
-    required property var toolbar
     required property var findBar
     required property var zoomIndicator
     required property var downloadsPanel
 
     signal settingsRequested
+    signal commandBarRequested(string mode)   // "new" | "edit"
+    signal sidebarToggleRequested
+    signal bookmarkToggleRequested
     signal printRequested
     signal savePdfRequested
     signal fullScreenRequested
@@ -27,7 +29,7 @@ Item {
     function perform(id, payload) {
         switch (id) {
         case "tab.new":
-            root.browser.newTab()
+            root.commandBarRequested("new")
             return
         case "tab.close":
             root.browser.closeTab(root.browser.tabModel.activeIndex)
@@ -63,12 +65,15 @@ Item {
         case "view.zoomReset":
             root.zoomIndicator.zoomReset()
             return
+        case "view.toggleSidebar":
+            root.sidebarToggleRequested()
+            return
         case "view.fullScreen":
             // the window itself, not the page's own element fullscreen
             root.fullScreenRequested()
             return
         case "view.focusAddressBar":
-            root.toolbar.focusAddressBar()
+            root.commandBarRequested("edit")
             return
 
         case "dev.devTools":
@@ -103,7 +108,7 @@ Item {
             return
 
         case "bookmark.toggle":
-            root.toolbar.toggleBookmark()
+            root.bookmarkToggleRequested()
             return
         case "bookmark.open":
             root.browser.newTab(payload)
@@ -240,11 +245,6 @@ Item {
     }
     Shortcut {
         context: Qt.WindowShortcut
-        sequences: root.shortcuts.bindings.focusAddressBar
-        onActivated: root.perform("view.focusAddressBar")
-    }
-    Shortcut {
-        context: Qt.WindowShortcut
         sequences: root.shortcuts.bindings.copyUrl
         onActivated: root.perform("page.copyUrl")
     }
@@ -290,6 +290,12 @@ Item {
         context: Qt.WindowShortcut
         sequences: root.shortcuts.bindings.zoomReset
         onActivated: root.perform("view.zoomReset")
+    }
+
+    Shortcut {
+        context: Qt.WindowShortcut
+        sequences: root.shortcuts.bindings.toggleSidebar
+        onActivated: root.perform("view.toggleSidebar")
     }
 
     // the window itself, not the page's own element fullscreen

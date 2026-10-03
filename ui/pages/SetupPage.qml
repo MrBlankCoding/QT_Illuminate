@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs
 import QtQuick.Layouts
 import QT_Illuminate.ui
 
@@ -89,13 +88,6 @@ Item {
                 easing.type: Easing.OutCubic
             }
         }
-    }
-
-    FileDialog {
-        id: bgFileDialog
-        title: "Choose Background Image"
-        nameFilters: ["Images (*.png *.jpg *.jpeg *.webp *.bmp *.svg)"]
-        onAccepted: Browser.newTabBackground = selectedFile.toString()
     }
 
     Rectangle {
@@ -270,7 +262,7 @@ Item {
                     SetupHeading {
                         Layout.fillWidth: true
                         title: "Customise"
-                        subtitle: "Pick a look, a new tab background and how to handle ads."
+                        subtitle: "Pick a look"
                     }
 
                     ColumnLayout {
@@ -305,74 +297,6 @@ Item {
                         }
                     }
 
-                    ColumnLayout {
-                        spacing: 8
-
-                        Text {
-                            text: "New tab background"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 12
-                            color: Theme.textMuted
-                        }
-
-                        Row {
-                            spacing: 14
-
-                            Rectangle {
-                                id: bgPreview
-                                width: 128
-                                height: 72
-                                radius: 10
-                                color: Theme.surface
-                                border.width: 1
-                                border.color: Theme.border
-                                clip: true
-
-                                Image {
-                                    id: bgThumb
-                                    anchors.fill: parent
-                                    anchors.margins: 1
-                                    source: Browser.newTabBackground
-                                    // thumbnail only; the full image decodes on the new tab page
-                                    sourceSize.width: 256
-                                    sourceSize.height: 144
-                                    fillMode: Image.PreserveAspectCrop
-                                    asynchronous: true
-                                    visible: status === Image.Ready
-                                }
-
-                                LucideIcon {
-                                    anchors.centerIn: parent
-                                    visible: !bgThumb.visible
-                                    size: 20
-                                    source: "qrc:/QT_Illuminate/ui/ui/icons/image.svg"
-                                    color: Theme.textMuted
-                                }
-
-                                HoverHandler { cursorShape: Qt.PointingHandCursor }
-                                TapHandler { onTapped: bgFileDialog.open() }
-                            }
-
-                            Column {
-                                anchors.verticalCenter: bgPreview.verticalCenter
-                                spacing: 8
-
-                                PillButton {
-                                    text: Browser.newTabBackground !== "" ? "Change image…" : "Choose image…"
-                                    fillColor: Theme.surface
-                                    hoverFillColor: Theme.surfaceHigh
-                                    onClicked: bgFileDialog.open()
-                                }
-                                PillButton {
-                                    visible: Browser.newTabBackground !== ""
-                                    text: "Remove"
-                                    textColor: Theme.textMuted
-                                    hoverFillColor: Theme.surface
-                                    onClicked: Browser.newTabBackground = ""
-                                }
-                            }
-                        }
-                    }
                     Item { Layout.fillHeight: true }
                 }
 

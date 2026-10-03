@@ -3,15 +3,14 @@
 #include <QList>
 #include <QObject>
 #include <QPointer>
-#include <QSize>
 #include <QUrl>
 #include <QString>
+#include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 #include "TabModel.h"
 #include "Profile.h"
 #include "CefProfile.h"
 #include "../utils/ExternalQmlSingleton.h"
-#include "../utils/ColorExtractor.h"
 
 class QSettings;
 
@@ -30,13 +29,13 @@ class BrowserController : public QObject, public ExternalQmlSingleton<BrowserCon
     Q_PROPERTY(QString activeIconUrl READ activeIconUrl NOTIFY activeIconUrlChanged)
     Q_PROPERTY(bool activeLoading READ activeLoading NOTIFY activeLoadingChanged)
     Q_PROPERTY(int activeProgress READ activeProgress NOTIFY activeProgressChanged)
-    Q_PROPERTY(QString newTabBackground READ newTabBackground WRITE setNewTabBackground NOTIFY newTabBackgroundChanged)
     Q_PROPERTY(QString themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
+    Q_PROPERTY(QString themePalette READ themePalette WRITE setThemePalette NOTIFY themePaletteChanged)
+    Q_PROPERTY(QVariantList customThemes READ customThemes NOTIFY customThemesChanged)
+    Q_PROPERTY(QString activeCustomThemeId READ activeCustomThemeId NOTIFY activeCustomThemeChanged)
+    Q_PROPERTY(QVariantMap activeThemeColors READ activeThemeColors NOTIFY activeCustomThemeChanged)
     // true until page has been dismissed
     Q_PROPERTY(bool firstRun READ isFirstRun NOTIFY firstRunChanged)
-    Q_PROPERTY(QString adaptiveAccentDark READ adaptiveAccentDark NOTIFY adaptivePaletteChanged)
-    Q_PROPERTY(QString adaptiveAccentLight READ adaptiveAccentLight NOTIFY adaptivePaletteChanged)
-    Q_PROPERTY(qreal backgroundLuminance READ backgroundLuminance NOTIFY adaptivePaletteChanged)
     Q_PROPERTY(CefProfile *webProfile READ webProfile NOTIFY webProfileChanged)
 
 public:
@@ -51,18 +50,19 @@ public:
     QString activeIconUrl() const;
     bool activeLoading() const;
     int activeProgress() const;
-    QString newTabBackground() const;
-    void setNewTabBackground(const QString &path);
     QString themeMode() const;
     void setThemeMode(const QString &mode);
+    QString themePalette() const;
+    void setThemePalette(const QString &palette);
+    QVariantList customThemes() const;
+    QString activeCustomThemeId() const;
+    QVariantMap activeThemeColors() const;
     bool isFirstRun() const;
-    QString adaptiveAccentDark() const;
-    QString adaptiveAccentLight() const;
-    qreal backgroundLuminance() const;
     CefProfile *webProfile() const;
 
     // user actions
-    Q_INVOKABLE void newTab(const QString &url = {});
+    // background: open without switching to it
+    Q_INVOKABLE void newTab(const QString &url = {}, bool background = false);
     Q_INVOKABLE void completeFirstRun();
     Q_INVOKABLE void closeTab(int index);
     Q_INVOKABLE void activateTab(int index);
@@ -73,8 +73,11 @@ public:
     Q_INVOKABLE void goForward();
     Q_INVOKABLE void toggleDevTools();
     Q_INVOKABLE void copyActiveUrl() const;
-    Q_INVOKABLE QSize imageSize(const QString &url) const;
     Q_INVOKABLE void saveSession() const;
+    Q_INVOKABLE QString createCustomTheme(const QString &name, const QVariantMap &colors);
+    Q_INVOKABLE bool updateCustomTheme(const QString &id, const QString &name, const QVariantMap &colors);
+    Q_INVOKABLE void deleteCustomTheme(const QString &id);
+    Q_INVOKABLE void activateCustomTheme(const QString &id);
     // true when closing the window should ask first (preference + tab count)
     Q_INVOKABLE bool confirmCloseRequired() const;
     Q_INVOKABLE void onTitleChanged(int tabIndex, const QString &title);
@@ -97,11 +100,12 @@ signals:
     void activeLoadingChanged();
     void activeProgressChanged();
     void firstRunChanged();
-    void newTabBackgroundChanged();
     void themeModeChanged();
-    void adaptivePaletteChanged();
+    void themePaletteChanged();
+    void customThemesChanged();
+    void activeCustomThemeChanged();
     void webProfileChanged();
-    void newTabOpened(); // blank new tab page opened, UI focuses the address bar
+    void newTabOpened(); // UI opens the command bar for a requested new tab
     void loadRequested(int tabIndex, const QUrl &url);
     void navigationRequested(const QString &action); // "back"|"forward"|"reload"|"devtools"
     void downloadRequested(QObject *download);
@@ -110,8 +114,6 @@ signals:
 private:
     void rewireActiveTab();
     void emitActiveStateChanged();
-    void updateAdaptiveAccent();
-    void applyPalette(const ImagePalette &palette);
     void restoreSession();
     void openInitialTab();
     QString sessionFilePath() const;
@@ -120,9 +122,6 @@ private:
     Profile *m_profile;
     QObject *m_activeTabCtx = nullptr;
     QList<QPointer<QObject>> m_adoptedWindows;
-    ImagePalette m_palette;
-    // bumped per extraction so a slow result for an old image is dropped
-    int m_paletteGeneration = 0;
     QSettings *m_settings;
     QSettings *m_appSettings = nullptr;
     bool m_isFirstRun = true;

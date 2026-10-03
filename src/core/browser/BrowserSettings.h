@@ -33,6 +33,10 @@ class BrowserSettings : public QObject, public ExternalQmlSingleton<BrowserSetti
     Q_PROPERTY(bool autoUnloadEnabled READ autoUnloadEnabled WRITE setAutoUnloadEnabled NOTIFY autoUnloadChanged)
     Q_PROPERTY(int autoUnloadMinutes READ autoUnloadMinutes WRITE setAutoUnloadMinutes NOTIFY autoUnloadChanged)
     Q_PROPERTY(bool confirmCloseMultipleTabs READ confirmCloseMultipleTabs WRITE setConfirmCloseMultipleTabs NOTIFY confirmCloseMultipleTabsChanged)
+    Q_PROPERTY(int sidebarWidth READ sidebarWidth WRITE setSidebarWidth NOTIFY sidebarWidthChanged)
+    Q_PROPERTY(bool sidebarCollapsed READ sidebarCollapsed WRITE setSidebarCollapsed NOTIFY sidebarCollapsedChanged)
+    Q_PROPERTY(int sidebarMinWidth READ sidebarMinWidth CONSTANT)
+    Q_PROPERTY(int sidebarMaxWidth READ sidebarMaxWidth CONSTANT)
 
 public:
     // startupBehavior values
@@ -76,6 +80,17 @@ public:
     bool confirmCloseMultipleTabs() const;
     void setConfirmCloseMultipleTabs(bool enabled);
 
+    static constexpr int kSidebarMinWidth = 200;
+    static constexpr int kSidebarMaxWidth = 480;
+    static constexpr int kSidebarDefaultWidth = 200;
+
+    int sidebarWidth() const;
+    void setSidebarWidth(int width);
+    bool sidebarCollapsed() const;
+    void setSidebarCollapsed(bool collapsed);
+    int sidebarMinWidth() const { return kSidebarMinWidth; }
+    int sidebarMaxWidth() const { return kSidebarMaxWidth; }
+
 signals:
     void startupBehaviorChanged();
     void homepageUrlChanged();
@@ -84,6 +99,8 @@ signals:
     void thirdPartyCookiesEnabledChanged();
     void autoUnloadChanged();
     void confirmCloseMultipleTabsChanged();
+    void sidebarWidthChanged();
+    void sidebarCollapsedChanged();
 
 private:
     void reloadProfileSettings();
@@ -104,4 +121,6 @@ private:
     bool m_autoUnload = true;
     int m_autoUnloadMinutes = 5;
     bool m_confirmCloseMultipleTabs = true;
+    int m_sidebarWidth = kSidebarDefaultWidth;
+    bool m_sidebarCollapsed = false;
 };

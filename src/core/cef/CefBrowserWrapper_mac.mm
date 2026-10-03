@@ -1,12 +1,9 @@
 #include <QRect>
 
 #import <Cocoa/Cocoa.h>
+#import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 
-// CEF's browser view doesn't override acceptsFirstResponder, so AppKit
-// leaves the previous first responder (the QML TextInput) in place and the
-// click never reaches the web content. Swizzle it to return YES so the
-// native view takes focus when clicked.
 static BOOL cefAcceptsFirstResponder(id self, SEL _cmd)
 {
     return YES;
@@ -48,4 +45,19 @@ void cefSetNativeViewGeometry(void *view, const QRect &rect, bool visible)
         [nsView setFrame:frame];
 
     installAcceptsFirstResponderHook(view);
+}
+
+void cefSetNativeViewCornerRadius(void *view, qreal radius)
+{
+    NSView *nsView = (__bridge NSView *)view;
+    if (!nsView)
+        return;
+
+    nsView.wantsLayer = YES;
+    CALayer *layer = nsView.layer;
+    if (!layer)
+        return;
+    layer.cornerRadius = radius;
+    layer.cornerCurve = kCACornerCurveContinuous;
+    layer.masksToBounds = radius > 0;
 }

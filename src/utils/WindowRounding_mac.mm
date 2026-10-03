@@ -56,4 +56,16 @@ void applyMacTitleBarStyle(QQuickWindow *window, qreal barHeight) {
     [nsWindow setFrame:nsWindow.screen.visibleFrame display:YES];
 }
 
+void setMacWindowButtonsVisible(QQuickWindow *window, bool visible) {
+  if (!window)
+    return;
+  NSView *view = reinterpret_cast<NSView *>(window->winId());
+  NSWindow *nsWindow = view ? view.window : nil;
+  if (!nsWindow)
+    return;
+  for (NSWindowButton kind : {NSWindowCloseButton, NSWindowMiniaturizeButton,
+                              NSWindowZoomButton})
+    [nsWindow standardWindowButton:kind].hidden = !visible;
+}
+
 } // namespace WindowRounding

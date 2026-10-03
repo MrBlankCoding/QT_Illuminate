@@ -20,12 +20,11 @@
 #include <include/cef_app.h>
 #include <include/cef_parser.h>
 
-// positions and shows/hides the browser's native view inside the Qt window
 #ifdef __APPLE__
 void cefSetNativeViewGeometry(void *view, const QRect &rect, bool visible); // CefBrowserWrapper_mac.mm
+void cefSetNativeViewCornerRadius(void *view, qreal radius);                // CefBrowserWrapper_mac.mm
 #elif defined(_WIN32)
 #include <windows.h>
-// |rect| is in physical pixels, relative to the Qt window's client area
 static void cefSetNativeViewGeometry(cef_window_handle_t hwnd, const QRect &rect, bool visible)
 {
     if (!hwnd)
@@ -39,6 +38,10 @@ static void cefSetNativeViewGeometry(cef_window_handle_t hwnd, const QRect &rect
 #else
 // TODO: X11 child windows are not repositioned yet
 static void cefSetNativeViewGeometry(cef_window_handle_t, const QRect &, bool) {}
+#endif
+
+#ifndef __APPLE__
+static void cefSetNativeViewCornerRadius(cef_window_handle_t, qreal) {}
 #endif
 
 static QRect toNativeRect(const QRect &rect, const QQuickWindow *window)
@@ -179,6 +182,29 @@ void CefBrowserWrapper::setBackgroundColor(const QColor &color)
         m_backgroundColor = color;
         emit backgroundColorChanged();
     }
+}
+
+void CefBrowserWrapper::setCornerRadius(qreal radius)
+{
+    radius = qMax<qreal>(0, radius);
+    if (m_cornerRadius == radius)
+        return;
+    m_cornerRadius = radius;
+    emit cornerRadiusChanged();
+    if (m_browser)
+    {
+        m_nativeCornerRadius = m_cornerRadius;
+        cefSetNativeViewCornerRadius(m_browser->GetHost()->GetWindowHandle(), m_cornerRadius);
+    }
+}
+
+void CefBrowserWrapper::setNativeViewSuppressed(bool suppressed)
+{
+    if (m_nativeViewSuppressed == suppressed)
+        return;
+    m_nativeViewSuppressed = suppressed;
+    emit nativeViewSuppressedChanged();
+    updateNativeGeometry();
 }
 
 void CefBrowserWrapper::goBack()
@@ -413,7 +439,7 @@ void CefBrowserWrapper::updateGeometry(const QRect &geometry)
     if (!m_browser)
         return;
 
-    const bool visible = isVisible() && window() && window()->isVisible();
+    const bool visible = !m_nativeViewSuppressed && isVisible() && window() && window()->isVisible();
     if (geometry == m_nativeRect && visible == m_nativeVisible)
         return;
 
@@ -423,6 +449,11 @@ void CefBrowserWrapper::updateGeometry(const QRect &geometry)
 
     auto host = m_browser->GetHost();
     cefSetNativeViewGeometry(host->GetWindowHandle(), toNativeRect(geometry, window()), visible);
+    if (m_nativeCornerRadius != m_cornerRadius)
+    {
+        m_nativeCornerRadius = m_cornerRadius;
+        cefSetNativeViewCornerRadius(host->GetWindowHandle(), m_cornerRadius);
+    }
     if (resized)
         host->WasResized();
 }

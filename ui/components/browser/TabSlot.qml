@@ -85,8 +85,6 @@ Item {
     property real devToolsSize: devToolsVertical ? height * 0.35 : Math.min(480, width * 0.4)
     readonly property real devToolsMinSize: 200
     readonly property real pageMinSize: 200
-    // real space between page and DevTools for the splitter: both are native
-    // views that sit above QML, so a grab area overlapping them gets no events
     readonly property real splitterGap: 6
     readonly property real splitterSpace: devToolsOpen ? splitterGap : 0
     readonly property real clampedDevToolsSize: Math.max(devToolsMinSize,
@@ -124,7 +122,6 @@ Item {
         y: 0
         width: tabSlot.devToolsOpen && !tabSlot.devToolsVertical ? parent.width - tabSlot.clampedDevToolsSize - tabSlot.splitterSpace : parent.width
         height: tabSlot.devToolsOpen && tabSlot.devToolsVertical ? parent.height - tabSlot.clampedDevToolsSize - tabSlot.splitterSpace : parent.height
-        // restored tabs stay suspended (no view, no renderer) until first shown
         active: !tabSlot.isInternalPage && !tabSlot.model.suspended
         visible: !tabSlot.isInternalPage
 
@@ -138,25 +135,17 @@ Item {
             CefBrowser {
                 id: webView
                 anchors.fill: parent
-
-                // set once at creation; a profile switch replaces every tab
                 profile: Browser.webProfile
                 visible: tabSlot.index === Browser.tabModel.activeIndex
-                // hidden tabs are hidden from CEF too (WasHidden), so they
-                // stop painting; after the auto-unload delay they're marked
-                // Discarded
+                nativeViewSuppressed: tabSlot.browserWindow.inputOverlayOpen
+                    && tabSlot.index === Browser.tabModel.activeIndex
                 lifecycleState: webView.visible
                     ? CefBrowser.Active
                     : (tabSlot.discardable ? CefBrowser.Discarded : CefBrowser.Frozen)
                 onLifecycleStateChanged: tabSlot.syncRenderPid()
-
-                // avoids a white flash before the first paint
                 backgroundColor: Theme.bg
-
-                // JS injection: hide WebGPU and install pointer-lock shim
-                // CEF: scripts injected via CefBrowserWrapper on OnLoadStart
+                cornerRadius: tabSlot.viewStack.cornerRadius
                 Component.onCompleted: {
-                    // no URLs: the log file persists across sessions
                     Logger.debug("WebView", "Tab " + tabSlot.index + " created");
                 }
 
@@ -262,11 +251,9 @@ Item {
             CefBrowser {
                 id: devToolsView
                 anchors.fill: parent
-                // CEF created this browser for us; the item only hosts and
-                // positions its native view
                 externalBrowser: true
-                // avoids a white flash before the first paint
                 backgroundColor: Theme.bg
+                cornerRadius: tabSlot.viewStack.cornerRadius
 
                 Component.onCompleted: Qt.callLater(() => tabSlot.openDevTools(devToolsView))
                 Component.onDestruction: tabSlot.closeDevTools()
@@ -309,8 +296,6 @@ Item {
         }
     }
 
-    // a window of its own: it sits over the page, which is a native view
-    // drawn above anything QML renders in the main window
     Popup {
         id: pointerLockHint
         popupType: Popup.Window
@@ -359,22 +344,14 @@ Item {
         }
     }
 
-    // ── permission prompt ─────────────────────────────────────────────
-    // decisions and OS access checks live in Permissions (PermissionHandler);
-    // this only shows the prompt when nothing was remembered
-    // QtObject, not var: reset to null if the request is deleted (its web
-    // view went away)
     property var pendingPermission: null
     property string pendingPermissionLabel: ""
-    // OS resource blocking the pending request (Permissions.SystemResource), or -1
     property int pendingBlockedResource: -1
-    // requests that arrived while one was already being shown
     property var permissionQueue: []
 
     function handlePermission(permission) {
         if (Permissions.resolve(permission))
             return
-        // also while the previous prompt is still animating out
         if (tabSlot.pendingPermission || permissionPopup.visible) {
             tabSlot.permissionQueue.push(permission)
             return
@@ -396,8 +373,6 @@ Item {
             return
         while (tabSlot.permissionQueue.length > 0) {
             const p = tabSlot.permissionQueue.shift()
-            // skip requests deleted with their web view; the answer to the
-            // previous prompt may also have been remembered for this one
             if (!p || p.permissionType === undefined || Permissions.resolve(p))
                 continue
             tabSlot.showPermission(p)
@@ -430,7 +405,6 @@ Item {
 
     Popup {
         id: permissionPopup
-        // a window of its own, so the page's native view can't cover it
         popupType: Popup.Window
         modal: true
         focus: true
@@ -439,8 +413,6 @@ Item {
         x: Math.round((tabSlot.width - width) / 2)
         y: Math.round((tabSlot.height - height) / 2)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        // dismissed without a choice (Esc, click outside): answer CEF anyway,
-        // then move on to any request that queued up behind this one
         onClosed: {
             const p = tabSlot.pendingPermission
             tabSlot.pendingPermission = null

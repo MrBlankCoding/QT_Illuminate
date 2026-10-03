@@ -9,6 +9,7 @@ ApplicationWindow {
     id: root
 
     property var savedWin: null
+    property var startupProfile: null
     property bool autoOpenSingleProfile: false
     property bool autoOpened: false
 
@@ -16,7 +17,7 @@ ApplicationWindow {
     height: 480
     minimumWidth: 520
     minimumHeight: 400
-    visible: false
+    visible: true
     title: "Select Profile"
     flags: Qt.FramelessWindowHint | Qt.Window
     color: "transparent"
@@ -28,6 +29,7 @@ ApplicationWindow {
     }
 
     function openProfile(profile) {
+        Logger.info("ProfilePicker", "Opening profile " + profile.id);
         ProfileManager.activeProfile = profile;
         const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/BrowserWindow.qml");
         if (component.status !== Component.Ready) {
@@ -41,21 +43,37 @@ ApplicationWindow {
             root.visible = true;
             return;
         }
-        // parentless, so keep it rooted; it releases itself once closed
+
         Browser.adoptWindow(w);
         if (root.savedWin)
             Browser.releaseWindow(root.savedWin);
         root.savedWin = w;
         w.windowClosed.connect(function () {
-            // the window deletes itself after this; don't hold on to it
             root.savedWin = null;
             if (root.autoOpened)
                 Qt.quit();
             else
                 root.visible = true;
         });
-        root.visible = false;
+        const hidePickerIfBrowserReady = function() {
+            if (root.savedWin === w && w.visible && w.active && w.width > 0 && w.height > 0)
+                root.visible = false;
+        };
+        w.visibleChanged.connect(hidePickerIfBrowserReady);
+        w.activeChanged.connect(hidePickerIfBrowserReady);
         w.showMaximized();
+        w.raise();
+        w.requestActivate();
+        Qt.callLater(function() {
+            if (root.savedWin !== w)
+                return;
+            Logger.info("ProfilePicker", "Browser window state: visible=" + w.visible
+                        + ", visibility=" + w.visibility + ", active=" + w.active
+                        + ", size=" + w.width + "x" + w.height);
+            if (!w.visible || !w.active || w.width <= 0 || w.height <= 0)
+                Logger.warning("ProfilePicker", "Keeping profile picker visible because the browser window is not ready");
+            hidePickerIfBrowserReady();
+        });
     }
 
     onClosing: Browser.releaseWindow(root)
@@ -64,9 +82,19 @@ ApplicationWindow {
         const profiles = ProfileManager.profiles;
         if (root.autoOpenSingleProfile && profiles.length === 1) {
             root.autoOpened = true;
-            root.openProfile(profiles[0]);
+            root.startupProfile = profiles[0];
+            autoOpenTimer.start();
         } else if (root.autoOpenSingleProfile) {
             root.visible = true;
+        }
+    }
+
+    Timer {
+        id: autoOpenTimer
+        interval: 0
+        onTriggered: {
+            Logger.info("ProfilePicker", "Auto-opening the only saved profile");
+            root.openProfile(root.startupProfile);
         }
     }
 
@@ -81,8 +109,10 @@ ApplicationWindow {
     }
 
     MouseArea {
-        anchors.fill: parent
-        z: -1
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 12
         cursorShape: Qt.SizeAllCursor
         onPressed: root.startSystemMove()
     }
@@ -95,18 +125,23 @@ ApplicationWindow {
         width: 28
         height: 28
         radius: 14
-        color: pickerClose.hovered ? Qt.alpha(Theme.text, 0.12) : Qt.alpha(Theme.text, 0.06)
+        color: pickerClose.containsMouse ? Qt.alpha(Theme.text, 0.12) : Qt.alpha(Theme.text, 0.06)
         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
         Text {
             anchors.centerIn: parent
             text: "✕"
             font.pixelSize: 11
-            color: pickerClose.hovered ? Theme.text : Theme.textMuted
+            color: pickerClose.containsMouse ? Theme.text : Theme.textMuted
         }
 
-        HoverHandler { id: pickerClose; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: root.close() }
+        MouseArea {
+            id: pickerClose
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.close()
+        }
     }
 
     Shortcut {
@@ -134,42 +169,43 @@ ApplicationWindow {
 
         Flickable {
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.min(profileGrid.implicitHeight, root.height * 0.4)
+            Layout.preferredHeight: Math.min(profileGrid.height, root.height * 0.4)
             contentWidth: width
-            contentHeight: profileGrid.implicitHeight
+            contentHeight: profileGrid.height
             clip: true
             boundsBehavior: Flickable.StopAtBounds
 
-            GridLayout {
+            Grid {
                 id: profileGrid
                 anchors.horizontalCenter: parent.horizontalCenter
                 columns: Math.max(1, Math.min(profileRepeater.count, 4,
-                    Math.floor((parent.width + columnSpacing) / (120 + columnSpacing))))
-                columnSpacing: 12
-                rowSpacing: 12
+                    Math.floor((parent.width + spacing) / (120 + spacing))))
+                spacing: 12
+                width: columns * 120 + (columns - 1) * spacing
+                height: Math.ceil(profileRepeater.count / columns) * 128
+                    + Math.max(0, Math.ceil(profileRepeater.count / columns) - 1) * spacing
 
-                    Repeater {
-                        id: profileRepeater
-                        model: ProfileManager.profiles
+                Repeater {
+                    id: profileRepeater
+                    model: ProfileManager.profiles
 
-                        delegate: Item {
-                            id: tileWrapper
-                            required property var modelData
-                            Layout.preferredWidth: profileTile.implicitWidth
-                            Layout.preferredHeight: profileTile.implicitHeight
+                    delegate: Item {
+                        id: tileWrapper
+                        required property var modelData
+                        width: 120
+                        height: 128
 
-                            ProfileTile {
-                                id: profileTile
-                                anchors.fill: parent
-                                profile: tileWrapper.modelData
-                                avatarColor: root.avatarColorFor(tileWrapper.modelData)
-                                onTileClicked: root.openProfile(tileWrapper.modelData)
-                                onTileRightClicked: position => profileContextMenu.open(tileWrapper.modelData, position.x, position.y)
-                            }
+                        ProfileTile {
+                            anchors.fill: parent
+                            profile: tileWrapper.modelData
+                            avatarColor: root.avatarColorFor(tileWrapper.modelData)
+                            onTileClicked: root.openProfile(tileWrapper.modelData)
+                            onTileRightClicked: position => profileContextMenu.open(tileWrapper.modelData, position.x, position.y)
                         }
                     }
                 }
             }
+        }
 
         PillButton {
             text: "+  Add profile"
@@ -356,7 +392,7 @@ ApplicationWindow {
                     Layout.preferredWidth: 28
                     Layout.preferredHeight: 28
                     radius: 14
-                    color: Qt.alpha(Theme.text, closeHover.hovered ? 0.12 : 0.06)
+                    color: Qt.alpha(Theme.text, closeHover.containsMouse ? 0.12 : 0.06)
                     Behavior on color { ColorAnimation { duration: Theme.durationFast } }
 
                     Text {
@@ -366,8 +402,13 @@ ApplicationWindow {
                         color: Theme.textMuted
                     }
 
-                    HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: addPopup.close() }
+                    MouseArea {
+                        id: closeHover
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: addPopup.close()
+                    }
                 }
             }
 

@@ -30,9 +30,10 @@ Item {
             compare(InternalPages.title("illuminate://setup/"), "Setup")
         }
 
-        function test_existing_pages_still_resolve() {
-            compare(InternalPages.qmlSource("newtab://newtab"),
-                    "qrc:/QT_Illuminate/ui/ui/pages/NewTabPage.qml")
+        function test_new_tab_is_blank() {
+            verify(InternalPages.isInternal("newtab://newtab"))
+            compare(InternalPages.qmlSource("newtab://newtab"), "")
+            compare(InternalPages.title("newtab://newtab"), "")
             compare(InternalPages.title("illuminate://memory"), "Memory")
         }
     }

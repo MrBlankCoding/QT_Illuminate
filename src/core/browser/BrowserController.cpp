@@ -3,32 +3,70 @@
 #include "BrowserTab.h"
 #include "../utils/BrowserLogger.h"
 #include "../utils/UrlResolver.h"
-#include "../utils/ColorExtractor.h"
 
 #include <QGuiApplication>
 #include <QClipboard>
+#include <QColor>
 #include <QSettings>
 #include <QDir>
 #include <QFile>
-#include <QFileInfo>
-#include <QImageReader>
-#include <QDateTime>
-#include <QFutureWatcher>
 #include <QJSEngine>
 #include <QMetaObject>
-#include <QtConcurrent/QtConcurrentRun>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QStringList>
+#include <QUuid>
+#include <algorithm>
 
 #include <utility>
+
+namespace
+{
+const QStringList kThemePalettes = {
+    QStringLiteral("blue"),
+    QStringLiteral("violet"),
+    QStringLiteral("green"),
+    QStringLiteral("rose"),
+    QStringLiteral("orange")
+};
+
+const QStringList kThemeColorRoles = {
+    QStringLiteral("accent"),
+    QStringLiteral("bg"),
+    QStringLiteral("surface"),
+    QStringLiteral("surfaceHigh"),
+    QStringLiteral("sidebarBg"),
+    QStringLiteral("text"),
+    QStringLiteral("textMuted"),
+    QStringLiteral("border"),
+    QStringLiteral("danger"),
+    QStringLiteral("progressBg"),
+    QStringLiteral("shadow")
+};
+
+bool isValidThemeColors(const QVariantMap &colors)
+{
+    for (const QString &scheme : {QStringLiteral("dark"), QStringLiteral("light")})
+    {
+        const QVariantMap roleColors = colors.value(scheme).toMap();
+        for (const QString &role : kThemeColorRoles)
+        {
+            const QVariant value = roleColors.value(role);
+            const QColor color = value.canConvert<QColor>() ? value.value<QColor>() : QColor(value.toString());
+            if (!color.isValid())
+                return false;
+        }
+    }
+    return true;
+}
+}
 
 void BrowserController::setProfile(Profile *profile)
 {
     if (m_profile == profile)
         return;
 
-    // persist the outgoing profile's tabs before swapping to the new one
     if (m_profile)
         saveSession();
 
@@ -40,13 +78,13 @@ void BrowserController::setProfile(Profile *profile)
                                      QSettings::IniFormat, this)
                      : nullptr;
 
-    // the old tabs' views go away here, so the new ones pick up the new profile
     m_model->clear();
     emit webProfileChanged();
-    updateAdaptiveAccent();
+    emit themeModeChanged();
+    emit themePaletteChanged();
+    emit customThemesChanged();
+    emit activeCustomThemeChanged();
 
-    // the new profile's tabs have to be opened straight away: an empty model
-    // reads as "last tab" to closeTab, so the next close would take the window
     restoreSession();
 }
 
@@ -61,7 +99,6 @@ BrowserController::BrowserController(Profile *profile, QObject *parent)
         emitActiveStateChanged();
         rewireActiveTab(); });
 
-    updateAdaptiveAccent();
     restoreSession();
 }
 
@@ -144,114 +181,6 @@ int BrowserController::activeProgress() const
     return 0;
 }
 
-QString BrowserController::newTabBackground() const
-{
-    if (!m_settings)
-        return {};
-    return m_settings->value(QStringLiteral("newTabBackground"), QString()).toString();
-}
-
-void BrowserController::setNewTabBackground(const QString &path)
-{
-    if (!m_settings)
-        return;
-    if (m_settings->value(QStringLiteral("newTabBackground")).toString() != path)
-    {
-        m_settings->setValue(QStringLiteral("newTabBackground"), path);
-        emit newTabBackgroundChanged();
-        updateAdaptiveAccent();
-    }
-}
-
-QSize BrowserController::imageSize(const QString &url) const
-{
-    const QUrl u(url);
-    return QImageReader(u.isLocalFile() ? u.toLocalFile() : url).size();
-}
-
-QString BrowserController::adaptiveAccentDark() const
-{
-    return m_palette.hasAccent() ? m_palette.accentDark.name(QColor::HexRgb) : QString();
-}
-
-QString BrowserController::adaptiveAccentLight() const
-{
-    return m_palette.hasAccent() ? m_palette.accentLight.name(QColor::HexRgb) : QString();
-}
-
-qreal BrowserController::backgroundLuminance() const
-{
-    return m_palette.luminance;
-}
-
-namespace
-{
-    constexpr int kPaletteCacheVersion = 2;
-
-    // identifies one version of the file on disk, so an edited image is re-analysed
-    QString paletteCacheKey(const QString &source)
-    {
-        const QString local = source.startsWith(QLatin1String("file:")) ? QUrl(source).toLocalFile() : source;
-        const QFileInfo info(local);
-        if (!info.exists())
-            return {};
-        return QStringLiteral("%1|%2|%3|%4")
-            .arg(kPaletteCacheVersion)
-            .arg(source)
-            .arg(info.lastModified().toMSecsSinceEpoch())
-            .arg(info.size());
-    }
-}
-
-void BrowserController::updateAdaptiveAccent()
-{
-    const int generation = ++m_paletteGeneration;
-    const QString source = newTabBackground();
-    const QString key = source.isEmpty() ? QString() : paletteCacheKey(source);
-    if (key.isEmpty())
-    {
-        applyPalette({});
-        return;
-    }
-
-    // decoding a large image takes long enough to hitch the UI, so the result is
-    // cached per image and only computed off-thread when the image is new
-    if (m_settings && m_settings->value(QStringLiteral("paletteCache/key")).toString() == key)
-    {
-        ImagePalette cached;
-        cached.accentDark = QColor(m_settings->value(QStringLiteral("paletteCache/accentDark")).toString());
-        cached.accentLight = QColor(m_settings->value(QStringLiteral("paletteCache/accentLight")).toString());
-        cached.luminance = m_settings->value(QStringLiteral("paletteCache/luminance"), -1.0).toReal();
-        applyPalette(cached);
-        return;
-    }
-
-    auto *watcher = new QFutureWatcher<ImagePalette>(this);
-    connect(watcher, &QFutureWatcher<ImagePalette>::finished, this, [this, watcher, generation, key]()
-            {
-        watcher->deleteLater();
-        if (generation != m_paletteGeneration)
-            return;
-        const ImagePalette palette = watcher->result();
-        if (m_settings && palette.isValid())
-        {
-            m_settings->setValue(QStringLiteral("paletteCache/key"), key);
-            m_settings->setValue(QStringLiteral("paletteCache/accentDark"), palette.hasAccent() ? palette.accentDark.name() : QString());
-            m_settings->setValue(QStringLiteral("paletteCache/accentLight"), palette.hasAccent() ? palette.accentLight.name() : QString());
-            m_settings->setValue(QStringLiteral("paletteCache/luminance"), palette.luminance);
-        }
-        applyPalette(palette); });
-    watcher->setFuture(QtConcurrent::run(&ColorExtractor::analyzeFile, source));
-}
-
-void BrowserController::applyPalette(const ImagePalette &palette)
-{
-    if (m_palette.accentDark == palette.accentDark && m_palette.accentLight == palette.accentLight && m_palette.luminance == palette.luminance)
-        return;
-    m_palette = palette;
-    emit adaptivePaletteChanged();
-}
-
 QString BrowserController::themeMode() const
 {
     if (!m_settings)
@@ -261,13 +190,163 @@ QString BrowserController::themeMode() const
 
 void BrowserController::setThemeMode(const QString &mode)
 {
-    if (!m_settings)
+    if (!m_settings || (mode != QLatin1String("system") &&
+                        mode != QLatin1String("dark") &&
+                        mode != QLatin1String("light")))
         return;
     if (m_settings->value(QStringLiteral("themeMode"), QStringLiteral("system")).toString() != mode)
     {
         m_settings->setValue(QStringLiteral("themeMode"), mode);
         emit themeModeChanged();
     }
+}
+
+QString BrowserController::themePalette() const
+{
+    if (!m_settings)
+        return QStringLiteral("blue");
+    const QString palette = m_settings->value(QStringLiteral("themePalette"), QStringLiteral("blue")).toString();
+    return kThemePalettes.contains(palette) ? palette : QStringLiteral("blue");
+}
+
+QVariantList BrowserController::customThemes() const
+{
+    return m_settings ? m_settings->value(QStringLiteral("customThemes")).toList() : QVariantList{};
+}
+
+QString BrowserController::activeCustomThemeId() const
+{
+    if (!m_settings)
+        return {};
+    const QString id = m_settings->value(QStringLiteral("activeCustomThemeId")).toString();
+    const QVariantList themes = customThemes();
+    for (const QVariant &theme : themes)
+    {
+        if (theme.toMap().value(QStringLiteral("id")).toString() == id)
+            return id;
+    }
+    return {};
+}
+
+QVariantMap BrowserController::activeThemeColors() const
+{
+    const QString activeId = activeCustomThemeId();
+    for (const QVariant &theme : customThemes())
+    {
+        const QVariantMap entry = theme.toMap();
+        if (entry.value(QStringLiteral("id")).toString() == activeId)
+            return entry.value(QStringLiteral("colors")).toMap();
+    }
+    return {};
+}
+
+void BrowserController::setThemePalette(const QString &palette)
+{
+    if (!m_settings || !kThemePalettes.contains(palette))
+        return;
+    const bool paletteChanged = m_settings->value(QStringLiteral("themePalette"), QStringLiteral("blue")).toString() != palette;
+    const bool customThemeWasActive = !activeCustomThemeId().isEmpty();
+    if (paletteChanged)
+        m_settings->setValue(QStringLiteral("themePalette"), palette);
+    if (customThemeWasActive)
+    {
+        m_settings->remove(QStringLiteral("activeCustomThemeId"));
+        emit activeCustomThemeChanged();
+    }
+    if (paletteChanged)
+        emit themePaletteChanged();
+}
+
+QString BrowserController::createCustomTheme(const QString &name, const QVariantMap &colors)
+{
+    const QString trimmedName = name.trimmed();
+    if (!m_settings || trimmedName.isEmpty() || !isValidThemeColors(colors))
+        return {};
+
+    const QString id = QStringLiteral("custom-%1").arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
+    QVariantList themes = customThemes();
+    themes.append(QVariantMap{
+        {QStringLiteral("id"), id},
+        {QStringLiteral("name"), trimmedName},
+        {QStringLiteral("colors"), colors}
+    });
+    m_settings->setValue(QStringLiteral("customThemes"), themes);
+    m_settings->setValue(QStringLiteral("activeCustomThemeId"), id);
+    emit customThemesChanged();
+    emit activeCustomThemeChanged();
+    return id;
+}
+
+bool BrowserController::updateCustomTheme(const QString &id, const QString &name, const QVariantMap &colors)
+{
+    const QString trimmedName = name.trimmed();
+    if (!m_settings || trimmedName.isEmpty() || !isValidThemeColors(colors))
+        return false;
+
+    QVariantList themes = customThemes();
+    for (QVariant &theme : themes)
+    {
+        QVariantMap entry = theme.toMap();
+        if (entry.value(QStringLiteral("id")).toString() != id)
+            continue;
+        entry.insert(QStringLiteral("name"), trimmedName);
+        entry.insert(QStringLiteral("colors"), colors);
+        theme = entry;
+        m_settings->setValue(QStringLiteral("customThemes"), themes);
+        emit customThemesChanged();
+        if (activeCustomThemeId() == id)
+            emit activeCustomThemeChanged();
+        return true;
+    }
+    return false;
+}
+
+void BrowserController::deleteCustomTheme(const QString &id)
+{
+    if (!m_settings)
+        return;
+    const bool wasActive = activeCustomThemeId() == id;
+    QVariantList themes = customThemes();
+    const auto it = std::remove_if(themes.begin(), themes.end(), [&id](const QVariant &theme)
+    {
+        return theme.toMap().value(QStringLiteral("id")).toString() == id;
+    });
+    if (it == themes.end())
+        return;
+    themes.erase(it, themes.end());
+    m_settings->setValue(QStringLiteral("customThemes"), themes);
+    if (wasActive)
+        m_settings->remove(QStringLiteral("activeCustomThemeId"));
+    emit customThemesChanged();
+    if (wasActive)
+        emit activeCustomThemeChanged();
+}
+
+void BrowserController::activateCustomTheme(const QString &id)
+{
+    if (!m_settings)
+        return;
+    if (!id.isEmpty())
+    {
+        bool found = false;
+        for (const QVariant &theme : customThemes())
+        {
+            if (theme.toMap().value(QStringLiteral("id")).toString() == id)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            return;
+    }
+    if (activeCustomThemeId() == id)
+        return;
+    if (id.isEmpty())
+        m_settings->remove(QStringLiteral("activeCustomThemeId"));
+    else
+        m_settings->setValue(QStringLiteral("activeCustomThemeId"), id);
+    emit activeCustomThemeChanged();
 }
 
 // session persistence (per-profile)
@@ -300,7 +379,7 @@ void BrowserController::saveSession() const
     {
         BrowserTab *tab = m_model->tabAt(i);
         const QUrl url = tab ? tab->url() : QUrl();
-        if (!tab || !url.isValid() || url.isEmpty())
+        if (!tab || !url.isValid() || url.isEmpty() || url == QUrl(NEW_TAB_URL))
             continue;
 
         QJsonObject obj;
@@ -413,6 +492,7 @@ void BrowserController::completeFirstRun()
                 tab->setUrl(QUrl(NEW_TAB_URL));
                 tab->requestLoad(QUrl(NEW_TAB_URL));
                 emit activeUrlChanged();
+                emit newTabOpened();
             }
         }
     }
@@ -420,8 +500,22 @@ void BrowserController::completeFirstRun()
 
 // tab managment
 
-void BrowserController::newTab(const QString &urlStr)
+void BrowserController::newTab(const QString &urlStr, bool background)
 {
+    if (urlStr.isEmpty() && !background)
+    {
+        for (int i = 0; i < m_model->rowCount(); ++i)
+        {
+            BrowserTab *existing = m_model->tabAt(i);
+            if (existing && existing->url() == QUrl(NEW_TAB_URL))
+            {
+                m_model->setActiveIndex(i);
+                emit newTabOpened();
+                return;
+            }
+        }
+    }
+
     if (m_model->rowCount() >= TabModel::kMaxTabs)
         return;
 
@@ -430,8 +524,15 @@ void BrowserController::newTab(const QString &urlStr)
                          ? QUrl(NEW_TAB_URL)
                          : UrlResolver::resolve(urlStr, prefs ? prefs->searchUrlTemplate() : QString());
 
-    if (!m_model->addTab(url, m_profile->webProfile()))
+    // a background tab loads when first shown, like a restored one
+    BrowserTab *tab = m_model->addTab(url, m_profile->webProfile(), /*suspended=*/background);
+    if (!tab)
         return;
+    if (background)
+    {
+        tab->setTitle(url.host().isEmpty() ? url.toString() : url.host());
+        return;
+    }
     m_model->setActiveIndex(m_model->rowCount() - 1);
     if (urlStr.isEmpty())
         emit newTabOpened();

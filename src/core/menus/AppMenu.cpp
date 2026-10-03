@@ -15,7 +15,6 @@
 
 namespace
 {
-    constexpr int kMaxListedTabs = 30;
     constexpr int kMaxListedBookmarks = 30;
 
     QString shortcut(const QString &commandId)
@@ -73,13 +72,9 @@ AppMenu::AppMenu(QObject *parent)
         connect(controller, &BrowserController::activeIndexChanged, this, [this]() { scheduleRebuild(); });
     if (tabs)
     {
-        connect(tabs, &TabModel::rowsInserted, this, [this]() { scheduleRebuild(); });
-        connect(tabs, &TabModel::rowsRemoved, this, [this]() { scheduleRebuild(); });
-        connect(tabs, &TabModel::rowsMoved, this, [this]() { scheduleRebuild(); });
-        connect(tabs, &TabModel::modelReset, this, [this]() { scheduleRebuild(); });
         connect(tabs, &TabModel::dataChanged, this,
                 [this](const QModelIndex &, const QModelIndex &, const QVector<int> &roles) {
-                    if (roles.isEmpty() || roles.contains(TabModel::TitleRole) || roles.contains(TabModel::UrlRole))
+                    if (roles.isEmpty() || roles.contains(TabModel::UrlRole))
                         scheduleRebuild();
                 });
     }
@@ -236,6 +231,8 @@ MenuItem AppMenu::viewMenu() const
         MenuItem::action(QStringLiteral("view.zoomIn"), QStringLiteral("Zoom In"), shortcut("zoomIn")),
         MenuItem::action(QStringLiteral("view.zoomOut"), QStringLiteral("Zoom Out"), shortcut("zoomOut")),
         MenuItem::separator(),
+        MenuItem::action(QStringLiteral("view.toggleSidebar"), QStringLiteral("Toggle Sidebar"),
+                         shortcut("toggleSidebar")),
         MenuItem::action(QStringLiteral("view.fullScreen"), QStringLiteral("Toggle Full Screen"),
                          shortcut("toggleFullScreen")),
         MenuItem::separator(),
@@ -297,30 +294,6 @@ MenuItem AppMenu::profilesMenu() const
     entries.append(MenuItem::action(QStringLiteral("profile.picker"), QStringLiteral("Manage Profiles…")));
 
     return MenuItem::subMenu(QStringLiteral("Profiles"), entries);
-}
-
-MenuItem AppMenu::tabsMenu() const
-{
-    QVector<MenuItem> entries;
-    entries.append(MenuItem::action(QStringLiteral("tab.new"), QStringLiteral("New Tab"), shortcut("newTab")));
-    entries.append(MenuItem::action(QStringLiteral("tab.close"), QStringLiteral("Close Tab"), shortcut("closeTab")));
-    entries.append(MenuItem::separator());
-    entries.append(MenuItem::action(QStringLiteral("tab.next"), QStringLiteral("Next Tab"), shortcut("nextTab")));
-    entries.append(MenuItem::action(QStringLiteral("tab.previous"), QStringLiteral("Previous Tab"),
-                                    shortcut("previousTab")));
-
-    for (int i = 1; i <= 8; ++i)
-    {
-        entries.append(MenuItem::action(QStringLiteral("tab.jump"),
-                                        QStringLiteral("Open Tab %1").arg(i),
-                                        shortcut(QStringLiteral("tab%1").arg(i))));
-    }
-    entries.append(MenuItem::action(QStringLiteral("tab.jump"), QStringLiteral("Open Last Tab"), shortcut("lastTab")));
-
-    entries.append(MenuItem::separator());
-    entries += tabEntries();
-
-    return MenuItem::subMenu(QStringLiteral("Tabs"), entries);
 }
 
 MenuItem AppMenu::windowMenu() const
@@ -394,40 +367,6 @@ QVector<MenuItem> AppMenu::profileEntries() const
     return entries;
 }
 
-QVector<MenuItem> AppMenu::tabEntries() const
-{
-    const BrowserController *controller = BrowserController::instance();
-    const TabModel *model = controller ? controller->tabModel() : nullptr;
-    QVector<MenuItem> entries;
-    if (!model)
-        return entries;
-
-    const int total = model->rowCount();
-    if (total == 0)
-    {
-        entries.append(placeholderEntry(QStringLiteral("No Open Tabs")));
-        return entries;
-    }
-
-    const int active = model->activeIndex();
-    const int listed = qMin(total, kMaxListedTabs);
-    for (int i = 0; i < listed; ++i)
-    {
-        const QString title = model->data(model->index(i, 0), TabModel::TitleRole).toString();
-        const bool isActive = i == active;
-
-        MenuItem entry = MenuItem::action(QStringLiteral("tab.activate"), title);
-        entry.payload = QString::number(i);
-        entry.checked = isActive;
-        entry.enabled = !isActive;
-        entries.append(entry);
-    }
-    if (total > listed)
-        entries.append(overflowEntry(total - listed));
-
-    return entries;
-}
-
 void AppMenu::scheduleRebuild()
 {
     if (!m_rebuildTimer->isActive())
@@ -445,7 +384,6 @@ void AppMenu::rebuild()
         historyMenu(),
         bookmarksMenu(),
         profilesMenu(),
-        tabsMenu(),
     };
 
     const MenuItem app = applicationMenu();

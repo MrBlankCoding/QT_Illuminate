@@ -56,7 +56,7 @@ Item {
             bar.hasSearched = true
             bar.matchCount = 3
             bar.activeMatch = 2
-            bar.close()
+            bar.dismiss()
             compare(bar.visible, false)
             compare(bar.hasSearched, false)
             compare(bar.matchCount, 0)

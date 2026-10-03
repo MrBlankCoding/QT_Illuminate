@@ -26,7 +26,7 @@ ComboBox {
 
     background: Rectangle {
         radius: 6
-        color: root.hovered || root.visualFocus ? Theme.tabHover : Theme.surfaceHigh
+        color: root.hovered || root.visualFocus ? Theme.surface : Theme.surfaceHigh
         border.color: root.visualFocus || root.popup.visible ? Theme.accent : Theme.border
         border.width: 1
 

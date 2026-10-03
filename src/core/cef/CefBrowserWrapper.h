@@ -32,12 +32,11 @@ class CefBrowserWrapper : public QQuickItem
     Q_PROPERTY(int lifecycleState READ lifecycleState WRITE setLifecycleState NOTIFY lifecycleStateChanged)
     Q_PROPERTY(int recommendedState READ recommendedState NOTIFY recommendedStateChanged)
     Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor NOTIFY backgroundColorChanged)
+    Q_PROPERTY(qreal cornerRadius READ cornerRadius WRITE setCornerRadius NOTIFY cornerRadiusChanged)
+    Q_PROPERTY(bool nativeViewSuppressed READ nativeViewSuppressed WRITE setNativeViewSuppressed NOTIFY nativeViewSuppressedChanged)
     Q_PROPERTY(CefProfile *profile READ profile WRITE setProfile NOTIFY profileChanged)
     Q_PROPERTY(bool fullScreen READ fullScreen NOTIFY fullScreenChanged)
     Q_PROPERTY(CefBrowserWrapper *devToolsView READ devToolsView WRITE setDevToolsView NOTIFY devToolsViewChanged)
-    // Set on the item that hosts the DevTools browser: it does not create a
-    // browser of its own, CefBrowserHost::ShowDevTools() does and the item
-    // adopts it via setBrowser().
     Q_PROPERTY(bool externalBrowser READ externalBrowser WRITE setExternalBrowser NOTIFY externalBrowserChanged)
 
 public:
@@ -87,6 +86,10 @@ public:
     int recommendedState() const { return m_recommendedState; }
     QColor backgroundColor() const { return m_backgroundColor; }
     void setBackgroundColor(const QColor &color);
+    qreal cornerRadius() const { return m_cornerRadius; }
+    void setCornerRadius(qreal radius);
+    bool nativeViewSuppressed() const { return m_nativeViewSuppressed; }
+    void setNativeViewSuppressed(bool suppressed);
     CefProfile *profile() const { return m_profile; }
     void setProfile(CefProfile *profile);
     bool fullScreen() const { return m_fullScreen; }
@@ -105,11 +108,7 @@ public:
     Q_INVOKABLE void runJavaScript(const QString &script, int worldId = 0);
     Q_INVOKABLE void printToPdf(const QString &path);
     Q_INVOKABLE void load(const QUrl &url) { setUrl(url); }
-    // leaves HTML5 element fullscreen (video players etc.)
     Q_INVOKABLE void exitFullScreen();
-
-    // dev tools; |inspectAt| is in the page's coordinate space, (0,0) opens
-    // DevTools without selecting an element
     Q_INVOKABLE void showDevTools(const QPoint &inspectAt = QPoint());
     Q_INVOKABLE void closeDevTools();
 
@@ -119,11 +118,7 @@ public:
     void createBrowser(void *nativeWindowHandle, const QRect &geometry);
     void updateGeometry(const QRect &geometry);
 
-    // Geometry of this item within its window, in native window coordinates.
-    // Used to dock the DevTools browser.
     QRect sceneRect() const;
-
-    // Callbacks from handlers
     void onUrlChanged(const QString &url);
     void onTitleChanged(const QString &title);
     void onIconChanged(const QString &iconUrl);
@@ -155,6 +150,8 @@ signals:
     void lifecycleStateChanged();
     void recommendedStateChanged();
     void backgroundColorChanged();
+    void cornerRadiusChanged();
+    void nativeViewSuppressedChanged();
     void profileChanged();
     void devToolsViewChanged();
     void externalBrowserChanged();
@@ -182,9 +179,10 @@ private:
     int m_lifecycleState = Active;
     int m_recommendedState = Active;
     QColor m_backgroundColor = Qt::white;
+    qreal m_cornerRadius = 0;
+    qreal m_nativeCornerRadius = -1;
+    bool m_nativeViewSuppressed = false;
     CefProfile *m_profile = nullptr;
-    // the dock that hosts the DevTools browser; QPointer because the Loader
-    // that creates it can be torn down before this item is
     QPointer<CefBrowserWrapper> m_devToolsView;
     bool m_externalBrowser = false;
 

@@ -45,13 +45,11 @@ private:
     MenuItem historyMenu() const;
     MenuItem bookmarksMenu() const;
     MenuItem profilesMenu() const;
-    MenuItem tabsMenu() const;
     MenuItem windowMenu() const;
 
-    // the entries that follow the models around: bookmarks, profiles, tabs
+    // The entries that follow their models: bookmarks and profiles.
     QVector<MenuItem> bookmarkEntries() const;
     QVector<MenuItem> profileEntries() const;
-    QVector<MenuItem> tabEntries() const;
 
     void scheduleRebuild();
     void rebuild();

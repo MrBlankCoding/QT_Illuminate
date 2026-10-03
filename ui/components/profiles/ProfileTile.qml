@@ -14,7 +14,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 12
-        color: hoverArea.hovered ? Qt.alpha(Theme.accent, 0.12) : "transparent"
+        color: hoverArea.containsMouse ? Qt.alpha(Theme.accent, 0.12) : "transparent"
         Behavior on color {
             ColorAnimation {
                 duration: Theme.durationFast
@@ -55,21 +55,17 @@ Item {
         }
     }
 
-    HoverHandler {
+    MouseArea {
         id: hoverArea
-        cursorShape: Qt.PointingHandCursor
-    }
-
-    TapHandler {
+        anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        // exclusive grab on press, so the picker's window-drag area underneath
-        // doesn't also see it and start a system move
-        gesturePolicy: TapHandler.ReleaseWithinBounds
-        onTapped: function (eventPoint, button) {
-            if (button === Qt.LeftButton) {
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: function (mouse) {
+            if (mouse.button === Qt.LeftButton) {
                 root.tileClicked();
-            } else if (button === Qt.RightButton) {
-                root.tileRightClicked(root.mapToItem(null, eventPoint.position.x, eventPoint.position.y));
+            } else if (mouse.button === Qt.RightButton) {
+                root.tileRightClicked(root.mapToItem(null, mouse.x, mouse.y));
             }
         }
     }

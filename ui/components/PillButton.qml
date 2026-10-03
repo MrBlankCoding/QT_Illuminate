@@ -12,8 +12,8 @@ Item {
     property int rightPadding: 20
     property int topPadding: 8
     property int bottomPadding: 8
-    readonly property bool hovered: hoverHandler.hovered
-    readonly property bool pressed: tapHandler.pressed
+    readonly property bool hovered: mouseArea.containsMouse
+    readonly property bool pressed: mouseArea.pressed
 
     signal clicked
 
@@ -45,12 +45,18 @@ Item {
         color: root.textColor
     }
 
-    HoverHandler {
-        id: hoverHandler
+    Accessible.role: Accessible.Button
+    Accessible.name: root.text
+    activeFocusOnTab: true
+    Keys.onReturnPressed: root.clicked()
+    Keys.onSpacePressed: root.clicked()
+
+    MouseArea {
+        id: mouseArea
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-    }
-    TapHandler {
-        id: tapHandler
-        onTapped: root.clicked()
+        onClicked: root.clicked()
     }
 }

@@ -13,4 +13,5 @@ public:
     using QObject::QObject;
 
     Q_INVOKABLE void applyTitleBarStyle(QQuickWindow *window, qreal barHeight);
+    Q_INVOKABLE void setWindowButtonsVisible(QQuickWindow *window, bool visible);
 };

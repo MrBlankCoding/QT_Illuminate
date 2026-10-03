@@ -5,9 +5,6 @@ import QtQuick.Layouts
 import QtQuick.Window
 import QT_Illuminate.ui
 
-// Custom chrome only: title bar, sidebar, and the StackLayout that swaps
-// between the panes under ui/pages/settings/. The reusable setting widgets
-// live in ui/components/.
 ApplicationWindow {
     id: root
     width: 760
@@ -26,9 +23,9 @@ ApplicationWindow {
         anchors.left: parent.left
         anchors.right: parent.right
         // collapsed on macOS so everything below still sits at the top
-        height: root.frameless ? Theme.tabBarHeight : 0
+        height: root.frameless ? Theme.titleBarHeight : 0
         visible: root.frameless
-        color: Theme.tabStripBg
+        color: Theme.surface
 
         Rectangle {
             anchors.bottom: parent.bottom
@@ -73,7 +70,7 @@ ApplicationWindow {
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         width: 168
-        color: Theme.tabStripBg
+        color: Theme.surface
 
         Rectangle {
             anchors.top: parent.top

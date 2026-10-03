@@ -28,3 +28,13 @@ void WindowHelper::applyTitleBarStyle(QQuickWindow *window, qreal barHeight)
     Q_UNUSED(barHeight);
 #endif
 }
+
+void WindowHelper::setWindowButtonsVisible(QQuickWindow *window, bool visible)
+{
+#if defined(Q_OS_MACOS)
+    WindowRounding::setMacWindowButtonsVisible(window, visible);
+#else
+    Q_UNUSED(window);
+    Q_UNUSED(visible);
+#endif
+}

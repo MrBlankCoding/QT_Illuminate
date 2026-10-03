@@ -58,6 +58,7 @@ private slots:
         }
 
         QVERIFY(ids.contains(QStringLiteral("copyUrl")));
+        QVERIFY(!ids.contains(QStringLiteral("focusAddressBar")));
         QVERIFY(registry->hasCustomizations() == false);
     }
 
@@ -124,8 +125,8 @@ private slots:
     {
         auto *registry = fresh();
 
-        // Ctrl+L already belongs to the address bar
-        QVERIFY(!registry->setSequence(QStringLiteral("copyUrl"), QStringLiteral("Ctrl+L")));
+        // Ctrl+Shift+S already belongs to Save as PDF.
+        QVERIFY(!registry->setSequence(QStringLiteral("copyUrl"), QStringLiteral("Ctrl+Shift+S")));
 
         // ...and the refused command is left exactly as it was
         QCOMPARE(registry->sequences(QStringLiteral("copyUrl")), QStringList{QStringLiteral("Ctrl+Shift+C")});
@@ -136,11 +137,9 @@ private slots:
     {
         auto *registry = fresh();
 
-        QCOMPARE(registry->commandUsing(QStringLiteral("Ctrl+L")), QStringLiteral("focusAddressBar"));
+        QVERIFY(registry->commandUsing(QStringLiteral("Ctrl+L")).isEmpty());
         QCOMPARE(registry->commandUsing(QStringLiteral("Ctrl+Shift+C")), QStringLiteral("copyUrl"));
 
-        // a command is not in conflict with itself
-        QVERIFY(registry->commandUsing(QStringLiteral("Ctrl+L"), QStringLiteral("focusAddressBar")).isEmpty());
         QVERIFY(registry->commandUsing(QStringLiteral("Ctrl+Alt+F9")).isEmpty());
 
         // and the owner moves with the binding
@@ -282,4 +281,3 @@ int main(int argc, char *argv[])
 }
 
 #include "tst_ShortcutRegistry.moc"
-

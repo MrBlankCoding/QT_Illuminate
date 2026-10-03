@@ -8,7 +8,11 @@ pragma ComponentBehavior: Bound
 Row {
     id: root
 
-    readonly property bool isMaximized: root.Window.visibility === Window.Maximized
+    // the window to control; differs from root.Window inside the sidebar overlay
+    property var targetWindow: root.Window.window
+    readonly property bool isMaximized: targetWindow ? targetWindow.visibility === Window.Maximized : false
+    property int buttonHeight: Theme.titleBarHeight
+    property int buttonWidth: Theme.sysControlW
 
     component ControlButton: Item {
         id: button
@@ -18,8 +22,8 @@ Row {
         property color hoverIconColor: Theme.text
         signal clicked
 
-        width: Theme.sysControlW
-        height: Theme.tabBarHeight
+        width: root.buttonWidth
+        height: root.buttonHeight
 
         Rectangle {
             anchors.fill: parent
@@ -48,14 +52,14 @@ Row {
 
     ControlButton {
         iconSource: "qrc:/QT_Illuminate/ui/ui/icons/minus.svg"
-        onClicked: root.Window.window.showMinimized()
+        onClicked: root.targetWindow.showMinimized()
     }
 
     ControlButton {
         // overlapping squares = "restore down" while maximised
         iconSource: root.isMaximized ? "qrc:/QT_Illuminate/ui/ui/icons/copy.svg" : "qrc:/QT_Illuminate/ui/ui/icons/square.svg"
         iconSize: root.isMaximized ? 13 : 12
-        onClicked: root.isMaximized ? root.Window.window.showNormal() : root.Window.window.showMaximized()
+        onClicked: root.isMaximized ? root.targetWindow.showNormal() : root.targetWindow.showMaximized()
     }
 
     ControlButton {
@@ -63,6 +67,6 @@ Row {
         iconSize: 15
         hoverColor: "#e81123"
         hoverIconColor: "white"
-        onClicked: root.Window.window.close()
+        onClicked: root.targetWindow.close()
     }
 }

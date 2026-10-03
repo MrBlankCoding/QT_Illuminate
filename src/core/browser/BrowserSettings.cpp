@@ -20,6 +20,8 @@ namespace
     constexpr char kAutoUnloadKey[] = "tabs/autoUnload";
     constexpr char kAutoUnloadMinutesKey[] = "tabs/autoUnloadMinutes";
     constexpr char kConfirmCloseKey[] = "tabs/confirmCloseMultipleTabs";
+    constexpr char kSidebarWidthKey[] = "sidebar/width";
+    constexpr char kSidebarCollapsedKey[] = "sidebar/collapsed";
 
     struct SearchEngine
     {
@@ -81,6 +83,10 @@ BrowserSettings::BrowserSettings(Profile *profile, QObject *parent)
 {
     m_confirmCloseMultipleTabs =
         m_appSettings->value(QLatin1String(kConfirmCloseKey), true).toBool();
+    m_sidebarWidth = qBound(kSidebarMinWidth,
+                            m_appSettings->value(QLatin1String(kSidebarWidthKey), kSidebarDefaultWidth).toInt(),
+                            kSidebarMaxWidth);
+    m_sidebarCollapsed = m_appSettings->value(QLatin1String(kSidebarCollapsedKey), false).toBool();
     setProfile(profile);
 }
 
@@ -298,4 +304,35 @@ void BrowserSettings::setConfirmCloseMultipleTabs(bool enabled)
     m_confirmCloseMultipleTabs = enabled;
     writeValue(m_appSettings, kConfirmCloseKey, enabled);
     emit confirmCloseMultipleTabsChanged();
+}
+
+// sidebar
+
+int BrowserSettings::sidebarWidth() const
+{
+    return m_sidebarWidth;
+}
+
+void BrowserSettings::setSidebarWidth(int width)
+{
+    width = qBound(kSidebarMinWidth, width, kSidebarMaxWidth);
+    if (m_sidebarWidth == width)
+        return;
+    m_sidebarWidth = width;
+    writeValue(m_appSettings, kSidebarWidthKey, width);
+    emit sidebarWidthChanged();
+}
+
+bool BrowserSettings::sidebarCollapsed() const
+{
+    return m_sidebarCollapsed;
+}
+
+void BrowserSettings::setSidebarCollapsed(bool collapsed)
+{
+    if (m_sidebarCollapsed == collapsed)
+        return;
+    m_sidebarCollapsed = collapsed;
+    writeValue(m_appSettings, kSidebarCollapsedKey, collapsed);
+    emit sidebarCollapsedChanged();
 }

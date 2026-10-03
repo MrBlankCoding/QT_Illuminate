@@ -49,11 +49,10 @@ QList<ShortcutRegistry::Command> ShortcutRegistry::buildTable()
     add("Navigation", "reload", "Reload", {standard(QKeySequence::StandardKey::Refresh)});
     add("Navigation", "back", "Go back", {standard(QKeySequence::StandardKey::Back)});
     add("Navigation", "forward", "Go forward", {standard(QKeySequence::StandardKey::Forward)});
-    add("Navigation", "focusAddressBar", "Focus address bar", {QStringLiteral("Ctrl+L")});
     add("Navigation", "copyUrl", "Copy current URL", {QStringLiteral("Ctrl+Shift+C")});
 
     add("Page", "print", "Print", {standard(QKeySequence::StandardKey::Print)});
-    add("Page", "savePdf", "Save as PDF", {standard(QKeySequence::StandardKey::Save)});
+    add("Page", "savePdf", "Save as PDF", {QStringLiteral("Ctrl+Shift+S")});
     add("Page", "toggleBookmark", "Bookmark this page", {QStringLiteral("Ctrl+B")});
     add("Page", "downloads", "Show downloads", {QStringLiteral("Ctrl+Shift+J")});
 
@@ -64,6 +63,7 @@ QList<ShortcutRegistry::Command> ShortcutRegistry::buildTable()
     add("View", "zoomIn", "Zoom in", {standard(QKeySequence::StandardKey::ZoomIn), QStringLiteral("Ctrl+=")});
     add("View", "zoomOut", "Zoom out", {standard(QKeySequence::StandardKey::ZoomOut)});
     add("View", "zoomReset", "Reset zoom", {QStringLiteral("Ctrl+0")});
+    add("View", "toggleSidebar", "Toggle sidebar", {QStringLiteral("Ctrl+S")});
     add("View", "toggleFullScreen", "Toggle full screen", {QStringLiteral("Ctrl+Shift+F")});
 
     add("Developer",
