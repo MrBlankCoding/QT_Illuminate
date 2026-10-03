@@ -20,6 +20,7 @@ Item {
     property var findBar: null
     property var zoomIndicator: null
     property var downloadsPanel: null
+    property var themePicker: null
 
     // floating over the page while collapsed: its own window, so it draws its
     // own window controls and must act on the browser window, not itself
@@ -377,7 +378,7 @@ Item {
 
                     MenuItem {
                         text: qsTr("Theme…")
-                        onTriggered: Qt.callLater(() => themePicker.open())
+                        onTriggered: root.themePicker && root.themePicker.open()
                     }
 
                     MenuSeparator {}
@@ -436,9 +437,7 @@ Item {
         }
     }
 
-    ThemePicker {
-        id: themePicker
-    }
+
 
     // drag the right edge to resize; it straddles the gap before the card,
     // which is plain QML (the page's native view would swallow the events)

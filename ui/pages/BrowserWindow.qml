@@ -484,6 +484,7 @@ Window {
 
         Sidebar {
             targetWindow: root
+            themePicker: themePicker
             currentUrl: Browser.activeUrl === "newtab://newtab" ? "" : Browser.activeUrl
             currentTitle: Browser.activeTitle
             currentIconUrl: Browser.activeIconUrl
@@ -633,6 +634,16 @@ Window {
             { label: "Developer Tools", icon: "qrc:/QT_Illuminate/ui/ui/icons/activity.svg", run: () => Browser.toggleDevTools() },
             { label: "Memory Usage", icon: "qrc:/QT_Illuminate/ui/ui/icons/activity.svg", run: () => Browser.newTab("illuminate://memory") }
         ]
+    }
+
+    ThemePicker {
+        id: themePicker
+        x: root.width - themePicker.width - 20 // 20px from right edge
+        y: 20 // 20px from top edge
+        // Set a reasonable implicit width/height if not explicitly defined by content
+        // These values can be adjusted based on the actual content size of ThemePicker.qml
+        width: 400
+        height: 550
     }
 
     // frameless windows lose the native resize border

@@ -18,7 +18,7 @@ include(GNUInstallDirs)
 include(CTest)
 
 find_package(Qt6 REQUIRED COMPONENTS
-    Core Gui Network Qml Quick QuickControls2
+    Core Gui Network Qml Quick QuickControls2 QuickShapes
     Widgets PrintSupport Pdf
 )
 
