@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(QT_Illuminate VERSION 1.0.0 LANGUAGES CXX)
+project(QT_Illuminate VERSION 1.0.0 LANGUAGES C CXX)
 
 if(APPLE)
     if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
@@ -67,6 +67,8 @@ if(CEF_FOUND)
         # Linux: libcef.so (or .a depending on CEF_LIBTYPE)
         ADD_LOGICAL_TARGET(libcef "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
         add_library(cef::cef ALIAS libcef)
+        # Ensure include directories propagate to consumers of cef::cef
+        target_include_directories(libcef INTERFACE "${CEF_INCLUDE_PATH}")
     endif()
 
     # On macOS, the framework will be copied into the app bundle by the
@@ -168,14 +170,19 @@ endif()
 
 set_target_properties(QT_Illuminate PROPERTIES
     WIN32_EXECUTABLE TRUE
-    MACOSX_BUNDLE TRUE
-    MACOSX_BUNDLE_BUNDLE_NAME "QT_Illuminate"
-    MACOSX_BUNDLE_GUI_IDENTIFIER "local.qt-illuminate.QT_Illuminate"
-    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-    MACOSX_BUNDLE_ICON_FILE "AppIcon"
-    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/Info.plist.in"
 )
+
+if(APPLE)
+    set_target_properties(QT_Illuminate PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "QT_Illuminate"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "local.qt-illuminate.QT_Illuminate"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_ICON_FILE "AppIcon"
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/packaging/Info.plist.in"
+    )
+endif()
 
 if(APPLE)
     set(APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/packaging/icons/AppIcon.icns")
@@ -305,6 +312,7 @@ target_include_directories(QT_Illuminatemodule PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/profiles
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/system
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
+    ${CEF_INCLUDE_PATH}
 )
 
 target_link_libraries(QT_Illuminatemodule PUBLIC

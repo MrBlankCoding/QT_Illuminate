@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-eval "$(/opt/homebrew/bin/brew shellenv zsh)"
+if [[ -x /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv zsh)"
+elif [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
+fi
 #
 # Usage:
 #   ./build.sh              # configure (if needed) + build
@@ -709,11 +713,12 @@ clean_app_data
 
 [[ -n "$APP_BUNDLE" ]] && rm -rf "$APP_BUNDLE"
 
-export MACOSX_DEPLOYMENT_TARGET="27.0"
-export SDKROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
-
-echo "MACOSX_DEPLOYMENT_TARGET: ${MACOSX_DEPLOYMENT_TARGET:-not set}"
-echo "SDKROOT: ${SDKROOT:-not set}"
+if (( IS_MAC )); then
+    export MACOSX_DEPLOYMENT_TARGET="27.0"
+    export SDKROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+    echo "MACOSX_DEPLOYMENT_TARGET: ${MACOSX_DEPLOYMENT_TARGET:-not set}"
+    echo "SDKROOT: ${SDKROOT:-not set}"
+fi
 echo "TARGET_BUILD_DIR: ${TARGET_BUILD_DIR:-not set}"
 
 echo "→ Building…"
