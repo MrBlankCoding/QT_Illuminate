@@ -150,7 +150,7 @@ Popup {
 
                 LucideIcon {
                     size: 13
-                    source: "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
+                    source: "qrc:/QT_Illuminate/ui/icons/x.svg"
                     color: panelCloseHover.hovered ? Theme.text : Theme.textMuted
 
                     HoverHandler {
@@ -225,7 +225,7 @@ Popup {
                             LucideIcon {
                                 visible: row.downloadState === CefDownloadItem.DownloadCompleted
                                 size: 13
-                                source: "qrc:/QT_Illuminate/ui/ui/icons/folder.svg"
+                                source: "qrc:/QT_Illuminate/ui/icons/folder.svg"
                                 color: folderHover.hovered ? Theme.text : Theme.textMuted
 
                                 HoverHandler {
@@ -238,7 +238,7 @@ Popup {
 
                             LucideIcon {
                                 size: 12
-                                source: "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
+                                source: "qrc:/QT_Illuminate/ui/icons/x.svg"
                                 color: cancelHover.hovered ? Theme.text : Theme.textMuted
 
                                 HoverHandler {

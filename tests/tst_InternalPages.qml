@@ -18,9 +18,9 @@ Item {
 
         function test_setup_qml_source() {
             compare(InternalPages.qmlSource("illuminate://setup"),
-                    "qrc:/QT_Illuminate/ui/ui/pages/SetupPage.qml")
+                    "qrc:/QT_Illuminate/ui/pages/SetupPage.qml")
             compare(InternalPages.qmlSource("illuminate://setup/"),
-                    "qrc:/QT_Illuminate/ui/ui/pages/SetupPage.qml")
+                    "qrc:/QT_Illuminate/ui/pages/SetupPage.qml")
             // unknown illuminate schemes resolve to nothing
             verify(InternalPages.qmlSource("illuminate://nope") === "")
         }

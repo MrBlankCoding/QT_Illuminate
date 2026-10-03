@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
                 BrowserLogger::instance().warning("QML", w.toString());
         });
 
-    const QUrl root("qrc:/QT_Illuminate/ui/ui/pages/ProfilePicker.qml");
+    const QUrl root("qrc:/QT_Illuminate/ui/pages/ProfilePicker.qml");
     QObject::connect(
         engine.get(), &QQmlApplicationEngine::objectCreated,
         &app, [&](QObject *obj, const QUrl &url)

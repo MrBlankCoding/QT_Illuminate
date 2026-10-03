@@ -51,19 +51,19 @@ Row {
     }
 
     ControlButton {
-        iconSource: "qrc:/QT_Illuminate/ui/ui/icons/minus.svg"
+        iconSource: "qrc:/QT_Illuminate/ui/icons/minus.svg"
         onClicked: root.targetWindow.showMinimized()
     }
 
     ControlButton {
         // overlapping squares = "restore down" while maximised
-        iconSource: root.isMaximized ? "qrc:/QT_Illuminate/ui/ui/icons/copy.svg" : "qrc:/QT_Illuminate/ui/ui/icons/square.svg"
+        iconSource: root.isMaximized ? "qrc:/QT_Illuminate/ui/icons/copy.svg" : "qrc:/QT_Illuminate/ui/icons/square.svg"
         iconSize: root.isMaximized ? 13 : 12
         onClicked: root.isMaximized ? root.targetWindow.showNormal() : root.targetWindow.showMaximized()
     }
 
     ControlButton {
-        iconSource: "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
+        iconSource: "qrc:/QT_Illuminate/ui/icons/x.svg"
         iconSize: 15
         hoverColor: "#e81123"
         hoverIconColor: "white"

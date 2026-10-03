@@ -662,6 +662,13 @@ fi
 if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]] || [[ "$CONFIGURED_TYPE" != "$BUILD_TYPE" ]] \
         || [[ "$CONFIGURED_PREFIX" != "$QT_PREFIX" ]] \
         || [[ "$CONFIGURED_CEF" != "$CEF_ROOT" ]]; then
+    NEED_CONFIGURE=1
+elif [[ "$SCRIPT_DIR/CMakeLists.txt" -nt "$BUILD_DIR/CMakeCache.txt" ]]; then
+    echo "→ CMakeLists.txt changed since last configure; reconfiguring…"
+    NEED_CONFIGURE=1
+fi
+
+if [[ "${NEED_CONFIGURE:-0}" == "1" ]]; then
     echo "→ Configuring ($BUILD_TYPE)…"
     if (( IS_LINUX )); then
         cmake -S "$SCRIPT_DIR" \

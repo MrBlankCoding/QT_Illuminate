@@ -70,7 +70,7 @@ Window {
     function switchProfile(profile) {
         if (!profile)
             return;
-        const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/BrowserWindow.qml");
+        const component = Qt.createComponent("qrc:/QT_Illuminate/ui/pages/BrowserWindow.qml");
         if (component.status !== Component.Ready) {
             Logger.error("BrowserWindow", "Failed to load window for profile switch: " + component.errorString());
             return;
@@ -169,7 +169,7 @@ Window {
 
     function openSettings() {
         if (!settingsWindow) {
-            const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/SettingsWindow.qml");
+            const component = Qt.createComponent("qrc:/QT_Illuminate/ui/pages/SettingsWindow.qml");
             if (component.status !== Component.Ready) {
                 Logger.error("BrowserWindow", "Settings window failed to load: " + component.errorString());
                 return;
@@ -184,7 +184,7 @@ Window {
     }
 
     function openProfileSelector() {
-        const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/ProfilePicker.qml");
+        const component = Qt.createComponent("qrc:/QT_Illuminate/ui/pages/ProfilePicker.qml");
         if (component.status !== Component.Ready)
             return;
         const picker = component.createObject(null) as Window;
@@ -370,14 +370,15 @@ Window {
         Item {
             id: dock
             Layout.fillHeight: true
+            readonly property real fullWidth: dockLoader.item ? dockLoader.item.implicitWidth : 0
             Layout.preferredWidth: (root.sidebarCollapsed && !root.sidebarPeeked) || root.contentFullScreen
-                ? 0 : (dockLoader.item ? dockLoader.item.implicitWidth : 0)
+                ? 0 : fullWidth
             clip: true
-            visible: Layout.preferredWidth > 0
+            visible: Layout.preferredWidth > 0 || width > 0
 
             Behavior on Layout.preferredWidth {
                 enabled: !dockLoader.item || dockLoader.item.dragWidth < 0
-                NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+                NumberAnimation { duration: 320; easing.type: Easing.OutQuint }
             }
 
             HoverHandler {
@@ -393,9 +394,10 @@ Window {
 
             Loader {
                 id: dockLoader
-                width: item ? item.implicitWidth : 0
+                x: dock.width - width
+                width: dock.fullWidth
                 height: parent.height
-                // kept alive while collapsed so expanding is instant
+                opacity: dock.fullWidth > 0 ? Math.min(1, 1.5 * dock.width / dock.fullWidth) : 1
                 sourceComponent: sidebarComponent
             }
         }
@@ -526,7 +528,8 @@ Window {
         }
         Timer {
             id: revealDelay
-            interval: 15
+            // long enough to ignore the pointer skimming past the edge
+            interval: 60
             onTriggered: {
                 if (Theme.isMac && !root.sidebarPeekSuppressed)
                     root.sidebarPeeked = true;
@@ -568,11 +571,12 @@ Window {
         height: root.height - 2 * Theme.space1 + 2 * shadowPad
 
         enter: Transition {
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.durationMid; easing.type: Easing.OutCubic }
-            NumberAnimation { property: "x"; from: -sidebarOverlay.width * 0.25; to: -sidebarOverlay.shadowPad; duration: Theme.durationMid; easing.type: Easing.OutCubic }
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 220; easing.type: Easing.OutCubic }
+            NumberAnimation { property: "x"; from: -sidebarOverlay.width * 0.25; to: -sidebarOverlay.shadowPad; duration: 320; easing.type: Easing.OutQuint }
         }
         exit: Transition {
-            NumberAnimation { property: "opacity"; to: 0; duration: Theme.durationFast; easing.type: Easing.InQuad }
+            NumberAnimation { property: "opacity"; to: 0; duration: 180; easing.type: Easing.InCubic }
+            NumberAnimation { property: "x"; to: -sidebarOverlay.width * 0.25; duration: 220; easing.type: Easing.InCubic }
         }
 
         background: Item {
@@ -626,13 +630,13 @@ Window {
     CommandBar {
         id: commandBar
         quickActions: [
-            { label: "Toggle Sidebar", icon: "qrc:/QT_Illuminate/ui/ui/icons/panel-left.svg", run: () => root.toggleSidebar() },
-            { label: "Open Settings", icon: "qrc:/QT_Illuminate/ui/ui/icons/more-vertical.svg", run: () => root.openSettings() },
-            { label: "Downloads", icon: "qrc:/QT_Illuminate/ui/ui/icons/download.svg", run: () => downloadsPanel.toggle() },
-            { label: "Find in Page", icon: "qrc:/QT_Illuminate/ui/ui/icons/search.svg", run: () => findBar.open() },
-            { label: "Copy URL", icon: "qrc:/QT_Illuminate/ui/ui/icons/copy.svg", run: () => Browser.copyActiveUrl() },
-            { label: "Developer Tools", icon: "qrc:/QT_Illuminate/ui/ui/icons/activity.svg", run: () => Browser.toggleDevTools() },
-            { label: "Memory Usage", icon: "qrc:/QT_Illuminate/ui/ui/icons/activity.svg", run: () => Browser.newTab("illuminate://memory") }
+            { label: "Toggle Sidebar", icon: "qrc:/QT_Illuminate/ui/icons/panel-left.svg", run: () => root.toggleSidebar() },
+            { label: "Open Settings", icon: "qrc:/QT_Illuminate/ui/icons/more-vertical.svg", run: () => root.openSettings() },
+            { label: "Downloads", icon: "qrc:/QT_Illuminate/ui/icons/download.svg", run: () => downloadsPanel.toggle() },
+            { label: "Find in Page", icon: "qrc:/QT_Illuminate/ui/icons/search.svg", run: () => findBar.open() },
+            { label: "Copy URL", icon: "qrc:/QT_Illuminate/ui/icons/copy.svg", run: () => Browser.copyActiveUrl() },
+            { label: "Developer Tools", icon: "qrc:/QT_Illuminate/ui/icons/activity.svg", run: () => Browser.toggleDevTools() },
+            { label: "Memory Usage", icon: "qrc:/QT_Illuminate/ui/icons/activity.svg", run: () => Browser.newTab("illuminate://memory") }
         ]
     }
 

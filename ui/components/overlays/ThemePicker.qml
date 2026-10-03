@@ -426,7 +426,6 @@ Popup {
                 }
             }
 
-            // Soft light under the puck so the field reflects the chosen color.
             ShapePath {
                 strokeColor: "transparent"
                 fillGradient: RadialGradient {
@@ -504,19 +503,19 @@ Popup {
                 spacing: 12
 
                 IconButton {
-                    iconSource: "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
+                    iconSource: "qrc:/QT_Illuminate/ui/icons/globe.svg"
                     tip: qsTr("Match system")
                     active: Browser.themeMode === "system"
                     onClicked: Browser.themeMode = "system"
                 }
                 IconButton {
-                    iconSource: "qrc:/QT_Illuminate/ui/ui/icons/sun.svg"
+                    iconSource: "qrc:/QT_Illuminate/ui/icons/sun.svg"
                     tip: qsTr("Light")
                     active: Browser.themeMode === "light"
                     onClicked: Browser.themeMode = "light"
                 }
                 IconButton {
-                    iconSource: "qrc:/QT_Illuminate/ui/ui/icons/moon.svg"
+                    iconSource: "qrc:/QT_Illuminate/ui/icons/moon.svg"
                     tip: qsTr("Dark")
                     active: Browser.themeMode === "dark"
                     onClicked: Browser.themeMode = "dark"
@@ -530,13 +529,13 @@ Popup {
                 spacing: 28
 
                 IconButton {
-                    iconSource: "qrc:/QT_Illuminate/ui/ui/icons/minus.svg"
+                    iconSource: "qrc:/QT_Illuminate/ui/icons/minus.svg"
                     tip: qsTr("Delete this theme")
                     enabled: !!Browser.activeCustomThemeId
                     onClicked: Browser.deleteCustomTheme(Browser.activeCustomThemeId)
                 }
                 IconButton {
-                    iconSource: "qrc:/QT_Illuminate/ui/ui/icons/plus.svg"
+                    iconSource: "qrc:/QT_Illuminate/ui/icons/plus.svg"
                     tip: qsTr("Save as new theme")
                     onClicked: root.addTheme()
                 }
@@ -550,7 +549,7 @@ Popup {
 
             IconButton {
                 implicitWidth: 28
-                iconSource: "qrc:/QT_Illuminate/ui/ui/icons/chevron-left.svg"
+                iconSource: "qrc:/QT_Illuminate/ui/icons/chevron-left.svg"
                 tip: qsTr("Previous themes")
                 enabled: !swatchView.atXBeginning
                 onClicked: root.scrollSwatches(-1)
@@ -595,7 +594,7 @@ Popup {
 
             IconButton {
                 implicitWidth: 28
-                iconSource: "qrc:/QT_Illuminate/ui/ui/icons/chevron-right.svg"
+                iconSource: "qrc:/QT_Illuminate/ui/icons/chevron-right.svg"
                 tip: qsTr("Next themes")
                 enabled: !swatchView.atXEnd
                 onClicked: root.scrollSwatches(1)

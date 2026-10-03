@@ -325,6 +325,86 @@ endif()
 
 target_link_libraries(QT_Illuminatemodule PRIVATE QHotkey::QHotkey)
 
+# Strip the "ui/" prefix from resource aliases so files mount at
+# qrc:/QT_Illuminate/ui/<path> instead of qrc:/QT_Illuminate/ui/ui/<path>.
+foreach(_f
+    ui/Theme.qml
+    ui/pages/BrowserWindow.qml
+    ui/pages/MemoryPage.qml
+    ui/pages/ProfilePicker.qml
+    ui/pages/SettingsWindow.qml
+    ui/pages/SetupPage.qml
+    ui/pages/settings/PrivacySettingsPage.qml
+    ui/pages/settings/SearchSettingsPage.qml
+    ui/pages/settings/ShortcutsSettingsPage.qml
+    ui/pages/settings/StartupSettingsPage.qml
+    ui/pages/settings/TabsSettingsPage.qml
+    ui/components/LetterAvatar.qml
+    ui/components/LucideIcon.qml
+    ui/components/PillButton.qml
+    ui/components/chrome/ResizeGrips.qml
+    ui/components/chrome/WindowControls.qml
+    ui/components/chrome/WindowDragRegion.qml
+    ui/components/browser/AddressPill.qml
+    ui/components/browser/EssentialsGrid.qml
+    ui/components/browser/KeyboardShortcuts.qml
+    ui/components/browser/PrintController.qml
+    ui/components/browser/Sidebar.qml
+    ui/components/browser/SidebarButton.qml
+    ui/components/browser/SuggestionProvider.qml
+    ui/components/browser/TabItem.qml
+    ui/components/browser/TabSlot.qml
+    ui/components/browser/WebContentCard.qml
+    ui/components/overlays/AppSubMenu.qml
+    ui/components/overlays/CommandBar.qml
+    ui/components/overlays/ThemePicker.qml
+    ui/components/overlays/WebContextMenu.qml
+    ui/components/overlays/DownloadsPanel.qml
+    ui/components/overlays/FindBar.qml
+    ui/components/overlays/ZoomIndicator.qml
+    ui/components/profiles/ProfileEditor.qml
+    ui/components/profiles/ProfileTile.qml
+    ui/components/settings/Footnote.qml
+    ui/components/settings/NavItem.qml
+    ui/components/settings/SectionHeader.qml
+    ui/components/settings/SettingCombo.qml
+    ui/components/settings/SettingField.qml
+    ui/components/settings/SettingItem.qml
+    ui/components/settings/SettingsCard.qml
+    ui/components/settings/SettingsPage.qml
+    ui/components/settings/SettingSwitch.qml
+    ui/components/settings/ShortcutField.qml
+    ui/resources/js/pointer-lock-shim.js
+    ui/resources/js/devtools-bridge.js
+    ui/icons/alert-triangle.svg
+    ui/icons/arrow-right.svg
+    ui/icons/chevron-left.svg
+    ui/icons/chevron-right.svg
+    ui/icons/copy.svg
+    ui/icons/download.svg
+    ui/icons/folder.svg
+    ui/icons/globe.svg
+    ui/icons/lock.svg
+    ui/icons/activity.svg
+    ui/icons/minus.svg
+    ui/icons/moon.svg
+    ui/icons/more-vertical.svg
+    ui/icons/panel-left.svg
+    ui/icons/pin.svg
+    ui/icons/plus.svg
+    ui/icons/rotate-cw.svg
+    ui/icons/search.svg
+    ui/icons/square.svg
+    ui/icons/star-filled.svg
+    ui/icons/star.svg
+    ui/icons/sun.svg
+    ui/icons/x.svg
+)
+    string(REGEX REPLACE "^ui/" "" _alias "${_f}")
+    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/${_f}" PROPERTIES
+        QT_RESOURCE_ALIAS "${_alias}")
+endforeach()
+
 qt_add_qml_module(QT_Illuminatemodule
     URI QT_Illuminate.ui
     VERSION 1.0
@@ -391,6 +471,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/icons/lock.svg
         ui/icons/activity.svg
         ui/icons/minus.svg
+        ui/icons/moon.svg
         ui/icons/more-vertical.svg
         ui/icons/panel-left.svg
         ui/icons/pin.svg
@@ -400,6 +481,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/icons/square.svg
         ui/icons/star-filled.svg
         ui/icons/star.svg
+        ui/icons/sun.svg
         ui/icons/x.svg
 )
 

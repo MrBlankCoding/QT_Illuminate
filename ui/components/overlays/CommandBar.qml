@@ -226,7 +226,7 @@ Popup {
 
             LucideIcon {
                 size: 18
-                source: "qrc:/QT_Illuminate/ui/ui/icons/search.svg"
+                source: "qrc:/QT_Illuminate/ui/icons/search.svg"
                 color: Theme.textMuted
             }
 
@@ -335,8 +335,8 @@ Popup {
                             size: 15
                             visible: row.modelData.kind === "go" || row.modelData.kind === "suggest" || row.modelData.kind === "action"
                             source: row.modelData.kind === "action" ? row.modelData.icon
-                                  : row.modelData.kind === "go" && root.looksLikeUrl(row.modelData.title) ? "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
-                                  : "qrc:/QT_Illuminate/ui/ui/icons/search.svg"
+                                  : row.modelData.kind === "go" && root.looksLikeUrl(row.modelData.title) ? "qrc:/QT_Illuminate/ui/icons/globe.svg"
+                                  : "qrc:/QT_Illuminate/ui/icons/search.svg"
                             color: Theme.textMuted
                         }
                     }
@@ -365,7 +365,7 @@ Popup {
                     LucideIcon {
                         visible: row.selected
                         size: 13
-                        source: "qrc:/QT_Illuminate/ui/ui/icons/arrow-right.svg"
+                        source: "qrc:/QT_Illuminate/ui/icons/arrow-right.svg"
                         color: Theme.textMuted
                     }
                 }

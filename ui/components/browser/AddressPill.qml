@@ -39,10 +39,10 @@ Item {
             LucideIcon {
                 size: 13
                 Layout.alignment: Qt.AlignVCenter
-                source: root.currentUrl === "" ? "qrc:/QT_Illuminate/ui/ui/icons/search.svg"
-                      : root.currentUrl.startsWith("https://") ? "qrc:/QT_Illuminate/ui/ui/icons/lock.svg"
-                      : root.currentUrl.startsWith("http://") ? "qrc:/QT_Illuminate/ui/ui/icons/alert-triangle.svg"
-                      : "qrc:/QT_Illuminate/ui/ui/icons/globe.svg"
+                source: root.currentUrl === "" ? "qrc:/QT_Illuminate/ui/icons/search.svg"
+                      : root.currentUrl.startsWith("https://") ? "qrc:/QT_Illuminate/ui/icons/lock.svg"
+                      : root.currentUrl.startsWith("http://") ? "qrc:/QT_Illuminate/ui/icons/alert-triangle.svg"
+                      : "qrc:/QT_Illuminate/ui/icons/globe.svg"
                 color: root.currentUrl.startsWith("http://") ? Theme.danger : Theme.textMuted
             }
 
@@ -61,7 +61,7 @@ Item {
                 size: 13
                 Layout.alignment: Qt.AlignVCenter
                 visible: root.currentUrl !== "" && (hover.hovered || root.isBookmarked)
-                source: root.isBookmarked ? "qrc:/QT_Illuminate/ui/ui/icons/star-filled.svg" : "qrc:/QT_Illuminate/ui/ui/icons/star.svg"
+                source: root.isBookmarked ? "qrc:/QT_Illuminate/ui/icons/star-filled.svg" : "qrc:/QT_Illuminate/ui/icons/star.svg"
                 color: root.isBookmarked ? Theme.accent : (starHover.hovered ? Theme.text : Theme.textMuted)
 
                 HoverHandler {

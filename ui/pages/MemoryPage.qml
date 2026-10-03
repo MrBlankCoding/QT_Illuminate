@@ -297,7 +297,7 @@ Item {
 
                 LucideIcon {
                     size: 22
-                    source: "qrc:/QT_Illuminate/ui/ui/icons/activity.svg"
+                    source: "qrc:/QT_Illuminate/ui/icons/activity.svg"
                     color: Theme.accent
                 }
                 Text {

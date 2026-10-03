@@ -50,7 +50,7 @@ Popup {
         LucideIcon {
             objectName: "zoomOutButton"
             size: 13
-            source: "qrc:/QT_Illuminate/ui/ui/icons/minus.svg"
+            source: "qrc:/QT_Illuminate/ui/icons/minus.svg"
             color: zoomOutHover.hovered ? Theme.text : Theme.textMuted
             Layout.alignment: Qt.AlignVCenter
 
@@ -83,7 +83,7 @@ Popup {
         LucideIcon {
             objectName: "zoomInButton"
             size: 13
-            source: "qrc:/QT_Illuminate/ui/ui/icons/plus.svg"
+            source: "qrc:/QT_Illuminate/ui/icons/plus.svg"
             color: zoomInHover.hovered ? Theme.text : Theme.textMuted
             Layout.alignment: Qt.AlignVCenter
 

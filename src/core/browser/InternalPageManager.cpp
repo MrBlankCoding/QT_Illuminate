@@ -26,9 +26,9 @@ QString InternalPageManager::qmlSource(const QString &url)
 {
     const QString t = url.trimmed().toLower();
     if (t == QLatin1String("illuminate://memory"))
-        return QStringLiteral("qrc:/QT_Illuminate/ui/ui/pages/MemoryPage.qml");
+        return QStringLiteral("qrc:/QT_Illuminate/ui/pages/MemoryPage.qml");
     if (t == QLatin1String("illuminate://setup") || t == QLatin1String("illuminate://setup/"))
-        return QStringLiteral("qrc:/QT_Illuminate/ui/ui/pages/SetupPage.qml");
+        return QStringLiteral("qrc:/QT_Illuminate/ui/pages/SetupPage.qml");
 
     return {};
 }

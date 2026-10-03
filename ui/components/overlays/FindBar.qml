@@ -192,7 +192,7 @@ Popup {
 
         LucideIcon {
             size: 13
-            source: "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
+            source: "qrc:/QT_Illuminate/ui/icons/x.svg"
             color: closeHover.hovered ? Theme.text : Theme.textMuted
             Layout.alignment: Qt.AlignVCenter
             Layout.leftMargin: 2

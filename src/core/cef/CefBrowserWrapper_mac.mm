@@ -61,3 +61,18 @@ void cefSetNativeViewCornerRadius(void *view, qreal radius)
     layer.cornerCurve = kCACornerCurveContinuous;
     layer.masksToBounds = radius > 0;
 }
+
+bool cefResignNativeFocus(void *view)
+{
+    NSView *nsView = (__bridge NSView *)view;
+    NSWindow *window = nsView.window;
+    if (!window)
+        return false;
+
+    NSResponder *responder = window.firstResponder;
+    if (![responder isKindOfClass:[NSView class]] || ![(NSView *)responder isDescendantOf:nsView])
+        return false;
+
+    [window makeFirstResponder:nsView.superview];
+    return true;
+}

@@ -17,8 +17,6 @@
 
 CefTabClient::CefTabClient(CefBrowserWrapper *wrapper)
     : m_wrapper(wrapper),
-      // DevTools reuses this client, so the handlers need the page's browser id
-      // to tell the two apart
       m_loadHandler(new CefLoadHandlerImpl(wrapper, &m_mainBrowser)),
       m_displayHandler(new CefDisplayHandlerImpl(wrapper, &m_mainBrowser)),
       m_contextMenuHandler(new CefContextMenuHandlerImpl(wrapper, &m_mainBrowser)),
@@ -84,7 +82,7 @@ void CefTabClient::OnAfterCreated(CefRefPtr<CefBrowser> browser)
     {
         qInfo() << "[DevTools] OnAfterCreated id=" << browser->GetIdentifier()
                 << "url=" << qUtf8Printable(QString::fromStdString(browser->GetMainFrame()->GetURL().ToString()));
-        // DevTools: it reuses this client, so adopt it into the dock view
+                
         if (auto *view = m_devToolsView.data())
         {
             QPointer<CefBrowserWrapper> guard = view;
@@ -96,10 +94,6 @@ void CefTabClient::OnAfterCreated(CefRefPtr<CefBrowser> browser)
         return;
     }
 
-    // the item can go away while CreateBrowser is in flight; nobody else holds
-    // this browser then, so close it instead of leaving it orphaned. The
-    // application is the context: one on the wrapper would drop the call,
-    // close included, if the wrapper died before it ran.
     if (m_wrapper)
     {
         QMetaObject::invokeMethod(QCoreApplication::instance(), [wrapper = m_wrapper, browser]() {
@@ -156,12 +150,9 @@ bool CefTabClient::OnPreKeyEvent(CefRefPtr<CefBrowser> browser,
     Q_UNUSED(os_event);
     Q_UNUSED(is_keyboard_shortcut);
 
-    // the DevTools browser shares this client; it handles its own shortcuts
-    // (Cmd+W in the console must not close the tab)
     if (!isMainBrowser(browser))
         return false;
 
-    // key events go to the native CEF view, so Qt never sees Esc here
     constexpr int kVkeyEscape = 0x1B;
     if (event.type == KEYEVENT_RAWKEYDOWN && event.windows_key_code == kVkeyEscape
         && browser->GetHost()->IsFullscreen())
@@ -170,9 +161,6 @@ bool CefTabClient::OnPreKeyEvent(CefRefPtr<CefBrowser> browser,
         return true;
     }
 
-    // ...which also means QML `Shortcut` items never fire. Replay the key
-    // through Qt's shortcut map and swallow it only if one matched, so
-    // Chromium still sees everything else (typing, page shortcuts).
     if (event.type == KEYEVENT_RAWKEYDOWN && m_wrapper)
     {
         if (ShortcutBridge::dispatchKeyPress(m_wrapper->window(),
@@ -182,4 +170,10 @@ bool CefTabClient::OnPreKeyEvent(CefRefPtr<CefBrowser> browser,
     }
 
     return false;
+}
+
+bool CefTabClient::OnSetFocus(CefRefPtr<CefBrowser> browser, FocusSource source)
+{
+    Q_UNUSED(source);
+    return isMainBrowser(browser) && m_wrapper && m_wrapper->inputSuppressed();
 }

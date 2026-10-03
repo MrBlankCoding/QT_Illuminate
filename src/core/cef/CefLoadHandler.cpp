@@ -8,14 +8,12 @@
 
 namespace {
 
-// Runs in every main frame before the page's own scripts: hides WebGPU and
-// installs the pointer lock shim QML can no longer read (QML XHR blocks local
-// files unless QML_XHR_ALLOW_FILE_READ is set).
+
 QString pageInitScript()
 {
     static const QString script = [] {
         QString js = QStringLiteral("delete Navigator.prototype.gpu;");
-        QFile shim(QStringLiteral(":/QT_Illuminate/ui/ui/resources/js/pointer-lock-shim.js"));
+        QFile shim(QStringLiteral(":/QT_Illuminate/ui/resources/js/pointer-lock-shim.js"));
         if (shim.open(QIODevice::ReadOnly | QIODevice::Text))
             js += QLatin1Char('\n') + QString::fromUtf8(shim.readAll());
         else

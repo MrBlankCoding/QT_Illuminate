@@ -158,7 +158,7 @@ Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.bottomMargin: 6
                         size: 44
-                        source: "qrc:/QT_Illuminate/ui/ui/icons/activity.svg"
+                        source: "qrc:/QT_Illuminate/ui/icons/activity.svg"
                         color: Theme.accent
                     }
 

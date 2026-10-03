@@ -1,6 +1,7 @@
 #pragma once
 
 #include <include/cef_client.h>
+#include <include/cef_focus_handler.h>
 #include <include/cef_keyboard_handler.h>
 #include <include/cef_life_span_handler.h>
 #include <QPointer>
@@ -16,8 +17,10 @@ class CefFindHandlerImpl;
 class CefPermissionHandlerImpl;
 class CefRequestHandlerImpl;
 
-// CEF: Client implementation for each tab's CefBrowser.
-class CefTabClient : public CefClient, public CefLifeSpanHandler, public CefKeyboardHandler
+class CefTabClient : public CefClient,
+                     public CefLifeSpanHandler,
+                     public CefKeyboardHandler,
+                     public CefFocusHandler
 {
 public:
     explicit CefTabClient(CefBrowserWrapper *wrapper);
@@ -26,6 +29,7 @@ public:
     // CefClient overrides
     CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
     CefRefPtr<CefKeyboardHandler> GetKeyboardHandler() override { return this; }
+    CefRefPtr<CefFocusHandler> GetFocusHandler() override { return this; }
     CefRefPtr<CefLoadHandler> GetLoadHandler() override;
     CefRefPtr<CefDisplayHandler> GetDisplayHandler() override;
     CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override;
@@ -59,19 +63,9 @@ public:
                        CefEventHandle os_event,
                        bool *is_keyboard_shortcut) override;
 
-    // The item the DevTools browser should be adopted by. CEF creates that
-    // browser itself (ShowDevTools) and reuses this client, so OnAfterCreated
-    // needs somewhere to hand it to. Cleared by closeDevTools().
-    //
-    // Must be set *before* ShowDevTools(): OnAfterCreated can fire inside that
-    // call, so it cannot be posted to the CEF UI thread the way other
-    // cross-thread work here is. Reading it from OnAfterCreated is only safe
-    // because the CEF UI thread is the Qt main thread on macOS, the platform
-    // the docked view is wired up for.
+    // CefFocusHandler overrides
+    bool OnSetFocus(CefRefPtr<CefBrowser> browser, FocusSource source) override;
     void setDevToolsView(CefBrowserWrapper *view) { m_devToolsView = view; }
-
-    // Identifies the page's own browser; the DevTools browser shares the
-    // client but must not be mistaken for it.
     bool isMainBrowser(const CefRefPtr<CefBrowser> &browser) const
     {
         return m_mainBrowser.matches(browser);
@@ -80,7 +74,6 @@ public:
 private:
     QPointer<CefBrowserWrapper> m_wrapper;
     QPointer<CefBrowserWrapper> m_devToolsView;
-    // the tab's own browser; shared with the handlers below
     CefMainBrowserId m_mainBrowser;
 
     CefRefPtr<CefLoadHandlerImpl> m_loadHandler;

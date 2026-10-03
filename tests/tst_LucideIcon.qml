@@ -40,8 +40,8 @@ Item {
         function test_sourceWritable() {
             let icon = createTemporaryObject(iconComponent, root)
             verify(!!icon, "Component exists")
-            icon.source = qsTr("qrc:/QT_Illuminate/ui/ui/icons/globe.svg")
-            compare(icon.source, qsTr("qrc:/QT_Illuminate/ui/ui/icons/globe.svg"))
+            icon.source = qsTr("qrc:/QT_Illuminate/ui/icons/globe.svg")
+            compare(icon.source, qsTr("qrc:/QT_Illuminate/ui/icons/globe.svg"))
         }
 
         function test_colorWritable() {

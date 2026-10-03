@@ -177,7 +177,7 @@ Item {
 
                 LucideIcon {
                     anchors.centerIn: parent
-                    source: "qrc:/QT_Illuminate/ui/ui/icons/x.svg"
+                    source: "qrc:/QT_Illuminate/ui/icons/x.svg"
                     size: 12
                     color: closeHover.hovered ? Theme.text : Theme.textMuted
                 }

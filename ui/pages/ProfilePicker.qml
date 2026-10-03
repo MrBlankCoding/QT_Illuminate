@@ -31,7 +31,7 @@ ApplicationWindow {
     function openProfile(profile) {
         Logger.info("ProfilePicker", "Opening profile " + profile.id);
         ProfileManager.activeProfile = profile;
-        const component = Qt.createComponent("qrc:/QT_Illuminate/ui/ui/pages/BrowserWindow.qml");
+        const component = Qt.createComponent("qrc:/QT_Illuminate/ui/pages/BrowserWindow.qml");
         if (component.status !== Component.Ready) {
             Logger.error("ProfilePicker", "BrowserWindow failed to load: " + component.errorString());
             root.visible = true;
@@ -71,7 +71,7 @@ ApplicationWindow {
                         + ", visibility=" + w.visibility + ", active=" + w.active
                         + ", size=" + w.width + "x" + w.height);
             if (!w.visible || !w.active || w.width <= 0 || w.height <= 0)
-                Logger.warning("ProfilePicker", "Keeping profile picker visible because the browser window is not ready");
+                Logger.debug("ProfilePicker", "Browser window not active yet; picker will hide once it activates");
             hidePickerIfBrowserReady();
         });
     }

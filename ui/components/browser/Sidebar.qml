@@ -92,25 +92,25 @@ Item {
                 }
 
                 SidebarButton {
-                    icon: "qrc:/QT_Illuminate/ui/ui/icons/panel-left.svg"
+                    icon: "qrc:/QT_Illuminate/ui/icons/panel-left.svg"
                     iconSize: 15
                     onClicked: root.toggleCollapsed()
                 }
 
                 SidebarButton {
-                    icon: "qrc:/QT_Illuminate/ui/ui/icons/chevron-left.svg"
+                    icon: "qrc:/QT_Illuminate/ui/icons/chevron-left.svg"
                     iconSize: 18
                     enabled: root.canGoBack
                     onClicked: Browser.goBack()
                 }
                 SidebarButton {
-                    icon: "qrc:/QT_Illuminate/ui/ui/icons/chevron-right.svg"
+                    icon: "qrc:/QT_Illuminate/ui/icons/chevron-right.svg"
                     iconSize: 18
                     enabled: root.canGoForward
                     onClicked: Browser.goForward()
                 }
                 SidebarButton {
-                    icon: root.isLoading ? "qrc:/QT_Illuminate/ui/ui/icons/x.svg" : "qrc:/QT_Illuminate/ui/ui/icons/rotate-cw.svg"
+                    icon: root.isLoading ? "qrc:/QT_Illuminate/ui/icons/x.svg" : "qrc:/QT_Illuminate/ui/icons/rotate-cw.svg"
                     iconSize: 15
                     enabled: root.currentUrl !== ""
                     onClicked: Browser.reload()
@@ -162,7 +162,7 @@ Item {
 
                 LucideIcon {
                     size: Theme.faviconSize
-                    source: "qrc:/QT_Illuminate/ui/ui/icons/plus.svg"
+                    source: "qrc:/QT_Illuminate/ui/icons/plus.svg"
                     color: newTabHover.hovered ? Theme.text : Theme.textMuted
                 }
                 Text {
@@ -329,7 +329,7 @@ Item {
 
             SidebarButton {
                 visible: root.downloadsPanel && root.downloadsPanel.downloadCount > 0
-                icon: "qrc:/QT_Illuminate/ui/ui/icons/download.svg"
+                icon: "qrc:/QT_Illuminate/ui/icons/download.svg"
                 iconSize: 18
                 active: root.downloadsPanel && root.downloadsPanel.visible
                 onClicked: root.downloadsPanel.toggle()
@@ -348,7 +348,7 @@ Item {
             }
 
             SidebarButton {
-                icon: "qrc:/QT_Illuminate/ui/ui/icons/more-vertical.svg"
+                icon: "qrc:/QT_Illuminate/ui/icons/more-vertical.svg"
                 iconSize: 18
                 active: overflowMenu.visible
                 onClicked: overflowMenu.popup()

@@ -203,11 +203,17 @@ void CefManager::OnBeforeCommandLineProcessing(const CefString &process_type,
             }
         }
     }
+
+
+// TODO: remove in production
+#ifdef Q_OS_MACOS
+    if (!command_line->HasSwitch("use-mock-keychain"))
+        command_line->AppendSwitch("use-mock-keychain");
+#endif
 }
 
 void CefManager::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar)
 {
-    // Register custom schemes so CEF parser treats them as standard
     registrar->AddCustomScheme("illuminate", CEF_SCHEME_OPTION_STANDARD | CEF_SCHEME_OPTION_SECURE);
     registrar->AddCustomScheme("newtab", CEF_SCHEME_OPTION_STANDARD | CEF_SCHEME_OPTION_SECURE);
 }
@@ -240,7 +246,6 @@ void CefManager::scheduleMessagePumpWork(int64_t delayMs)
     }
 
     const int delay = static_cast<int>(qBound<int64_t>(0, delayMs, int64_t(kMaxPumpDelayMs)));
-    // keep an earlier deadline if one is already pending
     if (m_pumpTimer->isActive() && m_pumpTimer->remainingTime() <= delay)
         return;
     m_pumpTimer->start(delay);
@@ -255,7 +260,6 @@ void CefManager::doMessageLoopWork()
     CefDoMessageLoopWork();
     m_inPumpWork = false;
 
-    // fallback tick in case CEF doesn't ask for more work
     if (!m_pumpTimer->isActive())
         m_pumpTimer->start(kMaxPumpDelayMs);
 }

@@ -137,7 +137,7 @@ Item {
                 anchors.fill: parent
                 profile: Browser.webProfile
                 visible: tabSlot.index === Browser.tabModel.activeIndex
-                nativeViewSuppressed: tabSlot.browserWindow.inputOverlayOpen
+                inputSuppressed: tabSlot.browserWindow.inputOverlayOpen
                     && tabSlot.index === Browser.tabModel.activeIndex
                 lifecycleState: webView.visible
                     ? CefBrowser.Active

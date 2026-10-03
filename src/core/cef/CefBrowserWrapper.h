@@ -9,6 +9,8 @@
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
 
+#include <atomic>
+
 #include <include/cef_browser.h>
 #include <include/cef_client.h>
 
@@ -33,7 +35,8 @@ class CefBrowserWrapper : public QQuickItem
     Q_PROPERTY(int recommendedState READ recommendedState NOTIFY recommendedStateChanged)
     Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor NOTIFY backgroundColorChanged)
     Q_PROPERTY(qreal cornerRadius READ cornerRadius WRITE setCornerRadius NOTIFY cornerRadiusChanged)
-    Q_PROPERTY(bool nativeViewSuppressed READ nativeViewSuppressed WRITE setNativeViewSuppressed NOTIFY nativeViewSuppressedChanged)
+    // while set, keyboard focus stays with the Qt UI (overlays) instead of the page
+    Q_PROPERTY(bool inputSuppressed READ inputSuppressed WRITE setInputSuppressed NOTIFY inputSuppressedChanged)
     Q_PROPERTY(CefProfile *profile READ profile WRITE setProfile NOTIFY profileChanged)
     Q_PROPERTY(bool fullScreen READ fullScreen NOTIFY fullScreenChanged)
     Q_PROPERTY(CefBrowserWrapper *devToolsView READ devToolsView WRITE setDevToolsView NOTIFY devToolsViewChanged)
@@ -88,8 +91,8 @@ public:
     void setBackgroundColor(const QColor &color);
     qreal cornerRadius() const { return m_cornerRadius; }
     void setCornerRadius(qreal radius);
-    bool nativeViewSuppressed() const { return m_nativeViewSuppressed; }
-    void setNativeViewSuppressed(bool suppressed);
+    bool inputSuppressed() const { return m_inputSuppressed; }
+    void setInputSuppressed(bool suppressed);
     CefProfile *profile() const { return m_profile; }
     void setProfile(CefProfile *profile);
     bool fullScreen() const { return m_fullScreen; }
@@ -136,6 +139,7 @@ protected:
 private:
     void initializeBrowserHost();
     void updateNativeGeometry();
+    void applyInputSuppression();
 
 signals:
     void urlChanged();
@@ -151,7 +155,7 @@ signals:
     void recommendedStateChanged();
     void backgroundColorChanged();
     void cornerRadiusChanged();
-    void nativeViewSuppressedChanged();
+    void inputSuppressedChanged();
     void profileChanged();
     void devToolsViewChanged();
     void externalBrowserChanged();
@@ -181,7 +185,10 @@ private:
     QColor m_backgroundColor = Qt::white;
     qreal m_cornerRadius = 0;
     qreal m_nativeCornerRadius = -1;
-    bool m_nativeViewSuppressed = false;
+    // read from CefFocusHandler, which may run off the Qt thread
+    std::atomic<bool> m_inputSuppressed = false;
+    // the page had focus when input was suppressed, so give it back after
+    bool m_restoreFocus = false;
     CefProfile *m_profile = nullptr;
     QPointer<CefBrowserWrapper> m_devToolsView;
     bool m_externalBrowser = false;

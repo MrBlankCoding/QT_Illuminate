@@ -23,6 +23,7 @@
 #ifdef __APPLE__
 void cefSetNativeViewGeometry(void *view, const QRect &rect, bool visible); // CefBrowserWrapper_mac.mm
 void cefSetNativeViewCornerRadius(void *view, qreal radius);                // CefBrowserWrapper_mac.mm
+bool cefResignNativeFocus(void *view);                                      // CefBrowserWrapper_mac.mm
 #elif defined(_WIN32)
 #include <windows.h>
 static void cefSetNativeViewGeometry(cef_window_handle_t hwnd, const QRect &rect, bool visible)
@@ -42,6 +43,7 @@ static void cefSetNativeViewGeometry(cef_window_handle_t, const QRect &, bool) {
 
 #ifndef __APPLE__
 static void cefSetNativeViewCornerRadius(cef_window_handle_t, qreal) {}
+static bool cefResignNativeFocus(cef_window_handle_t) { return false; }
 #endif
 
 static QRect toNativeRect(const QRect &rect, const QQuickWindow *window)
@@ -198,13 +200,35 @@ void CefBrowserWrapper::setCornerRadius(qreal radius)
     }
 }
 
-void CefBrowserWrapper::setNativeViewSuppressed(bool suppressed)
+void CefBrowserWrapper::setInputSuppressed(bool suppressed)
 {
-    if (m_nativeViewSuppressed == suppressed)
+    if (m_inputSuppressed == suppressed)
         return;
-    m_nativeViewSuppressed = suppressed;
-    emit nativeViewSuppressedChanged();
-    updateNativeGeometry();
+    m_inputSuppressed = suppressed;
+    emit inputSuppressedChanged();
+    applyInputSuppression();
+}
+
+// The page stays on screen under an overlay; only keyboard focus moves. The
+// native view would otherwise keep receiving keys before Qt sees them.
+void CefBrowserWrapper::applyInputSuppression()
+{
+    if (!m_browser)
+        return;
+    auto host = m_browser->GetHost();
+    if (!host)
+        return;
+
+    if (m_inputSuppressed)
+    {
+        m_restoreFocus = cefResignNativeFocus(host->GetWindowHandle());
+        host->SetFocus(false);
+    }
+    else if (m_restoreFocus)
+    {
+        m_restoreFocus = false;
+        host->SetFocus(true);
+    }
 }
 
 void CefBrowserWrapper::goBack()
@@ -384,6 +408,8 @@ void CefBrowserWrapper::setBrowser(CefRefPtr<CefBrowser> browser)
     if (m_browser)
     {
         updateNativeGeometry();
+        if (m_inputSuppressed)
+            applyInputSuppression();
         if (m_lifecycleState != Active)
         {
             if (auto host = m_browser->GetHost())
@@ -439,7 +465,7 @@ void CefBrowserWrapper::updateGeometry(const QRect &geometry)
     if (!m_browser)
         return;
 
-    const bool visible = !m_nativeViewSuppressed && isVisible() && window() && window()->isVisible();
+    const bool visible = isVisible() && window() && window()->isVisible();
     if (geometry == m_nativeRect && visible == m_nativeVisible)
         return;
 
