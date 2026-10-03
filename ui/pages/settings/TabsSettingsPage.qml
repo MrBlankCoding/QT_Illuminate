@@ -65,6 +65,24 @@ SettingsPage {
     }
 
     SectionHeader {
+        text: "Session"
+    }
+
+    SettingsCard {
+        SettingItem {
+            topDivider: false
+            title: "Restore tabs on launch"
+            description: "Reopens all tabs from the previous session when the app starts."
+
+            SettingSwitch {
+                id: sessionRestoreSwitch
+                checked: Prefs.startupBehavior === "session"
+                onToggled: Prefs.startupBehavior = sessionRestoreSwitch.checked ? "newtab" : "session"
+            }
+        }
+    }
+
+    SectionHeader {
         text: "Closing"
     }
 

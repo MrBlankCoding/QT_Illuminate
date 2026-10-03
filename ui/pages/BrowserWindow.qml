@@ -35,7 +35,6 @@ Window {
     }
 
     onContentFullScreenChanged: {
-        // views torn down on the way out must not re-show the window
         if (root.retiring)
             return;
         if (contentFullScreen) {
@@ -63,7 +62,6 @@ Window {
         if (root.visibility === Window.FullScreen)
             root.contentFullScreenShown = true;
         else if (root.contentFullScreenShown && viewStack.activeWebView)
-            // user left macOS fullscreen (green button, Ctrl+Cmd+F): end the page's too
             viewStack.activeWebView.exitFullScreen();
     }
 
@@ -98,7 +96,6 @@ Window {
     property Window settingsWindow: null
     property bool skipCloseConfirm: false
     property bool replacedByNewWindow: false
-    // set while this window is being replaced: its tab views are torn down
     property bool retiring: false
     signal windowClosed
 
@@ -113,13 +110,8 @@ Window {
 
     onClosing: function(close) {
         if (root.skipCloseConfirm || !Browser.confirmCloseRequired()) {
-            // A window that is merely being replaced is not the user closing the
-            // browser, so the profile picker waiting on windowClosed must not
-            // bring itself back on top of the replacement.
             if (!root.replacedByNewWindow)
                 root.windowClosed()
-            // a closed window is never shown again; left alive it would keep
-            // creating views for the shared tab model and reacting to menus
             Browser.releaseWindow(root)
             return;
         }
@@ -191,7 +183,6 @@ Window {
         if (!picker)
             return;
         Browser.adoptWindow(picker);
-        // before retiring, so the app never has a moment with no window
         picker.show();
         picker.raise();
         picker.requestActivate();
@@ -201,7 +192,6 @@ Window {
     Dialog {
         id: closeDialog
         title: "Close window?"
-        // own native window: the page's CEF view would cover an in-scene popup
         popupType: Popup.Window
         x: Math.round((root.width - width) / 2)
         y: Math.round((root.height - height) / 2)
@@ -271,7 +261,6 @@ Window {
         id: aboutDialog
         title: "About " + Qt.application.name
         popupType: Popup.Window
-        // Popup isn't an Item, so position it by hand
         x: Math.round((root.width - width) / 2)
         y: Math.round((root.height - height) / 2)
         modal: true
@@ -642,12 +631,12 @@ Window {
 
     ThemePicker {
         id: themePicker
-        x: root.width - themePicker.width - 20 // 20px from right edge
-        y: 20 // 20px from top edge
-        // Set a reasonable implicit width/height if not explicitly defined by content
-        // These values can be adjusted based on the actual content size of ThemePicker.qml
-        width: 400
-        height: 550
+        popupType: Popup.Window
+        x: dock.fullWidth + Theme.cardMargin - 6
+        y: Math.max(8, Math.round((root.height - implicitHeight) / 2))
+
+        showArrow: true
+        arrowOffset: 0
     }
 
     // frameless windows lose the native resize border

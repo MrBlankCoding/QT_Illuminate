@@ -387,6 +387,7 @@ foreach(_f
     ui/icons/lock.svg
     ui/icons/activity.svg
     ui/icons/minus.svg
+    ui/icons/monitor.svg
     ui/icons/moon.svg
     ui/icons/more-vertical.svg
     ui/icons/panel-left.svg
@@ -471,6 +472,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/icons/lock.svg
         ui/icons/activity.svg
         ui/icons/minus.svg
+        ui/icons/monitor.svg
         ui/icons/moon.svg
         ui/icons/more-vertical.svg
         ui/icons/panel-left.svg
