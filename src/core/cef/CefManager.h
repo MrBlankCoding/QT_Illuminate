@@ -17,6 +17,8 @@ public:
     // Runs CEF sub-processes (renderer, GPU, ...) when this binary was launched
     // as one. Must be called first thing in main(), before QApplication exists.
     // Returns >= 0 if this was a sub-process and main() should exit with it.
+    // Defined as NO_STACK_PROTECTOR (base/cef_compiler_specific.h) because CEF
+    // changes the stack canary while this runs, and main() is annotated likewise.
     static int executeProcess(int argc, char **argv);
 
     static bool initialize(int argc, char **argv);

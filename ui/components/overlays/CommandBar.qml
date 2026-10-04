@@ -43,7 +43,7 @@ Popup {
     width: Math.min(root.preferredWidth, parent.width - 32)
     height: Math.min(root.preferredHeight, parent.height - 32)
     x: Math.round((parent.width - width) / 2)
-    y: Math.max(16, Math.round((parent.height - root.compactHeight) / 2))
+    y: Math.max(16, Math.round((parent.height - height) / 2))
 
     function resetState() {
         rebuildTimer.stop();

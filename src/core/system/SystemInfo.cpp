@@ -122,11 +122,16 @@ void SystemInfo::detectHardware()
     else
         m_cpuTier = "high";
 
-    // Build chromium flags based on hardware profile
     QStringList flags;
 
-    // always disable heavy features
-    flags << "--disable-features=SpareRendererForSitePerProcess,IntensiveDisking,RendererCodeIntegrity,AutoplayIgnoreWebPreferences,InterestGroupBidding";
+    QStringList disabledFeatures;
+    disabledFeatures << "SpareRendererForSitePerProcess" << "IntensiveDisking"
+                     << "RendererCodeIntegrity" << "AutoplayIgnoreWebPreferences"
+                     << "InterestGroupBidding";
+
+    // Glic's actor UI assumes every WebContents already belongs to a tab and
+    // dereferences a null TabInterface on the first tab we create (cef#4234).
+    disabledFeatures << "GlicActorUi";
 
     // process model
     flags << "--process-per-site";
@@ -158,12 +163,9 @@ void SystemInfo::detectHardware()
     // disk cache limit (MB -> bytes)
     flags << "--disk-cache-size=" + QString::number(m_httpCacheLimitMB * 1024 * 1024);
 
-    // third-party cookie handling: Chromium 138 blocks third-party cookies in
-    // some modes by default. Allow them so embedded logins (Google SSO, OAuth)
-    // that depend on cross-site cookies work across the whole browser.
-    // Disable the ThirdPartyCookieBlocking and ThirdPartyCookieBlockingOnStartup
-    // features explicitly (no-op on builds without them).
-    flags << "--disable-features=ThirdPartyCookieBlocking,ThirdPartyCookieBlockingOnStartup";
+    // disable 3rd party cookies unless explicitly toggled
+    disabledFeatures << "ThirdPartyCookieBlocking" << "ThirdPartyCookieBlockingOnStartup";
+    flags << "--disable-features=" + disabledFeatures.join(QLatin1Char(','));
 
     m_chromiumFlags = flags;
 

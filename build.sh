@@ -481,9 +481,6 @@ prune_release_macpayload() {
     rm -f "$quick"/libqtquicktimeline*.dylib "$quick"/libqtquickscene2dplugin.dylib \
           "$quick"/libqtquickscene3dplugin.dylib "$quick"/libquicktoolingplugin.dylib \
           "$quick"/libqtqmlstatemachineplugin.dylib
-    # The QML module dirs must go too: their qmldir/plugin dylib symlinks point
-    # at the plugins just removed, leaving dangling symlinks that fail the
-    # dangling-link check below.
     rm -rf "${qml:?}/QtQml/StateMachine" "${qml:?}/QtQml/Timeline" \
            "${qml:?}/QtQuick/Scene2D" "${qml:?}/QtQuick/Scene3D"
     echo "  pruned timeline/scene2d/scene3d/tooling/statemachine plugins"
@@ -651,6 +648,20 @@ if [[ -n "${CEF_ROOT:-}" ]]; then
 else
     echo "✗ CEF_ROOT is not set and CEF was not found. Run ./install-cef.sh first."
     exit 1
+fi
+
+if (( IS_LINUX )); then
+    for _cef_lib_dir in "$CEF_ROOT/Release" "$CEF_ROOT/Debug"; do
+        if [[ -d "$_cef_lib_dir" ]]; then
+            for _cef_file in icudtl.dat resources.pak chrome_100_percent.pak chrome_200_percent.pak; do
+                if [[ -f "$CEF_ROOT/Resources/$_cef_file" ]] \
+                        && [[ ! -f "$_cef_lib_dir/$_cef_file" ]]; then
+                    echo "→ Copying $_cef_file to $_cef_lib_dir"
+                    cp "$CEF_ROOT/Resources/$_cef_file" "$_cef_lib_dir/$_cef_file"
+                fi
+            done
+        fi
+    done
 fi
 
 # ── Configure ────────────────────────────────────────────────────────────────

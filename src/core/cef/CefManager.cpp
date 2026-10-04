@@ -1,6 +1,7 @@
 #include "CefManager.h"
 #include "../utils/cef_helpers.h"
 #include "../utils/BrowserLogger.h"
+#include <include/base/cef_compiler_specific.h>
 #include "CefProfile.h"
 #include <include/cef_browser.h>
 #include "SystemInfo.h"
@@ -30,7 +31,8 @@ void CefManager::setChromiumFlags(const QStringList &flags)
     s_extraFlags = flags;
 }
 
-int CefManager::executeProcess(int argc, char **argv)
+// (cef#3912).
+NO_STACK_PROTECTOR int CefManager::executeProcess(int argc, char **argv)
 {
 #if defined(OS_WIN)
     Q_UNUSED(argc);

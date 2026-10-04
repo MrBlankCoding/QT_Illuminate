@@ -18,6 +18,7 @@
 #include "core/profiles/ProfileManager.h"
 #include "core/system/SystemInfo.h"
 #include "utils/BrowserLogger.h"
+#include <include/base/cef_compiler_specific.h>
 
 #include <QByteArray>
 #include <memory>
@@ -134,7 +135,8 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 }
 #endif
 
-int main(int argc, char *argv[])
+// base/cef_compiler_specific.h, cef#3912).
+NO_STACK_PROTECTOR int main(int argc, char *argv[])
 {
     // CEF can launch before our application
     const int subprocessExitCode = CefManager::executeProcess(argc, argv);
