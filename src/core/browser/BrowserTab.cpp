@@ -1,5 +1,6 @@
 #include "BrowserTab.h"
 #include "CefProfile.h"
+#include "CefBrowserWrapper.h"
 
 BrowserTab::BrowserTab(CefProfile *profile, QObject *parent) : QObject(parent)
 {
@@ -72,4 +73,33 @@ void BrowserTab::setSuspended(bool suspended)
 void BrowserTab::requestLoad(const QUrl &url)
 {
     emit loadRequested(url);
+}
+
+void BrowserTab::cut()
+{
+    if (m_cefBrowserWrapper)
+        m_cefBrowserWrapper->runJavaScript("document.execCommand('cut')");
+}
+
+void BrowserTab::copy()
+{
+    if (m_cefBrowserWrapper)
+        m_cefBrowserWrapper->triggerWebAction(CefBrowserWrapper::WebAction::Copy);
+}
+
+void BrowserTab::paste()
+{
+    if (m_cefBrowserWrapper)
+        m_cefBrowserWrapper->triggerWebAction(CefBrowserWrapper::WebAction::Paste);
+}
+
+void BrowserTab::selectAll()
+{
+    if (m_cefBrowserWrapper)
+        m_cefBrowserWrapper->runJavaScript("document.execCommand('selectAll')");
+}
+
+void BrowserTab::setCefBrowserWrapper(CefBrowserWrapper *wrapper)
+{
+    m_cefBrowserWrapper = wrapper;
 }

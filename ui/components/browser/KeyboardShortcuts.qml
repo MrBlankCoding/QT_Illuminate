@@ -147,6 +147,18 @@ Item {
         case "window.zoom":
             root.windowRequested("zoom")
             return
+        case "edit.cut":
+            root.browser.cut()
+            return
+        case "edit.copy":
+            root.browser.copy()
+            return
+        case "edit.paste":
+            root.browser.paste()
+            return
+        case "edit.selectAll":
+            root.browser.selectAll()
+            return
         }
 
         console.warn("KeyboardShortcuts", "No handler for action: " + id)
@@ -159,6 +171,7 @@ Item {
         }
     }
 
+    // tabs
     Shortcut {
         context: Qt.WindowShortcut
         sequences: root.shortcuts.bindings.newTab
@@ -266,6 +279,32 @@ Item {
         sequences: root.shortcuts.bindings.findPrevious
         enabled: root.findBar.visible
         onActivated: root.perform("page.findPrevious")
+    }
+
+    // editing acts on the page, so the find bar keeps the usual copy/paste keys
+    Shortcut {
+        context: Qt.WindowShortcut
+        enabled: !root.findBar.visible
+        sequences: root.shortcuts.bindings.cut
+        onActivated: root.perform("edit.cut")
+    }
+    Shortcut {
+        context: Qt.WindowShortcut
+        enabled: !root.findBar.visible
+        sequences: root.shortcuts.bindings.copy
+        onActivated: root.perform("edit.copy")
+    }
+    Shortcut {
+        context: Qt.WindowShortcut
+        enabled: !root.findBar.visible
+        sequences: root.shortcuts.bindings.paste
+        onActivated: root.perform("edit.paste")
+    }
+    Shortcut {
+        context: Qt.WindowShortcut
+        enabled: !root.findBar.visible
+        sequences: root.shortcuts.bindings.selectAll
+        onActivated: root.perform("edit.selectAll")
     }
 
     // inspect element

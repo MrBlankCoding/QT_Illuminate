@@ -224,7 +224,7 @@ void CefBrowserWrapper::applyInputSuppression()
         m_restoreFocus = cefResignNativeFocus(host->GetWindowHandle());
         host->SetFocus(false);
     }
-    else if (m_restoreFocus)
+    else
     {
         m_restoreFocus = false;
         host->SetFocus(true);

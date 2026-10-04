@@ -75,6 +75,11 @@ QList<ShortcutRegistry::Command> ShortcutRegistry::buildTable()
     add("Application", "closeWindow", "Close window", {QStringLiteral("Ctrl+Shift+W")});
     add("Application", "quit", "Quit", {QStringLiteral("Ctrl+Q")});
 
+    add("Edit", "cut", "Cut", {standard(QKeySequence::StandardKey::Cut)});
+    add("Edit", "copy", "Copy", {standard(QKeySequence::StandardKey::Copy)});
+    add("Edit", "paste", "Paste", {standard(QKeySequence::StandardKey::Paste)});
+    add("Edit", "selectAll", "Select All", {standard(QKeySequence::StandardKey::SelectAll)});
+
     return table;
 }
 
@@ -88,8 +93,6 @@ const ShortcutRegistry::Command *ShortcutRegistry::find(const QString &commandId
     return nullptr;
 }
 
-// QKeySequence accepts several spellings of the same combination ("Ctrl+Shift+C",
-// "Meta+C", ...); normalizing means a duplicate is recognised however it arrives
 QString ShortcutRegistry::normalize(const QString &sequence)
 {
     if (sequence.isEmpty())
@@ -195,11 +198,11 @@ QString ShortcutRegistry::commandUsing(const QString &sequence, const QString &e
 
 bool ShortcutRegistry::setSequence(const QString &commandId, const QString &sequence)
 {
-    if (!find(commandId))
+    const Command *command = find(commandId);
+    if (!command)
         return false;
 
     const QString normalized = normalize(sequence);
-    const Command *command = find(commandId);
 
     // rebinding to a default is the same as never having changed it
     if (normalized.isEmpty() || command->defaults.contains(normalized))

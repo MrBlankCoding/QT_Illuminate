@@ -73,6 +73,10 @@ public:
     Q_INVOKABLE void goForward();
     Q_INVOKABLE void toggleDevTools();
     Q_INVOKABLE void copyActiveUrl() const;
+    Q_INVOKABLE void cut();
+    Q_INVOKABLE void copy();
+    Q_INVOKABLE void paste();
+    Q_INVOKABLE void selectAll();
     Q_INVOKABLE void saveSession() const;
     Q_INVOKABLE QString createCustomTheme(const QString &name, const QVariantMap &colors);
     Q_INVOKABLE bool updateCustomTheme(const QString &id, const QString &name, const QVariantMap &colors);

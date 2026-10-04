@@ -156,6 +156,30 @@ void BrowserController::copyActiveUrl() const
         return;
     QGuiApplication::clipboard()->setText(url);
 }
+
+void BrowserController::cut()
+{
+    if (auto *t = m_model->tabAt(m_model->activeIndex()))
+        t->cut();
+}
+
+void BrowserController::copy()
+{
+    if (auto *t = m_model->tabAt(m_model->activeIndex()))
+        t->copy();
+}
+
+void BrowserController::paste()
+{
+    if (auto *t = m_model->tabAt(m_model->activeIndex()))
+        t->paste();
+}
+
+void BrowserController::selectAll()
+{
+    if (auto *t = m_model->tabAt(m_model->activeIndex()))
+        t->selectAll();
+}
 QString BrowserController::activeTitle() const
 {
     if (auto *t = m_model->tabAt(m_model->activeIndex()))

@@ -1,9 +1,11 @@
 #pragma once
 
 #include <QObject>
+#include <QPointer>
 #include <QUrl>
 #include <QString>
 
+class CefBrowserWrapper;
 class CefProfile;
 
 // represents a tab.
@@ -31,6 +33,13 @@ public:
     void setRenderProcessPid(qint64 pid);
     void setSuspended(bool suspended);
 
+    void cut();
+    void copy();
+    void paste();
+    void selectAll();
+
+    void setCefBrowserWrapper(CefBrowserWrapper *wrapper);
+
     // navigate time!
     // emits loadRequested.
     void requestLoad(const QUrl &url);
@@ -53,4 +62,5 @@ private:
     bool m_loading = false;
     qint64 m_renderProcessPid = 0;
     bool m_suspended = false;
+    QPointer<CefBrowserWrapper> m_cefBrowserWrapper;
 };

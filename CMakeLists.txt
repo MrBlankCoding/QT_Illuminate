@@ -29,16 +29,7 @@ else()
     message(STATUS "Qt6::Pdf not found - PDF printing via QPdfDocument is disabled")
 endif()
 
-include(FetchContent)
-set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-FetchContent_Declare(
-    QHotkey
-    GIT_REPOSITORY https://github.com/Skycoder42/QHotkey.git
-    GIT_TAG 1.5.0
-    SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/qhotkey-src"
-)
-FetchContent_MakeAvailable(QHotkey)
-unset(CMAKE_POLICY_VERSION_MINIMUM)  # restore for the rest of our project
+
 if(DEFINED ENV{CEF_ROOT})
     set(CEF_ROOT $ENV{CEF_ROOT})
 elseif(DEFINED CEF_ROOT)
@@ -47,12 +38,6 @@ endif()
 
 if(CEF_ROOT)
     if(WIN32 AND NOT DEFINED CEF_RUNTIME_LIBRARY_FLAG)
-        # CEF defaults to the static CRT (/MT); Qt and this project build
-        # against the dynamic one (/MD), and mixing them fails at link time.
-        # Set before find_package(CEF): the distribution's
-        # `set(... CACHE ...)` then keeps this value. Also note that a
-        # leading-slash flag cannot be passed as -D from Git Bash — MSYS
-        # rewrites it into a path.
         set(CEF_RUNTIME_LIBRARY_FLAG "/MD" CACHE STRING "CEF MSVC runtime flag")
     endif()
     list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
@@ -378,10 +363,6 @@ if(WIN32 AND CEF_COMPILER_DEFINES)
     target_compile_definitions(QT_Illuminatemodule PUBLIC ${_cef_defines})
 endif()
 
-target_link_libraries(QT_Illuminatemodule PRIVATE QHotkey::QHotkey)
-
-# Strip the "ui/" prefix from resource aliases so files mount at
-# qrc:/QT_Illuminate/ui/<path> instead of qrc:/QT_Illuminate/ui/ui/<path>.
 foreach(_f
     ui/Theme.qml
     ui/pages/BrowserWindow.qml

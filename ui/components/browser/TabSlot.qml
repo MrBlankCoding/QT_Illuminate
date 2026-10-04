@@ -147,6 +147,10 @@ Item {
                 cornerRadius: tabSlot.viewStack.cornerRadius
                 Component.onCompleted: {
                     Logger.debug("WebView", "Tab " + tabSlot.index + " created");
+                    const browserTab = Browser.tabModel.tabAt(tabSlot.index);
+                    if (browserTab) {
+                        browserTab.setCefBrowserWrapper(webView);
+                    }
                 }
 
                 onLoadingChanged: function () {
