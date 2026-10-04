@@ -129,20 +129,17 @@ void SystemInfo::detectHardware()
                      << "RendererCodeIntegrity" << "AutoplayIgnoreWebPreferences"
                      << "InterestGroupBidding";
 
-    // Glic's actor UI assumes every WebContents already belongs to a tab and
-    // dereferences a null TabInterface on the first tab we create (cef#4234).
     disabledFeatures << "GlicActorUi";
-
-    // process model
     flags << "--process-per-site";
 
     // GPU config
     if (m_forceGpu)
-        flags << "--ignore-gpu-blocklist" << "--force_high_performance_gpu";
+        flags << "--ignore-gpu-blocklist";
     if (m_gpuRasterization)
         flags << "--enable-gpu-rasterization";
     else
         flags << "--disable-gpu-rasterization";
+    flags << "--disable-gpu-sandbox";
 
     // memory savings for low-end devices
     if (m_lowEndDevice)

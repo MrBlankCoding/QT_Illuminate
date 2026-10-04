@@ -13,8 +13,10 @@
 #include <QCoreApplication>
 #include <QKeyEvent>
 #include <QList>
+#include <QMetaObject>
 #include <QObject>
 #include <QString>
+#include <QThread>
 
 namespace {
 
@@ -141,6 +143,16 @@ bool replayIntoWindowShortcuts(QWindow *window, Qt::Key key, Qt::KeyboardModifie
 {
     if (!window)
         return false;
+
+    if (QThread::currentThread() != QCoreApplication::instance()->thread())
+    {
+        bool result = false;
+        QMetaObject::invokeMethod(
+            QCoreApplication::instance(),
+            [&]() { result = replayIntoWindowShortcuts(window, key, modifiers); },
+            Qt::BlockingQueuedConnection);
+        return result;
+    }
 
     ShortcutActivationSpy spy;
     bool anyShortcut = false;
