@@ -11,13 +11,17 @@ Item {
     signal tileClicked
     signal tileRightClicked(var position)
 
-    Rectangle {
+    Item {
         anchors.fill: parent
-        radius: 12
-        color: hoverArea.containsMouse ? Qt.alpha(Theme.accent, 0.12) : "transparent"
-        Behavior on color {
-            ColorAnimation {
-                duration: Theme.durationFast
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 12
+            color: hoverArea.containsMouse ? Qt.alpha(Theme.accent, 0.12) : "transparent"
+            Behavior on color {
+                ColorAnimation {
+                    duration: Theme.durationFast
+                }
             }
         }
     }

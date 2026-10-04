@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Window
 import QT_Illuminate.ui
 
 pragma ComponentBehavior: Bound
@@ -145,15 +144,19 @@ Item {
         }
 
         // "+ New Tab", styled as a tab row above the open tabs
-        Rectangle {
+        Item {
             id: newTabRow
             Layout.fillWidth: true
             Layout.preferredHeight: Theme.tabRowHeight
-            radius: Theme.radiusTab
-            color: newTabTap.pressed ? Theme.itemPressed : newTabHover.hovered ? Theme.itemHover : "transparent"
             scale: newTabTap.pressed ? Theme.pressScale : 1
-            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
             Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.radiusTab
+                color: newTabTap.pressed ? Theme.itemPressed : newTabHover.hovered ? Theme.itemHover : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            }
 
             RowLayout {
                 anchors.fill: parent
@@ -233,8 +236,9 @@ Item {
             }
 
             delegate: TabItem {
+                id: tabItemDelegate
                 width: tabList.width
-                height: tabUrl === "newtab://newtab" ? 0 : Theme.tabRowHeight
+                height: tabItemDelegate.tabUrl === "newtab://newtab" ? 0 : Theme.tabRowHeight
                 tabCount: tabList.count
                 isActive: index === Browser.tabModel.activeIndex
                 z: dragging ? 2 : 1

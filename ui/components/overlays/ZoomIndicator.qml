@@ -18,8 +18,8 @@ Popup {
     padding: 0
     width: row.implicitWidth + 14
     height: 30
-    x: parent.width - width - 16
-    y: parent.height - height - 16
+    x: parent ? parent.width - width - 16 : 0
+    y: parent ? parent.height - height - 16 : 0
     visible: webView && zoomPercent !== 100
 
     function zoomBy(delta) {

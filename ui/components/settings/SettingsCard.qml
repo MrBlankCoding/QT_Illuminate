@@ -8,6 +8,7 @@ Rectangle {
     default property alias content: column.data
 
     Layout.fillWidth: true
+    implicitWidth: column.implicitWidth
     implicitHeight: column.implicitHeight
     radius: 10
     color: Theme.surface

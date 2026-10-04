@@ -12,8 +12,8 @@ Item {
     property int rightPadding: 20
     property int topPadding: 8
     property int bottomPadding: 8
-    readonly property bool hovered: mouseArea.containsMouse
-    readonly property bool pressed: mouseArea.pressed
+    readonly property bool hovered: hoverHandler.hovered
+    readonly property bool pressed: tapHandler.pressed
 
     signal clicked
 
@@ -51,12 +51,13 @@ Item {
     Keys.onReturnPressed: root.clicked()
     Keys.onSpacePressed: root.clicked()
 
-    MouseArea {
-        id: mouseArea
-        anchors.fill: parent
-        acceptedButtons: Qt.LeftButton
-        hoverEnabled: true
+    HoverHandler {
+        id: hoverHandler
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
+    }
+
+    TapHandler {
+        id: tapHandler
+        onTapped: root.clicked()
     }
 }

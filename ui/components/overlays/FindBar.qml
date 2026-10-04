@@ -15,10 +15,12 @@ Popup {
     modal: false
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    x: parent.width - width - 16
+    x: parent ? parent.width - width - 16 : 0
     y: 8
-    width: 300
-    height: 40
+    implicitWidth: 300
+    implicitHeight: 40
+    width: implicitWidth
+    height: implicitHeight
     padding: 0
 
     Timer {
@@ -96,6 +98,7 @@ Popup {
 
     Connections {
         target: input.Window.window
+        enabled: input.Window.window !== null
         function onActiveChanged() {
             if (input.Window.window && input.Window.window.active) {
                 input.Window.window.raise();
@@ -106,6 +109,7 @@ Popup {
 
     Connections {
         target: root.webView
+        enabled: root.webView !== null
         function onFindTextFinished(numberOfMatches, activeMatchOrdinal, finalUpdate) {
             root.matchCount = numberOfMatches;
             root.activeMatch = numberOfMatches > 0 ? activeMatchOrdinal : 0;

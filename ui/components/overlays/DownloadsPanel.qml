@@ -13,7 +13,7 @@ Popup {
     modal: false
     focus: true
     closePolicy: Popup.NoAutoClose
-    x: parent.width - width - 16
+    x: parent ? parent.width - width - 16 : 0
     y: 52
     width: 320
     height: 360
@@ -105,6 +105,7 @@ Popup {
         delegate: Connections {
             required property var downloadObj
             target: downloadObj
+            enabled: Boolean(downloadObj)
 
             // totalBytes and receivedBytes share one notify signal
             function onProgressChanged() {
@@ -210,6 +211,8 @@ Popup {
 
                             Text {
                                 text: row.fileName
+                                textFormat: Text.PlainText
+                                font.preferShaping: false
                                 color: Theme.text
                                 font.pixelSize: Theme.fontSizeS
                                 font.family: Theme.fontFamily
@@ -252,6 +255,8 @@ Popup {
 
                         Text {
                             text: root.statusText(row.downloadState, row.receivedBytes, row.totalBytes)
+                            textFormat: Text.PlainText
+                            font.preferShaping: false
                             color: Theme.textMuted
                             font.pixelSize: Theme.fontSizeS
                             font.family: Theme.fontFamily

@@ -98,7 +98,7 @@ ComboBox {
             clip: true
             implicitHeight: contentHeight
             model: root.popup.visible ? root.delegateModel : null
-            currentIndex: root.highlightedIndex
+            currentIndex: count > 0 ? Math.min(Math.max(0, root.highlightedIndex), count - 1) : -1
             boundsBehavior: Flickable.StopAtBounds
             ScrollIndicator.vertical: ScrollIndicator {}
         }

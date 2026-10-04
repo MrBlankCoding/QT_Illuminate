@@ -8,17 +8,19 @@ pragma ComponentBehavior: Bound
 // one per tab: the internal page or the web view (+ devtools)
 Item {
     id: tabSlot
+    property var browserContext: Browser
     required property int index
     required property var model
     required property var browserWindow
     required property var viewStack
     anchors.fill: parent
-    visible: index === Browser.tabModel.activeIndex
+    visible: index === (browserContext ? browserContext.tabModel.activeIndex : -1)
 
     readonly property bool isInternalPage: InternalPages.isInternal(model.url.toString())
-    onIsInternalPageChanged: if (isInternalPage) Browser.onRenderProcessPidChanged(index, 0)
+    onIsInternalPageChanged: if (isInternalPage && browserContext) browserContext.onRenderProcessPidChanged(index, 0)
     function syncRenderPid() {
-        Browser.onRenderProcessPidChanged(tabSlot.index, tabSlot.webView ? tabSlot.webView.renderProcessPid : 0)
+        if (browserContext)
+            browserContext.onRenderProcessPidChanged(tabSlot.index, tabSlot.webView ? tabSlot.webView.renderProcessPid : 0)
     }
 
     readonly property int discardAfterMs: Prefs.autoUnloadEnabled
@@ -113,7 +115,7 @@ Item {
         active: tabSlot.isInternalPage
         visible: tabSlot.isInternalPage
         source: tabSlot.isInternalPage ? InternalPages.qmlSource(tabSlot.model.url.toString()) : ""
-        onLoaded: Browser.onTitleChanged(tabSlot.index, InternalPages.title(tabSlot.model.url.toString()))
+        onLoaded: if (tabSlot.browserContext) tabSlot.browserContext.onTitleChanged(tabSlot.index, InternalPages.title(tabSlot.model.url.toString()))
     }
 
     Loader {
@@ -135,10 +137,10 @@ Item {
             CefBrowser {
                 id: webView
                 anchors.fill: parent
-                profile: Browser.webProfile
-                visible: tabSlot.index === Browser.tabModel.activeIndex
+                profile: tabSlot.browserContext ? tabSlot.browserContext.webProfile : null
+                visible: tabSlot.index === (tabSlot.browserContext ? tabSlot.browserContext.tabModel.activeIndex : -1)
                 inputSuppressed: tabSlot.browserWindow.inputOverlayOpen
-                    && tabSlot.index === Browser.tabModel.activeIndex
+                    && tabSlot.index === (tabSlot.browserContext ? tabSlot.browserContext.tabModel.activeIndex : -1)
                 lifecycleState: webView.visible
                     ? CefBrowser.Active
                     : (tabSlot.discardable ? CefBrowser.Discarded : CefBrowser.Frozen)
@@ -147,14 +149,15 @@ Item {
                 cornerRadius: tabSlot.viewStack.cornerRadius
                 Component.onCompleted: {
                     Logger.debug("WebView", "Tab " + tabSlot.index + " created");
-                    const browserTab = Browser.tabModel.tabAt(tabSlot.index);
+                    const browserTab = tabSlot.browserContext ? tabSlot.browserContext.tabModel.tabAt(tabSlot.index) : null;
                     if (browserTab) {
                         browserTab.setCefBrowserWrapper(webView);
                     }
                 }
 
                 onLoadingChanged: function () {
-                    Browser.onLoadingChanged(tabSlot.index, webView.loading);
+                    if (tabSlot.browserContext)
+                        tabSlot.browserContext.onLoadingChanged(tabSlot.index, webView.loading);
                     tabSlot.syncRenderPid();
                     if (webView.loading)
                         Logger.debug("WebView", "Tab " + tabSlot.index + " loading");
@@ -180,16 +183,18 @@ Item {
                 }
 
                 onUrlChanged: function () {
-                    Browser.onUrlChanged(tabSlot.index, webView.url.toString());
+                    if (tabSlot.browserContext)
+                        tabSlot.browserContext.onUrlChanged(tabSlot.index, webView.url.toString());
                 }
 
-                onLoadProgressChanged: function (p) { Browser.onLoadProgressChanged(tabSlot.index, p) }
+                onLoadProgressChanged: function (p) { if (tabSlot.browserContext) tabSlot.browserContext.onLoadProgressChanged(tabSlot.index, p) }
                 onRenderProcessPidChanged: tabSlot.syncRenderPid()
-                onTitleChanged: Browser.onTitleChanged(tabSlot.index, webView.title)
-                onIconChanged: Browser.onIconUrlChanged(tabSlot.index, webView.icon.toString())
+                onTitleChanged: if (tabSlot.browserContext) tabSlot.browserContext.onTitleChanged(tabSlot.index, webView.title)
+                onIconChanged: if (tabSlot.browserContext) tabSlot.browserContext.onIconUrlChanged(tabSlot.index, webView.icon.toString())
 
                 onNewWindowRequested: function (url) {
-                    Browser.onNewWindowRequested(tabSlot.index, url.toString());
+                    if (tabSlot.browserContext)
+                        tabSlot.browserContext.onNewWindowRequested(tabSlot.index, url.toString());
                 }
 
                 // pages calling window.print() open the system print dialog
@@ -218,7 +223,7 @@ Item {
                 }
 
                 Connections {
-                    target: Browser
+                    target: tabSlot.browserContext
                     function onLoadRequested(tabIndex, url) {
                         if (tabIndex !== tabSlot.index)
                             return;
@@ -226,7 +231,7 @@ Item {
                             webLoader.item.url = url;
                     }
                     function onNavigationRequested(action) {
-                        if (tabSlot.index !== Browser.tabModel.activeIndex)
+                        if (!tabSlot.browserContext || tabSlot.index !== tabSlot.browserContext.tabModel.activeIndex)
                             return;
                         if (action === "back")
                             webView.goBack();

@@ -76,12 +76,5 @@ Item {
             Layout.minimumWidth: Math.min(root.controlItem ? root.controlItem.implicitWidth : 0, 120)
             implicitHeight: root.controlItem ? root.controlItem.implicitHeight : 0
         }
-
-        Binding {
-            target: root.controlItem
-            property: "width"
-            value: slot.width
-            when: root.controlItem !== null
-        }
     }
 }

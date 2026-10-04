@@ -5,6 +5,8 @@ import QtQuick.Layouts
 import QtQuick.Shapes
 import QT_Illuminate.ui
 
+pragma ComponentBehavior: Bound
+
 Popup {
     id: root
 

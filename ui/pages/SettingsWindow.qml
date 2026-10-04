@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
-import QtQuick.Window
 import QT_Illuminate.ui
 
 ApplicationWindow {
@@ -35,10 +34,7 @@ ApplicationWindow {
         }
 
         WindowDragRegion {
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: controls.left
+            anchors.fill: parent
         }
 
         Text {
@@ -66,7 +62,7 @@ ApplicationWindow {
         property int currentIndex: 0
         readonly property var sections: ["Startup", "Search", "Privacy", "Tabs", "Shortcuts"]
 
-        anchors.top: header.bottom
+        anchors.top: header.visible ? header.bottom : parent.top
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         width: 168
@@ -106,7 +102,7 @@ ApplicationWindow {
     // content
     Flickable {
         id: flick
-        anchors.top: header.bottom
+        anchors.top: header.visible ? header.bottom : parent.top
         anchors.left: navRoot.right
         anchors.right: parent.right
         anchors.bottom: parent.bottom
@@ -128,14 +124,16 @@ ApplicationWindow {
             y: 32
             x: (flick.width - width) / 2
             width: Math.min(flick.width - 48, 640)
-            height: pages.children[navRoot.currentIndex].implicitHeight
+            height: pageList[navRoot.currentIndex].implicitHeight
             currentIndex: navRoot.currentIndex
 
-            StartupSettingsPage {}
-            SearchSettingsPage {}
-            PrivacySettingsPage {}
-            TabsSettingsPage {}
-            ShortcutsSettingsPage {}
+            readonly property var pageList: [startupPage, searchPage, privacyPage, tabsPage, shortcutsPage]
+
+            StartupSettingsPage { id: startupPage }
+            SearchSettingsPage { id: searchPage }
+            PrivacySettingsPage { id: privacyPage }
+            TabsSettingsPage { id: tabsPage }
+            ShortcutsSettingsPage { id: shortcutsPage }
         }
     }
 

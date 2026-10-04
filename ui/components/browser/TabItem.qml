@@ -10,11 +10,11 @@ Item {
     required property var model
     required property int index
 
-    property string tabTitle: model ? model.title : "New Tab"
-    property string tabIconUrl: model ? model.iconUrl : ""
-    property string tabUrl: model && model.url ? model.url.toString() : ""
-    property bool tabLoading: model ? model.loading : false
-    property bool tabSuspended: model ? model.suspended : false
+    readonly property string tabTitle: model ? model.title : "New Tab"
+    readonly property string tabIconUrl: model ? model.iconUrl : ""
+    readonly property string tabUrl: model && model.url ? model.url.toString() : ""
+    readonly property bool tabLoading: model ? model.loading : false
+    readonly property bool tabSuspended: model ? model.suspended : false
     property bool isActive: false
     property int tabCount: 1      // total tab count, for drag-reorder clamping
     property bool faviconFailed: false
@@ -28,7 +28,11 @@ Item {
     readonly property bool dragging: dragHandler.active
     readonly property bool hovered: hoverHandler.hovered
     onTabIconUrlChanged: faviconFailed = false
-    ListView.onPooled: dragTranslate.y = 0
+    ListView.onPooled: {
+        visible = false
+        dragTranslate.y = 0
+    }
+    ListView.onReused: visible = root.tabUrl !== "newtab://newtab"
 
     transform: Translate {
         id: dragTranslate
@@ -152,6 +156,7 @@ Item {
                 text: root.tabTitle
                 // page-controlled: never interpret markup (it could load remote images)
                 textFormat: Text.PlainText
+                font.preferShaping: false
                 color: root.isActive ? Theme.text : Theme.textMuted
                 opacity: root.tabSuspended ? 0.7 : 1
                 font.pixelSize: Theme.fontSizeM

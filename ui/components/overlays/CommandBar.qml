@@ -109,6 +109,7 @@ Popup {
 
     Connections {
         target: input.Window.window
+        enabled: input.Window.window !== null
         function onActiveChanged() {
             if (input.Window.window && input.Window.window.active) {
                 input.Window.window.raise();
@@ -124,21 +125,32 @@ Popup {
         onActivated: root.close()
     }
 
+    QtObject {
+        id: regexCache
+        readonly property var schemeRegex: /^[a-z][a-z0-9+.-]*:\/\//i
+        readonly property var whitespaceRegex: /\s/
+        readonly property var domainRegex: /^[^.\s]+\.[^\s]+$/
+        readonly property var localhostRegex: /^localhost(:\d+)?(\/|$)/i
+        readonly property var schemePrefixRegex: /^([a-z][a-z0-9+.-]*):/i
+        readonly property var stripSchemeRegex: /^[a-z][a-z0-9+.-]*:\/\/(www\.)?/i
+        readonly property var wordBoundaryRegex: /[\s\/._\-:]/
+    }
+
     function looksLikeUrl(text) {
-        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(text))
+        if (regexCache.schemeRegex.test(text))
             return true;
-        return !/\s/.test(text) && (/^[^.\s]+\.[^\s]+$/.test(text) || /^localhost(:\d+)?(\/|$)/i.test(text));
+        return !regexCache.whitespaceRegex.test(text) && (regexCache.domainRegex.test(text) || regexCache.localhostRegex.test(text));
     }
 
     function isInternalUrl(url) {
-        if (/\s/.test(url))
+        if (regexCache.whitespaceRegex.test(url))
             return false;
-        const m = /^([a-z][a-z0-9+.-]*):/i.exec(url);
+        const m = regexCache.schemePrefixRegex.exec(url);
         return m !== null && root.internalSchemes.indexOf(m[1].toLowerCase()) !== -1;
     }
 
     function stripScheme(url) {
-        return url.replace(/^[a-z][a-z0-9+.-]*:\/\/(www\.)?/i, "");
+        return url.replace(regexCache.stripSchemeRegex, "");
     }
 
     function matchScore(haystack, q) {
@@ -148,7 +160,7 @@ Popup {
             return 0;
         if (i === 0)
             return 3;
-        return /[\s\/._\-:]/.test(h.charAt(i - 1)) ? 2 : 1;
+        return regexCache.wordBoundaryRegex.test(h.charAt(i - 1)) ? 2 : 1;
     }
 
     function makeRow(kind, key, fields) {
@@ -658,6 +670,10 @@ Popup {
                                             source: row.kind === "tab" ? row.iconUrl : ""
                                             visible: status === Image.Ready
                                             asynchronous: true
+                                            onStatusChanged: {
+                                                if (status === Image.Error)
+                                                    source = "";
+                                            }
                                         }
                                         LetterAvatar {
                                             anchors.fill: parent
