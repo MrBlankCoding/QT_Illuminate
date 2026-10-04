@@ -3,9 +3,12 @@
 #include <QDialog>
 #include <QFile>
 #include <QPainter>
-#include <QPdfDocument>
 #include <QPrintDialog>
 #include <QPrinter>
+
+#ifdef QT_ILLUMINATE_HAS_QTPDF
+#include <QPdfDocument>
+#endif
 
 PrintHelper::PrintHelper(QObject *parent)
     : QObject(parent)
@@ -14,6 +17,11 @@ PrintHelper::PrintHelper(QObject *parent)
 
 void PrintHelper::printPdf(const QString &filePath)
 {
+#ifndef QT_ILLUMINATE_HAS_QTPDF
+    // QtPdf is not part of every kit; drop the bridge file CEF wrote for us.
+    Q_UNUSED(filePath);
+    QFile::remove(filePath);
+#else
     QPdfDocument doc;
     if (doc.load(filePath) != QPdfDocument::Error::None || doc.pageCount() == 0)
     {
@@ -57,4 +65,5 @@ void PrintHelper::printPdf(const QString &filePath)
 
     // the file only ever served as a bridge from CEF into this dialog
     QFile::remove(filePath);
+#endif
 }

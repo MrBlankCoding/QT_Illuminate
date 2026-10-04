@@ -15,18 +15,23 @@ fi
 #   ./build.sh --clean --keep-data  # wipe build dir only, keep app data
 #   ./build.sh --package    # Release build + distributable package in dist/
 #                           # (macOS: deployed .app + .dmg, Linux: .tar.gz)
-#
 
 set -euo pipefail
 
-# ── snapshot self, then re-exec the copy ─────────────────────────────────────
-# Bash reads a script incrementally by byte offset, so saving this file while
-# it runs (a 115MB DMG step gives plenty of time) makes bash resume at a stale
-# offset and die on a bogus syntax error in an unrelated line. Re-execing a
-# byte-identical snapshot makes mid-run edits harmless; line numbers still match
-# because the copy is byte-for-byte. The real project dir travels in
-# QT_ILLUMINATE_ROOT, since BASH_SOURCE[0] would otherwise point at the temp
-# file and send SCRIPT_DIR to /tmp.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+        _qt_win_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+        if command -v cygpath >/dev/null 2>&1; then
+            _qt_win_root="$(cygpath -m "$_qt_win_root")"
+            export QT_ILLUMINATE_BASH="$(cygpath -m "$(command -v bash)")"
+        else
+            export QT_ILLUMINATE_BASH="$(command -v bash)"
+        fi
+        exec powershell.exe -NoProfile -ExecutionPolicy Bypass \
+            -File "$_qt_win_root/build.ps1" "$@"
+        ;;
+esac
+
 if [[ -z "${QT_ILLUMINATE_ROOT:-}" ]]; then
     _qt_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
     _qt_snap="$(mktemp "${TMPDIR:-/tmp}/qt_illuminate_build.XXXXXX")"
@@ -606,7 +611,7 @@ if (( ${#MISSING[@]} )); then
         echo "    • Xcode Command Line Tools — xcode-select --install"
         echo "    • cmake and Qt 6 — brew install cmake qt"
         echo "    • CEF binary distribution — set CEF_ROOT to the extracted path"
-        echo "      or install via: https://cef-builds.spotifycdn.com/"
+        echo "      or install via: ./install-cef.sh"
     else
         echo "    • a C++ compiler, cmake and ninja from your distro's packages"
         echo "    • Qt 6 and the CEF binary distribution for your platform"
@@ -674,9 +679,10 @@ if [[ -f "$BUILD_DIR/CMakeCache.txt" ]]; then
     CONFIGURED_CEF="$(sed -n 's/^CEF_ROOT:PATH=//p' "$BUILD_DIR/CMakeCache.txt" 2>/dev/null || true)"
 fi
 
-if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]] || [[ "$CONFIGURED_TYPE" != "$BUILD_TYPE" ]] \
+if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]] \
         || [[ "$CONFIGURED_PREFIX" != "$QT_PREFIX" ]] \
-        || [[ "$CONFIGURED_CEF" != "$CEF_ROOT" ]]; then
+        || [[ "$CONFIGURED_CEF" != "$CEF_ROOT" ]] \
+        || [[ "$CONFIGURED_TYPE" != "$BUILD_TYPE" ]]; then
     NEED_CONFIGURE=1
 elif [[ "$SCRIPT_DIR/CMakeLists.txt" -nt "$BUILD_DIR/CMakeCache.txt" ]]; then
     echo "→ CMakeLists.txt changed since last configure; reconfiguring…"

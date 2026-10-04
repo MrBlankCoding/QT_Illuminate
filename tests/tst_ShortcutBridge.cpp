@@ -20,6 +20,11 @@ class TestShortcutBridge : public QObject
     static constexpr int kVkThree = '3';
     static constexpr uint32_t kCmd = EVENTFLAG_COMMAND_DOWN;
     static constexpr uint32_t kCmdShift = EVENTFLAG_COMMAND_DOWN | EVENTFLAG_SHIFT_DOWN;
+#ifdef Q_OS_MACOS
+    static constexpr uint32_t kPrimary = EVENTFLAG_COMMAND_DOWN;
+#else
+    static constexpr uint32_t kPrimary = EVENTFLAG_CONTROL_DOWN;
+#endif
 
     QObject *m_window = nullptr;
 
@@ -55,7 +60,9 @@ private slots:
         QCOMPARE(ShortcutBridge::modifiersFromCef(EVENTFLAG_CONTROL_DOWN),
                  Qt::KeyboardModifiers(Qt::MetaModifier));
 #else
-        QCOMPARE(ShortcutBridge::modifiersFromCef(EVENTFLAG_CONTROL_DOWN), cmd);
+        QCOMPARE(ShortcutBridge::modifiersFromCef(EVENTFLAG_CONTROL_DOWN),
+                 Qt::KeyboardModifiers(Qt::ControlModifier));
+        QCOMPARE(cmd, Qt::KeyboardModifiers(Qt::MetaModifier));
 #endif
         QCOMPARE(ShortcutBridge::modifiersFromCef(kCmdShift),
                  Qt::KeyboardModifiers(cmd | Qt::ShiftModifier));
@@ -68,14 +75,14 @@ private slots:
             return QKeySequence(QKeyCombination(ShortcutBridge::modifiersFromCef(flags),
                                                 ShortcutBridge::keyFromWindowsKeyCode(vk)));
         };
-        QCOMPARE(combo(kVkT, kCmd), QKeySequence(QStringLiteral("Ctrl+T")));
-        QCOMPARE(combo(kVkUp, kCmd), QKeySequence(QStringLiteral("Ctrl+Up")));
+        QCOMPARE(combo(kVkT, kPrimary), QKeySequence(QStringLiteral("Ctrl+T")));
+        QCOMPARE(combo(kVkUp, kPrimary), QKeySequence(QStringLiteral("Ctrl+Up")));
         QCOMPARE(combo(kVkF12, 0), QKeySequence(QStringLiteral("F12")));
-        QCOMPARE(combo(kVkThree, kCmd), QKeySequence(QStringLiteral("Ctrl+3")));
-        QCOMPARE(combo('I', kCmd | EVENTFLAG_ALT_DOWN), QKeySequence(QStringLiteral("Ctrl+Alt+I")));
+        QCOMPARE(combo(kVkThree, kPrimary), QKeySequence(QStringLiteral("Ctrl+3")));
+        QCOMPARE(combo('I', kPrimary | EVENTFLAG_ALT_DOWN), QKeySequence(QStringLiteral("Ctrl+Alt+I")));
         // Cmd+Shift+F is the letter F, not the F6 function key: only the
         // physical F-key row reports 0x70..0x7B
-        QCOMPARE(combo('F', kCmdShift), QKeySequence(QStringLiteral("Ctrl+Shift+F")));
+        QCOMPARE(combo('F', kPrimary | EVENTFLAG_SHIFT_DOWN), QKeySequence(QStringLiteral("Ctrl+Shift+F")));
     }
 
     void qmlShortcutFiresAndUnmatchedKeysFallThrough()
@@ -86,11 +93,11 @@ private slots:
         QVERIFY(window);
 
         // Cmd+T: the app's own shortcut, must be consumed
-        QVERIFY(ShortcutBridge::dispatchKeyPress(window, kVkT, kCmd));
+        QVERIFY(ShortcutBridge::dispatchKeyPress(window, kVkT, kPrimary));
         QCOMPARE(root->property("activatedCount").toInt(), 1);
 
         // Cmd+K has no shortcut, so Chromium must still see it
-        QVERIFY(!ShortcutBridge::dispatchKeyPress(window, 'K', kCmd));
+        QVERIFY(!ShortcutBridge::dispatchKeyPress(window, 'K', kPrimary));
         QCOMPARE(root->property("activatedCount").toInt(), 1);
 
         // the F12 binding has no modifier
@@ -119,7 +126,7 @@ private slots:
         outgoingWindow->close();
         QCoreApplication::processEvents();
 
-        QVERIFY(ShortcutBridge::dispatchKeyPress(incomingWindow, kVkT, kCmd));
+        QVERIFY(ShortcutBridge::dispatchKeyPress(incomingWindow, kVkT, kPrimary));
         QCOMPARE(incoming->property("activatedCount").toInt(), 1);
 
         delete outgoingWindow;
@@ -133,7 +140,7 @@ private slots:
         QVERIFY(window);
 
         QVERIFY(root->setProperty("findEnabled", false));
-        QVERIFY(!ShortcutBridge::dispatchKeyPress(window, 'G', kCmd));
+        QVERIFY(!ShortcutBridge::dispatchKeyPress(window, 'G', kPrimary));
         QCOMPARE(root->property("activatedCount").toInt(), 0);
     }
 
@@ -142,7 +149,7 @@ private slots:
         QQuickWindow *window = focusedWindow();
         if (!window)
             return;
-        QVERIFY(ShortcutBridge::dispatchKeyPress(window, kVkT, kCmd));
+        QVERIFY(ShortcutBridge::dispatchKeyPress(window, kVkT, kPrimary));
         QCOMPARE(m_window->property("activatedCount").toInt(), 1);
     }
 

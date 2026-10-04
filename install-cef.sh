@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # install-cef.sh — Download and install the Chromium Embedded Framework (CEF)
-# binary distribution for macOS and Linux.
+# binary distribution for macOS, Linux and Windows.
 #
 # Usage:
 #   ./install-cef.sh                     # detect platform, install latest stable
@@ -50,11 +50,37 @@ detect_platform() {
                     ;;
             esac
             ;;
+        MINGW*|MSYS*|CYGWIN*)
+            # Git Bash / MSYS uname reports e.g. MINGW64_NT-10.0-26200
+            case "$arch" in
+                x86_64) echo "windows64" ;;
+                aarch64) echo "windowsarm64" ;;
+                *)
+                    echo "Unsupported Windows arch: $arch" >&2
+                    exit 1
+                    ;;
+            esac
+            ;;
         *)
             echo "Unsupported OS: $os" >&2
             exit 1
             ;;
     esac
+}
+
+# Pick a working python interpreter. On Windows the `python3` on PATH is
+# often just the Microsoft Store stub that exits without running anything,
+# so verify it can actually execute code before trusting it.
+find_python() {
+    local cand
+    for cand in python3 python py; do
+        if command -v "$cand" >/dev/null 2>&1 \
+                && "$cand" -c "import json" >/dev/null 2>&1; then
+            echo "$cand"
+            return 0
+        fi
+    done
+    return 1
 }
 
 # sha1_of <file> — print a SHA-1 hex digest using whatever is available
@@ -114,7 +140,8 @@ for v in versions:
         name = f["name"]
         if not name.endswith(".tar.bz2"):
             continue
-        if "_tools" in name or "_client" in name or "_minimal" in name or "_release_symbols" in name:
+        if "_tools" in name or "_client" in name or "_minimal" in name \
+                or "_release_symbols" in name or "_debug_symbols" in name:
             continue
         # skip platform-specific sub-arches (e.g. linux64 vs linuxarm64)
         if "_arm64" in name and platform == "linux64":
@@ -131,13 +158,17 @@ cef_ver, chr_ver, name, size, sha1 = candidates[0]
 print(f"{cef_ver}|{chr_ver}|{name}|{size}|{sha1}")
 PY
 
-    python3 "$py_script" "$platform" "$want_version" <<<"$index_data"
+    "$PYTHON" "$py_script" "$platform" "$want_version" <<<"$index_data"
 }
 
 # ── main ───────────────────────────────────────────────────────────────────────
 
 require_cmd curl
-require_cmd python3
+PYTHON="$(find_python || true)"
+if [[ -z "$PYTHON" ]]; then
+    echo "✗ Required command not found: python3 (with the json module)" >&2
+    exit 1
+fi
 
 TARGET_VERSION=""
 while [[ $# -gt 0 ]]; do
@@ -170,11 +201,9 @@ URL="https://cef-builds.spotifycdn.com/$FILENAME"
 TARBALL="$INSTALL_DIR/$FILENAME"
 EXTRACT_DIR="$INSTALL_DIR/$CEF_VERSION"
 
-# Version-specific check: a generic marker file can't tell you *which*
-# version was installed, so re-running with a newer CEF release would
-# falsely report success without ever downloading it. Check the actual
-# target directory for this version instead.
-if [[ -d "$EXTRACT_DIR/include" && -d "$EXTRACT_DIR/lib" ]]; then
+if [[ -d "$EXTRACT_DIR/include" ]] \
+        && { [[ -d "$EXTRACT_DIR/lib" ]] || [[ -d "$EXTRACT_DIR/Release" ]] \
+             || [[ -d "$EXTRACT_DIR/Chromium Embedded Framework.framework" ]]; }; then
     echo "→ CEF $CEF_VERSION already installed at $EXTRACT_DIR"
     echo
     echo "✓ CEF is ready."
@@ -212,9 +241,6 @@ fi
 echo "→ Extracting…"
 tar -xjf "$TARBALL" -C "$INSTALL_DIR"
 
-# The tarball extracts to a directory named after itself
-# (cef_binary_<version>_<platform>), which almost never matches our
-# plain $CEF_VERSION target name — so rename it.
 EXTRACTED_BASENAME="$(tar -tjf "$TARBALL" 2>/dev/null | head -1 | cut -f1 -d/)"
 rm -f "$TARBALL"
 
@@ -224,12 +250,6 @@ if [[ -z "$EXTRACTED_BASENAME" || ! -d "$INSTALL_DIR/$EXTRACTED_BASENAME" ]]; th
 fi
 
 if [[ "$INSTALL_DIR/$EXTRACTED_BASENAME" != "$EXTRACT_DIR" ]]; then
-    # Important: EXTRACT_DIR must NOT already exist here. `mv src dst` only
-    # renames src to dst when dst doesn't exist; if dst already exists as a
-    # directory (e.g. from a stray `mkdir -p "$EXTRACT_DIR"` earlier), mv
-    # instead moves src *inside* dst, silently nesting everything one level
-    # too deep (so $CEF_ROOT/include would actually be at
-    # $CEF_ROOT/<extracted-basename>/include).
     rm -rf "$EXTRACT_DIR"
     mv "$INSTALL_DIR/$EXTRACTED_BASENAME" "$EXTRACT_DIR"
 fi

@@ -42,8 +42,18 @@ qt_add_executable(tst_tabmodel tst_TabModel.cpp)
 target_link_libraries(tst_tabmodel PRIVATE Qt6::Test QT_Illuminatemodule)
 add_test(NAME tst_tabmodel COMMAND tst_tabmodel)
 
+if(WIN32)
+    add_custom_command(TARGET tst_shortcutregistry POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:tst_shortcutregistry>/platforms"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE_DIR:Qt6::Core>/../plugins/platforms/qoffscreen.dll"
+                "$<TARGET_FILE_DIR:tst_shortcutregistry>/platforms/"
+        COMMENT "Staging the offscreen platform plugin for tst_shortcutregistry"
+    )
+endif()
+
 if(APPLE AND CEF_FOUND)
-    # Link tests against CEF framework directly from CEF release directory
     foreach(_test_target tst_qmltests tst_browsersettings tst_browsercontroller tst_permissionhandler tst_shortcutbridge tst_shortcutregistry tst_tabmodel)
         add_custom_command(TARGET ${_test_target} POST_BUILD
             COMMAND install_name_tool -change

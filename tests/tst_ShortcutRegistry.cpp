@@ -172,7 +172,7 @@ private slots:
 
         registry->resetAll();
         QVERIFY(!registry->hasCustomizations());
-        QCOMPARE(registry->sequences(QStringLiteral("savePdf")), QStringList{QStringLiteral("Ctrl+S")});
+        QCOMPARE(registry->sequences(QStringLiteral("savePdf")), QStringList{QStringLiteral("Ctrl+Shift+S")});
     }
 
     void bindingsSurviveARestart()

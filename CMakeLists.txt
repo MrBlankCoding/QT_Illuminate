@@ -16,11 +16,18 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 include(CTest)
-
 find_package(Qt6 REQUIRED COMPONENTS
-    Core Gui Network Qml Quick QuickControls2 QuickShapes
-    Widgets PrintSupport Pdf
+    Core Gui Network Qml Quick QuickControls2
+    Widgets PrintSupport
 )
+
+find_package(Qt6 QUIET COMPONENTS Pdf)
+if(TARGET Qt6::Pdf)
+    set(QT_ILLUMINATE_HAS_QTPDF ON)
+else()
+    set(QT_ILLUMINATE_HAS_QTPDF OFF)
+    message(STATUS "Qt6::Pdf not found - PDF printing via QPdfDocument is disabled")
+endif()
 
 include(FetchContent)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
@@ -39,6 +46,15 @@ elseif(DEFINED CEF_ROOT)
 endif()
 
 if(CEF_ROOT)
+    if(WIN32 AND NOT DEFINED CEF_RUNTIME_LIBRARY_FLAG)
+        # CEF defaults to the static CRT (/MT); Qt and this project build
+        # against the dynamic one (/MD), and mixing them fails at link time.
+        # Set before find_package(CEF): the distribution's
+        # `set(... CACHE ...)` then keeps this value. Also note that a
+        # leading-slash flag cannot be passed as -D from Git Bash — MSYS
+        # rewrites it into a path.
+        set(CEF_RUNTIME_LIBRARY_FLAG "/MD" CACHE STRING "CEF MSVC runtime flag")
+    endif()
     list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
     set(CEF_DIR "${CEF_ROOT}")
     find_package(CEF REQUIRED)
@@ -166,6 +182,26 @@ if(OS_MAC AND CEF_FOUND)
             VERBATIM
         )
     endforeach()
+endif()
+
+if(WIN32 AND CEF_FOUND)
+    set(_cef_stage_dir "$<TARGET_FILE_DIR:QT_Illuminate>")
+    COPY_FILES(QT_Illuminate "${CEF_BINARY_FILES}" "${CEF_BINARY_DIR}" "${_cef_stage_dir}")
+    COPY_FILES(QT_Illuminate "${CEF_RESOURCE_FILES}" "${CEF_RESOURCE_DIR}" "${_cef_stage_dir}")
+
+    set(_cef_install_files "")
+    foreach(_cef_file IN LISTS CEF_BINARY_FILES)
+        list(APPEND _cef_install_files "${CEF_BINARY_DIR_RELEASE}/${_cef_file}")
+    endforeach()
+    foreach(_cef_file IN LISTS CEF_RESOURCE_FILES)
+        if(_cef_file STREQUAL "locales")
+            install(DIRECTORY "${CEF_RESOURCE_DIR}/locales"
+                    DESTINATION "${CMAKE_INSTALL_BINDIR}")
+        else()
+            list(APPEND _cef_install_files "${CEF_RESOURCE_DIR}/${_cef_file}")
+        endif()
+    endforeach()
+    install(FILES ${_cef_install_files} DESTINATION "${CMAKE_INSTALL_BINDIR}")
 endif()
 
 set_target_properties(QT_Illuminate PROPERTIES
@@ -324,11 +360,22 @@ target_link_libraries(QT_Illuminatemodule PUBLIC
     Qt6::QuickControls2
     Qt6::Widgets
     Qt6::PrintSupport
-    Qt6::Pdf
 )
+
+if(QT_ILLUMINATE_HAS_QTPDF)
+    target_link_libraries(QT_Illuminatemodule PUBLIC Qt6::Pdf)
+    target_compile_definitions(QT_Illuminatemodule PUBLIC QT_ILLUMINATE_HAS_QTPDF)
+endif()
 
 if(TARGET cef::cef)
     target_link_libraries(QT_Illuminatemodule PUBLIC cef::cef libcef_dll_wrapper)
+endif()
+
+if(WIN32 AND CEF_COMPILER_DEFINES)
+    set(_cef_defines ${CEF_COMPILER_DEFINES})
+    list(REMOVE_ITEM _cef_defines _HAS_EXCEPTIONS=0)
+    target_compile_definitions(QT_Illuminate PUBLIC ${_cef_defines})
+    target_compile_definitions(QT_Illuminatemodule PUBLIC ${_cef_defines})
 endif()
 
 target_link_libraries(QT_Illuminatemodule PRIVATE QHotkey::QHotkey)
