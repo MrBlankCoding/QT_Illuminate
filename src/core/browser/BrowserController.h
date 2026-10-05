@@ -11,6 +11,7 @@
 #include "Profile.h"
 #include "CefProfile.h"
 #include "../utils/ExternalQmlSingleton.h"
+#include "../models/HistoryManager.h"
 
 class QSettings;
 
@@ -42,6 +43,7 @@ public:
     explicit BrowserController(Profile *profile, QObject *parent = nullptr);
 
     void setProfile(Profile *profile);
+    void setHistory(HistoryManager *history);
 
     TabModel *tabModel() const;
     int activeIndex() const;
@@ -130,6 +132,7 @@ private:
     QSettings *m_appSettings = nullptr;
     bool m_isFirstRun = true;
     bool m_closeInProgress = false;
+    HistoryManager *m_history = nullptr;
 
     static const int MIN_TABS_FOR_CYCLE = 2;
     static const int NO_TAB_CYCLE_DELTA = 0;

@@ -258,10 +258,12 @@ MenuItem AppMenu::viewMenu() const
 MenuItem AppMenu::historyMenu() const
 {
     return MenuItem::subMenu(QStringLiteral("History"), {
-        MenuItem::action(QStringLiteral("history.back"), QStringLiteral("Back"), shortcut("back")),
+        MenuItem::action(QStringLiteral("history.show"),    QStringLiteral("Show History"),  shortcut("showHistory")),
+        MenuItem::separator(),
+        MenuItem::action(QStringLiteral("history.back"),    QStringLiteral("Back"),    shortcut("back")),
         MenuItem::action(QStringLiteral("history.forward"), QStringLiteral("Forward"), shortcut("forward")),
         MenuItem::separator(),
-        MenuItem::action(QStringLiteral("history.reload"), QStringLiteral("Reload"), shortcut("reload")),
+        MenuItem::action(QStringLiteral("history.reload"),  QStringLiteral("Reload"),  shortcut("reload")),
     });
 }
 

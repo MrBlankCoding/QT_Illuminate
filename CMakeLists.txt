@@ -18,7 +18,7 @@ include(GNUInstallDirs)
 include(CTest)
 find_package(Qt6 REQUIRED COMPONENTS
     Core Gui Network Qml Quick QuickControls2
-    Widgets PrintSupport
+    Widgets PrintSupport Sql
 )
 
 find_package(Qt6 QUIET COMPONENTS Pdf)
@@ -236,6 +236,8 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/models/TabModel.cpp
     src/core/models/BookmarkModel.h
     src/core/models/BookmarkModel.cpp
+    src/core/models/HistoryManager.h
+    src/core/models/HistoryManager.cpp
 
     src/core/profiles/Profile.h
     src/core/profiles/Profile.cpp
@@ -345,6 +347,7 @@ target_link_libraries(QT_Illuminatemodule PUBLIC
     Qt6::QuickControls2
     Qt6::Widgets
     Qt6::PrintSupport
+    Qt6::Sql
 )
 
 if(QT_ILLUMINATE_HAS_QTPDF)
@@ -367,6 +370,7 @@ foreach(_f
     ui/Theme.qml
     ui/pages/BrowserWindow.qml
     ui/pages/MemoryPage.qml
+    ui/pages/HistoryPage.qml
     ui/pages/ProfilePicker.qml
     ui/pages/SettingsWindow.qml
     ui/pages/SetupPage.qml
@@ -451,6 +455,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/Theme.qml
         ui/pages/BrowserWindow.qml
         ui/pages/MemoryPage.qml
+        ui/pages/HistoryPage.qml
         ui/pages/ProfilePicker.qml
         ui/pages/SettingsWindow.qml
         ui/pages/SetupPage.qml

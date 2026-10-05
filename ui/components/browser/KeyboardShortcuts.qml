@@ -55,6 +55,9 @@ Item {
         case "history.reload":
             root.browser.reload()
             return
+        case "history.show":
+            root.browser.newTab("illuminate://history")
+            return
 
         case "view.zoomIn":
             root.zoomIndicator.zoomBy(0.1)

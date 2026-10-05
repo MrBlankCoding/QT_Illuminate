@@ -26,12 +26,12 @@ Item {
         suggestionModel.clear();
     }
 
-    // what to navigate to for row i: a bookmark's URL, or the completion text
+    // what to navigate to for row i: a bookmark's/history URL, or the completion text
     function inputAt(i) {
         if (i < 0 || i >= suggestionModel.count)
             return "";
         const item = suggestionModel.get(i);
-        return (item.isBookmark ? item.url : item.text) || item.text;
+        return ((item.isBookmark || item.isHistory) ? item.url : item.text) || item.text;
     }
 
     function apply(list) {
@@ -69,11 +69,23 @@ Item {
 
         const q = query.toLowerCase();
         const local = [];
-        for (let i = 0; i < Bookmarks.count && local.length < 4; i++) {
+
+        // bookmarks first (up to 3)
+        for (let i = 0; i < Bookmarks.count && local.length < 3; i++) {
             const bm = Bookmarks.itemAt(i);
             if (bm.title.toLowerCase().includes(q) || bm.url.toLowerCase().includes(q))
-                local.push({ text: bm.title, url: bm.url, isBookmark: true });
+                local.push({ text: bm.title, url: bm.url, isBookmark: true, isHistory: false });
         }
+
+        // history next (up to 4 total with bookmarks)
+        const histResults = History.search(query, 8);
+        for (let j = 0; j < histResults.length && local.length < 4; j++) {
+            const h = histResults[j];
+            // skip if already covered by a bookmark match
+            if (!local.some(item => item.url === h.url))
+                local.push({ text: h.title || h.url, url: h.url, isBookmark: false, isHistory: true });
+        }
+
         root.localMatches = local;
         root.apply(local);
         remoteRequest.cancel();

@@ -62,6 +62,13 @@ bool isValidThemeColors(const QVariantMap &colors)
 }
 }
 
+void BrowserController::setHistory(HistoryManager *history)
+{
+    m_history = history;
+    if (m_history && m_profile)
+        m_history->setProfile(m_profile->id(), m_profile->path());
+}
+
 void BrowserController::setProfile(Profile *profile)
 {
     if (m_profile == profile)
@@ -84,6 +91,9 @@ void BrowserController::setProfile(Profile *profile)
     emit themePaletteChanged();
     emit customThemesChanged();
     emit activeCustomThemeChanged();
+
+    if (m_history && profile)
+        m_history->setProfile(profile->id(), profile->path());
 
     restoreSession();
 }
@@ -629,13 +639,21 @@ void BrowserController::toggleDevTools() { emit navigationRequested(QStringLiter
 void BrowserController::onTitleChanged(int i, const QString &v)
 {
     if (auto *t = m_model->tabAt(i))
+    {
         t->setTitle(v);
+        if (m_history)
+            m_history->updateTitle(t->url().toString(), v);
+    }
 }
 
 void BrowserController::onUrlChanged(int i, const QString &v)
 {
     if (auto *t = m_model->tabAt(i))
+    {
         t->setUrl(QUrl(v));
+        if (m_history)
+            m_history->recordVisit(v, t->title());
+    }
 }
 
 void BrowserController::onLoadingChanged(int i, bool v)

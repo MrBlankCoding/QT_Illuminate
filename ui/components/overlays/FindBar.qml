@@ -133,6 +133,8 @@ Popup {
             id: input
             objectName: "input"
             Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            Layout.preferredWidth: 0
             focus: root.visible
             color: Theme.text
             font.pixelSize: Theme.fontSizeM

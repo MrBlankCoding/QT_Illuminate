@@ -430,6 +430,11 @@ Item {
                         onTriggered: Browser.newTab("illuminate://memory")
                     }
 
+                    MenuItem {
+                        text: "History"
+                        onTriggered: Browser.newTab("illuminate://history")
+                    }
+
                     MenuSeparator {}
 
                     MenuItem {
