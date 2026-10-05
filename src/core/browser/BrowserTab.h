@@ -38,7 +38,7 @@ public:
     void paste();
     void selectAll();
 
-    void setCefBrowserWrapper(CefBrowserWrapper *wrapper);
+    Q_INVOKABLE void setCefBrowserWrapper(CefBrowserWrapper *wrapper);
 
     // navigate time!
     // emits loadRequested.

@@ -157,6 +157,30 @@ void CefBrowserWrapper::setZoomFactor(qreal factor)
     }
 }
 
+void CefBrowserWrapper::notifyWindowRenderingHidden(bool hidden)
+{
+    // WasHidden()/WasResized() only apply to off-screen browsers
+    if (!m_browser)
+        return;
+    auto host = m_browser->GetHost();
+    if (!host || !host->IsWindowRenderingDisabled())
+        return;
+
+    host->WasHidden(hidden);
+}
+
+void CefBrowserWrapper::notifyWindowRenderingResized()
+{
+    // see notifyWindowRenderingHidden(): only valid for off-screen rendering
+    if (!m_browser)
+        return;
+    auto host = m_browser->GetHost();
+    if (!host || !host->IsWindowRenderingDisabled())
+        return;
+
+    host->WasResized();
+}
+
 void CefBrowserWrapper::setLifecycleState(int state)
 {
     if (m_lifecycleState != state)
@@ -164,16 +188,7 @@ void CefBrowserWrapper::setLifecycleState(int state)
         m_lifecycleState = state;
         emit lifecycleStateChanged();
 
-        if (m_browser)
-        {
-            if (auto host = m_browser->GetHost())
-            {
-                if (state == Active)
-                    host->WasHidden(false);
-                else
-                    host->WasHidden(true);
-            }
-        }
+        notifyWindowRenderingHidden(state != Active);
     }
 }
 
@@ -376,19 +391,11 @@ void CefBrowserWrapper::showDevTools(const QPoint &inspectAt)
     // (0,0) tells CEF to open DevTools without selecting an element
     CefPoint inspectAtCef(inspectAt.x(), inspectAt.y());
     qInfo() << "[DevTools] showDevTools inspectAt=" << inspectAt;
-
-    // CEF opens DevTools in a top-level window of its own. An empty
-    // CefWindowInfo is required here: on macOS a child CefWindowInfo aborts the
-    // process, both when passed directly and when set from
-    // CefLifeSpanHandler::OnBeforeDevToolsPopup, and re-parenting CEF's
-    // BridgedContentView into the Qt window segfaults once it starts rendering.
     host->ShowDevTools(windowInfo, m_client, settings, inspectAtCef);
 }
 
 void CefBrowserWrapper::closeDevTools()
 {
-    // drop the routing target first: a browser that arrives after the view is
-    // gone must not be adopted by it
     m_client->setDevToolsView(nullptr);
 
     if (m_browser)
@@ -411,10 +418,7 @@ void CefBrowserWrapper::setBrowser(CefRefPtr<CefBrowser> browser)
         if (m_inputSuppressed)
             applyInputSuppression();
         if (m_lifecycleState != Active)
-        {
-            if (auto host = m_browser->GetHost())
-                host->WasHidden(true);
-        }
+            notifyWindowRenderingHidden(true);
 
         m_renderProcessPid = 0;
         emit renderProcessPidChanged(m_renderProcessPid);
@@ -481,7 +485,7 @@ void CefBrowserWrapper::updateGeometry(const QRect &geometry)
         cefSetNativeViewCornerRadius(host->GetWindowHandle(), m_cornerRadius);
     }
     if (resized)
-        host->WasResized();
+        notifyWindowRenderingResized();
 }
 
 void CefBrowserWrapper::onUrlChanged(const QString &url)

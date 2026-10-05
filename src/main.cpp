@@ -144,8 +144,14 @@ NO_STACK_PROTECTOR int main(int argc, char *argv[])
     if (subprocessExitCode >= 0)
         return subprocessExitCode;
 
-    // build chromium flags from detected hardware profile
-    const QStringList flagsList = SystemInfo::instance()->chromiumFlags();
+    QStringList flagsList = SystemInfo::instance()->chromiumFlags();
+    if (qEnvironmentVariableIsSet("QT_ILLUMINATE_VERBOSE_CEF"))
+    {
+        flagsList += QStringLiteral("--enable-logging");
+        flagsList += QStringLiteral("--v=1");
+        flagsList += QStringLiteral("--vmodule=*=2");
+    }
+
     CefManager::setChromiumFlags(flagsList);
 
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);

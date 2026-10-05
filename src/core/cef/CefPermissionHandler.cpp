@@ -16,29 +16,66 @@ CefPermissionRequest::CefPermissionRequest(const QUrl &origin,
 
 CefPermissionRequest::~CefPermissionRequest()
 {
-    finish(CEF_PERMISSION_RESULT_DENY);
+    answer(CEF_PERMISSION_RESULT_DENY);
 }
 
-void CefPermissionRequest::finish(cef_permission_request_result_t result)
+namespace {
+class ContinuePermissionTask : public CefTask
 {
-    if (m_callback)
+public:
+    ContinuePermissionTask(CefRefPtr<CefPermissionPromptCallback> callback,
+                           cef_permission_request_result_t result)
+        : m_callback(std::move(callback)), m_result(result)
     {
-        m_callback->Continue(result);
-        m_callback = nullptr;
     }
+
+    void Execute() override
+    {
+        if (m_callback)
+            m_callback->Continue(m_result);
+    }
+
+private:
+    CefRefPtr<CefPermissionPromptCallback> m_callback;
+    cef_permission_request_result_t m_result;
+
+    IMPLEMENT_REFCOUNTING(ContinuePermissionTask);
+};
+
+} // namespace
+
+void CefPermissionRequest::answer(cef_permission_request_result_t result)
+{
+    if (m_answered)
+        return;
+    m_answered = true;
+    CefRefPtr<CefPermissionPromptCallback> callback = m_callback;
+    m_callback = nullptr;
+
+    if (CefCurrentlyOn(TID_UI)) {
+        if (callback)
+            callback->Continue(result);
+        return;
+    }
+
+    if (!callback)
+        return;
+    CefPostTask(TID_UI, new ContinuePermissionTask(callback, result));
 }
 
-// deleteLater, not delete: callers (PermissionHandler::respond) still read
-// origin/permissionType after answering
 void CefPermissionRequest::grant()
 {
-    finish(CEF_PERMISSION_RESULT_ACCEPT);
+    if (m_answered)
+        return;
+    answer(CEF_PERMISSION_RESULT_ACCEPT);
     deleteLater();
 }
 
 void CefPermissionRequest::deny()
 {
-    finish(CEF_PERMISSION_RESULT_DENY);
+    if (m_answered)
+        return;
+    answer(CEF_PERMISSION_RESULT_DENY);
     deleteLater();
 }
 
@@ -87,11 +124,8 @@ bool CefPermissionHandlerImpl::OnShowPermissionPrompt(CefRefPtr<CefBrowser> brow
     if (m_wrapper)
     {
         auto *req = new CefPermissionRequest(origin, type, callback);
-        // created on the CEF UI thread, which is not the Qt one off macOS:
-        // setParent() and deleteLater() need it to live on the Qt thread
         req->moveToThread(QCoreApplication::instance()->thread());
-        // the application as context: one on the wrapper would drop the call,
-        // and with it the cleanup below, if the wrapper died first
+        trackOnQtThread(prompt_id, req);
         QMetaObject::invokeMethod(QCoreApplication::instance(), [wrapper = m_wrapper, req]() {
             if (wrapper)
             {
@@ -114,6 +148,29 @@ void CefPermissionHandlerImpl::OnDismissPermissionPrompt(CefRefPtr<CefBrowser> b
                                                          cef_permission_request_result_t result)
 {
     Q_UNUSED(browser);
-    Q_UNUSED(prompt_id);
     Q_UNUSED(result);
+    invalidateOnQtThread(prompt_id);
+}
+
+void CefPermissionHandlerImpl::trackOnQtThread(uint64_t promptId, QPointer<CefPermissionRequest> request)
+{
+    QMetaObject::invokeMethod(
+        QCoreApplication::instance(),
+        [this, promptId, request]() { m_pendingPrompts.insert(promptId, request); },
+        Qt::QueuedConnection);
+}
+
+void CefPermissionHandlerImpl::invalidateOnQtThread(uint64_t promptId)
+{
+    QMetaObject::invokeMethod(
+        QCoreApplication::instance(),
+        [this, promptId]() {
+            auto it = m_pendingPrompts.find(promptId);
+            if (it == m_pendingPrompts.end())
+                return;
+            if (it.value())
+                it.value()->invalidate();
+            m_pendingPrompts.erase(it);
+        },
+        Qt::QueuedConnection);
 }

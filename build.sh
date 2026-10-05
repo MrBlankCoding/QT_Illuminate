@@ -148,6 +148,7 @@ DO_KEEP_DATA=0
 DO_RUN=0
 DO_DEV=0
 DO_PACKAGE=0
+DO_VERBOSE=0
 for arg in "$@"; do
     case "$arg" in
         --clean)     DO_CLEAN=1     ;;
@@ -155,9 +156,10 @@ for arg in "$@"; do
         --run)    DO_RUN=1     ;;
         --dev)    DO_DEV=1     ;;
         --package) DO_PACKAGE=1 ;;
+        --verbose) DO_VERBOSE=1 ;;
         *)
             echo "Unknown argument: $arg"
-            echo "Usage: ./build.sh [--clean [--keep-data]] [--run | --dev] [--package]"
+            echo "Usage: ./build.sh [--clean [--keep-data]] [--run | --dev] [--package] [--verbose]"
             exit 1
             ;;
     esac
@@ -175,6 +177,22 @@ fi
 if (( DO_RUN )) && (( DO_DEV )); then
     echo "Note: --dev already runs the app in the foreground with live logs; ignoring --run."
     DO_RUN=0
+fi
+
+# --verbose implies --dev: it builds Debug CEF and launches under lldb
+if (( DO_VERBOSE )) && (( ! DO_DEV )); then
+    DO_DEV=1
+fi
+
+if (( DO_VERBOSE )); then
+    if (( ! IS_MAC )); then
+        echo "✗ --verbose (lldb + Debug CEF) is macOS-only."
+        exit 1
+    fi
+    if ! command -v lldb >/dev/null 2>&1; then
+        echo "✗ --verbose needs lldb. Install Xcode and run: xcode-select --install"
+        exit 1
+    fi
 fi
 
 clean_app_data() {
@@ -630,6 +648,10 @@ BUILD_TYPE="Release"
 SCRIPT_DIR="${QT_ILLUMINATE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 BUILD_DIR="$SCRIPT_DIR/build"
 
+if (( DO_VERBOSE )); then
+    BUILD_DIR="$SCRIPT_DIR/build-verbose"
+fi
+
 APP_LABEL="QT_Illuminate"
 if (( IS_MAC )); then
     APP_BUNDLE="$BUILD_DIR/QT_Illuminate.app"
@@ -669,19 +691,24 @@ if (( IS_LINUX )); then
     done
 fi
 
-# ── Configure ────────────────────────────────────────────────────────────────
+CEF_DEBUG_ARG="OFF"
+(( DO_VERBOSE )) && CEF_DEBUG_ARG="ON"
+
 CONFIGURED_TYPE=""
 CONFIGURED_PREFIX=""
 CONFIGURED_CEF=""
+CONFIGURED_CEF_DEBUG=""
 if [[ -f "$BUILD_DIR/CMakeCache.txt" ]]; then
     CONFIGURED_TYPE="$(sed -n 's/^CMAKE_BUILD_TYPE:[A-Z]*=//p' "$BUILD_DIR/CMakeCache.txt")"
     CONFIGURED_PREFIX="$(sed -n 's/^CMAKE_PREFIX_PATH:[A-Z]*=//p' "$BUILD_DIR/CMakeCache.txt")"
     CONFIGURED_CEF="$(sed -n 's/^CEF_ROOT:PATH=//p' "$BUILD_DIR/CMakeCache.txt" 2>/dev/null || true)"
+    CONFIGURED_CEF_DEBUG="$(sed -n 's/^USE_CEF_DEBUG:BOOL=//p' "$BUILD_DIR/CMakeCache.txt" 2>/dev/null || true)"
 fi
 
 if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]] \
         || [[ "$CONFIGURED_PREFIX" != "$QT_PREFIX" ]] \
         || [[ "$CONFIGURED_CEF" != "$CEF_ROOT" ]] \
+        || [[ "$CONFIGURED_CEF_DEBUG" != "$CEF_DEBUG_ARG" ]] \
         || [[ "$CONFIGURED_TYPE" != "$BUILD_TYPE" ]]; then
     NEED_CONFIGURE=1
 elif [[ "$SCRIPT_DIR/CMakeLists.txt" -nt "$BUILD_DIR/CMakeCache.txt" ]]; then
@@ -690,40 +717,63 @@ elif [[ "$SCRIPT_DIR/CMakeLists.txt" -nt "$BUILD_DIR/CMakeCache.txt" ]]; then
 fi
 
 if [[ "${NEED_CONFIGURE:-0}" == "1" ]]; then
-    echo "→ Configuring ($BUILD_TYPE)…"
+    if (( DO_VERBOSE )); then
+        echo "→ Configuring ($BUILD_TYPE, Debug CEF)…"
+    else
+        echo "→ Configuring ($BUILD_TYPE)…"
+    fi
     if (( IS_LINUX )); then
         cmake -S "$SCRIPT_DIR" \
               -B "$BUILD_DIR"  \
               -G Ninja \
               -DCMAKE_PREFIX_PATH="$QT_PREFIX" \
               -DCEF_ROOT="$CEF_ROOT" \
-              -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
+              -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+              -DUSE_CEF_DEBUG="$CEF_DEBUG_ARG"
     else
         cmake -S "$SCRIPT_DIR" \
               -B "$BUILD_DIR"  \
               -DCMAKE_PREFIX_PATH="$QT_PREFIX" \
               -DCEF_ROOT="$CEF_ROOT" \
               -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+              -DUSE_CEF_DEBUG="$CEF_DEBUG_ARG" \
               -DCMAKE_OSX_DEPLOYMENT_TARGET="27.0" \
               -DCMAKE_OSX_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
     fi
 fi
 
-if pgrep -f "$APP_BINARY" >/dev/null 2>&1; then
+app_pids() {
+    pgrep -f "QT_Illuminate\.app/Contents/MacOS/QT_Illuminate" 2>/dev/null | while read -r _pid; do
+        [[ "$(ps -o command= -p "$_pid" 2>/dev/null)" == *"/QT_Illuminate.app/Contents/MacOS/QT_Illuminate"* ]] \
+            && [[ "$(ps -o command= -p "$_pid" 2>/dev/null)" != *lldb* ]] \
+            && echo "$_pid"
+    done
+}
+
+lldb_pids() {
+    pgrep -f "lldb .*QT_Illuminate\.app/Contents/MacOS/QT_Illuminate" 2>/dev/null || true
+}
+
+if [[ -n "$(app_pids)" ]]; then
     echo "→ Quitting running ${APP_LABEL}…"
     if (( IS_MAC )); then
         osascript -e 'quit app id "local.qt-illuminate.QT_Illuminate"' >/dev/null 2>&1 || true
-    else
-        pkill -TERM -f "$APP_BINARY" || true
     fi
     for _ in $(seq 1 50); do
-        pgrep -f "$APP_BINARY" >/dev/null 2>&1 || break
+        [[ -z "$(app_pids)" ]] && break
+        app_pids | xargs -r kill -TERM 2>/dev/null || true
         sleep 0.1
     done
-    if pgrep -f "$APP_BINARY" >/dev/null 2>&1; then
+    if [[ -n "$(app_pids)" ]]; then
         echo "  Still running after 5s; killing it."
-        pkill -KILL -f "$APP_BINARY" || true
+        app_pids | xargs -r kill -KILL 2>/dev/null || true
+        sleep 0.2
     fi
+
+    pgrep -f "QT_Illuminate Helper" 2>/dev/null | xargs -r kill -KILL 2>/dev/null || true
+    [[ -n "$(app_pids)" ]] && { echo "✗ Could not stop the running instance; aborting."; exit 1; }
+    # Only now that the inferior is gone, drop the debugger left holding it.
+    lldb_pids | xargs -r kill -TERM 2>/dev/null || true
 fi
 
 clean_app_data
@@ -921,6 +971,25 @@ if (( DO_DEV )); then
     echo "  Log file: $LOG_FILE"
 
     # dev builds: CEF --no-sandbox is set via CefManager settings
+    if (( DO_VERBOSE )); then
+        echo "→ Launching under lldb (Debug CEF, symbols available)…"
+        echo "  Reproduce the crash, then at the (lldb) prompt:"
+        echo "    bt                 backtrace of the trapping thread"
+        echo "    thread backtrace -c 40"
+        echo "    thread list        which thread trapped"
+        echo "  V8/Chromium log: stderr (this terminal) + chrome_debug.log"
+        echo
+
+        LLDB_ARGS=(
+            -o "settings set target.process.stop-on-sharedlibrary-events false"
+            -o "process handle -p true -s false -n false SIGTRAP"
+            -o "run"
+        )
+
+        QT_ILLUMINATE_VERBOSE_CEF=1 lldb "${LLDB_ARGS[@]}" -- "$APP_BINARY"
+        exit $?
+    fi
+
     "$APP_BINARY" 2>&1 | tee -a "$LOG_FILE" &
     APP_PID=$!
     trap 'kill "$APP_PID" 2>/dev/null; exit 0' INT TERM

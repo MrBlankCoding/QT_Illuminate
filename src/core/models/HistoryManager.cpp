@@ -160,7 +160,7 @@ void HistoryManager::recordVisit(const QString &url, const QString &title)
         "VALUES(:url, :title, :ts, :pid, 1)"
     ));
     ins.bindValue(QStringLiteral(":url"),   url);
-    ins.bindValue(QStringLiteral(":title"), title.isNull() ? QString() : title);
+    ins.bindValue(QStringLiteral(":title"), title.isEmpty() ? url : title);
     ins.bindValue(QStringLiteral(":ts"),    nowMs);
     ins.bindValue(QStringLiteral(":pid"),   m_profileId);
     if (!ins.exec())

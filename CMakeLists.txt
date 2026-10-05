@@ -51,29 +51,36 @@ if(CEF_ROOT)
     endif()
 endif()
 
+option(USE_CEF_DEBUG "Link the Debug CEF framework (for lldb symbolication)" OFF)
 if(CEF_FOUND)
     add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper)
 
+    if(USE_CEF_DEBUG AND NOT CEF_BINARY_DIR_DEBUG)
+        message(FATAL_ERROR "USE_CEF_DEBUG=ON but CEF_BINARY_DIR_DEBUG is unset; "
+                            "is the Debug framework present under CEF_ROOT?")
+    endif()
+
     if(OS_MAC)
-        set(_CEF_FW_PATH "${CEF_BINARY_DIR_RELEASE}/Chromium Embedded Framework.framework")
+        if(USE_CEF_DEBUG)
+            set(_CEF_FW_BIN_DIR "${CEF_BINARY_DIR_DEBUG}")
+        else()
+            set(_CEF_FW_BIN_DIR "${CEF_BINARY_DIR_RELEASE}")
+        endif()
+        set(_CEF_FW_PATH "${_CEF_FW_BIN_DIR}/Chromium Embedded Framework.framework")
         add_library(cef::cef UNKNOWN IMPORTED)
         set_target_properties(cef::cef PROPERTIES
             IMPORTED_LOCATION "${_CEF_FW_PATH}/Chromium Embedded Framework"
             INTERFACE_INCLUDE_DIRECTORIES "${CEF_INCLUDE_PATH}"
         )
         set_property(TARGET cef::cef APPEND PROPERTY
-            INTERFACE_LINK_OPTIONS "-F${CEF_BINARY_DIR_RELEASE}")
+            INTERFACE_LINK_OPTIONS "-F${_CEF_FW_BIN_DIR}")
         list(APPEND CEF_FRAMEWORK_LIBS "Chromium Embedded Framework")
     else()
-        # Linux: libcef.so (or .a depending on CEF_LIBTYPE)
         ADD_LOGICAL_TARGET(libcef "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
         add_library(cef::cef ALIAS libcef)
-        # Ensure include directories propagate to consumers of cef::cef
         target_include_directories(libcef INTERFACE "${CEF_INCLUDE_PATH}")
     endif()
 
-    # On macOS, the framework will be copied into the app bundle by the
-    # POST_BUILD custom command on QT_Illuminate below.
 endif()
 
 qt_standard_project_setup()
@@ -108,8 +115,10 @@ if(OS_MAC AND CEF_FOUND)
     )
 
     add_custom_command(TARGET QT_Illuminate POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E rm -rf
+            "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CEF_BINARY_DIR_RELEASE}/Chromium Embedded Framework.framework"
+            "${_CEF_FW_BIN_DIR}/Chromium Embedded Framework.framework"
             "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Versions/A"
         COMMAND ${CMAKE_COMMAND} -E make_directory
             "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Versions"
@@ -117,9 +126,16 @@ if(OS_MAC AND CEF_FOUND)
         COMMAND ln -sf "Versions/A/Chromium Embedded Framework" "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework"
         COMMAND ln -sf "Versions/A/Libraries" "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Libraries"
         COMMAND ln -sf "Versions/A/Resources" "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Resources"
-        COMMAND ln -sf "Versions/A/Info.plist" "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Info.plist"
         COMMENT "Copying Chromium Embedded Framework.framework into the bundle with proper structure"
     )
+
+    if(EXISTS "${_CEF_FW_BIN_DIR}/Chromium Embedded Framework.framework/Info.plist")
+        add_custom_command(TARGET QT_Illuminate POST_BUILD
+            COMMAND ln -sf "Versions/A/Info.plist" "$<TARGET_FILE_DIR:QT_Illuminate>/../Frameworks/Chromium Embedded Framework.framework/Info.plist"
+            COMMENT "Linking CEF framework Info.plist"
+            VERBATIM
+        )
+    endif()
 
     foreach(_suffix_list ${CEF_HELPER_APP_SUFFIXES})
         string(REPLACE ":" ";" _suffix_list ${_suffix_list})
@@ -314,6 +330,9 @@ if(APPLE)
     target_sources(QT_Illuminatemodule PRIVATE src/core/system/PermissionHandler_mac.mm)
     target_sources(QT_Illuminatemodule PRIVATE src/core/cef/CefManager_mac.mm src/core/cef/CefBrowserWrapper_mac.mm)
     set_source_files_properties(src/utils/PointerLockEmulation.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    # ARC for the location manager too: without it the file-local static
+    # CLLocationManager leaks and its lifetime is unmanaged.
+    set_source_files_properties(src/core/system/PermissionHandler_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_link_libraries(QT_Illuminatemodule PRIVATE
         "-framework Cocoa" "-framework AppKit" "-framework QuartzCore" "-framework AVFoundation" "-framework CoreLocation" "-framework IOSurface")
 else()

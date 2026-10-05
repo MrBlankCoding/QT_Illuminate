@@ -1,17 +1,29 @@
 #include "PermissionHandler.h"
 
-#import <AppKit/AppKit.h>
+#include <AppKit/AppKit.h>
 #import <AVFoundation/AVFoundation.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <CoreLocation/CoreLocation.h>
+#include <QCoreApplication>
 #include <QMetaObject>
 #include <QPointer>
+#include <QThread>
 
 namespace {
+void warnIfOffMainThread(const char *what)
+{
+    if (QCoreApplication::instance()
+        && QThread::currentThread() != QCoreApplication::instance()->thread()) {
+        qWarning("PermissionHandler: %s called off the Qt main thread — "
+                 "CLLocationManager traps here", what);
+    }
+}
 
 CLLocationManager *locationManager()
 {
-    static CLLocationManager *manager = [[CLLocationManager alloc] init];
+    static CLLocationManager *manager = [] {
+        return [[CLLocationManager alloc] init];
+    }();
     return manager;
 }
 
@@ -26,6 +38,7 @@ PermissionHandler::SystemAccess mediaAccess(AVMediaType type)
 
 PermissionHandler::SystemAccess locationAccess()
 {
+    warnIfOffMainThread("locationAccess()");
     CLAuthorizationStatus status;
     status = locationManager().authorizationStatus;
     if (status == kCLAuthorizationStatusNotDetermined)
@@ -66,6 +79,7 @@ void PermissionHandler::platformRequestSystemAccess(SystemResource resource)
         return;
     }
     case Location:
+        warnIfOffMainThread("requestWhenInUseAuthorization");
         [locationManager() requestWhenInUseAuthorization];
         return;
     case ScreenCapture:
@@ -114,7 +128,6 @@ void PermissionHandler::platformMakeDefaultBrowser()
     {
         NSWorkspace *ws = NSWorkspace.sharedWorkspace;
         NSURL *app = NSBundle.mainBundle.bundleURL;
-        // macOS shows its own confirmation for http; https follows once that's accepted
         [ws setDefaultApplicationAtURL:app
                 toOpenURLsWithScheme:@"http"
                    completionHandler:^(NSError *httpError) {

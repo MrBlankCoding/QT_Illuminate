@@ -140,6 +140,8 @@ private:
     void initializeBrowserHost();
     void updateNativeGeometry();
     void applyInputSuppression();
+    void notifyWindowRenderingHidden(bool hidden);
+    void notifyWindowRenderingResized();
 
 signals:
     void urlChanged();
@@ -185,9 +187,7 @@ private:
     QColor m_backgroundColor = Qt::white;
     qreal m_cornerRadius = 0;
     qreal m_nativeCornerRadius = -1;
-    // read from CefFocusHandler, which may run off the Qt thread
     std::atomic<bool> m_inputSuppressed = false;
-    // the page had focus when input was suppressed, so give it back after
     bool m_restoreFocus = false;
     CefProfile *m_profile = nullptr;
     QPointer<CefBrowserWrapper> m_devToolsView;

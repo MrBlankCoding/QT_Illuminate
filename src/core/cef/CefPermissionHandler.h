@@ -1,13 +1,13 @@
 #pragma once
 
 #include <include/cef_permission_handler.h>
+#include <include/cef_task.h>
 #include <QObject>
 #include <QPointer>
 #include <QUrl>
+#include <QHash>
 
 class CefBrowserWrapper;
-
-// CEF: QML-accessible permission request wrapper
 class CefPermissionRequest : public QObject
 {
     Q_OBJECT
@@ -19,6 +19,7 @@ public:
                                   int type,
                                   CefRefPtr<CefPermissionPromptCallback> callback,
                                   QObject *parent = nullptr);
+
     // an unanswered prompt is denied, so CEF never waits on it forever
     ~CefPermissionRequest() override;
 
@@ -29,12 +30,17 @@ public:
     Q_INVOKABLE void grant();
     Q_INVOKABLE void deny();
 
+
+    void invalidate() { m_callback = nullptr; }
+    bool answered() const { return m_answered; }
+
 private:
-    void finish(cef_permission_request_result_t result);
+    void answer(cef_permission_request_result_t result);
 
     QUrl m_origin;
     int m_type;
     CefRefPtr<CefPermissionPromptCallback> m_callback;
+    bool m_answered = false;
 };
 
 class CefPermissionHandlerImpl : public CefPermissionHandler
@@ -59,7 +65,11 @@ public:
                                    cef_permission_request_result_t result) override;
 
 private:
+    void trackOnQtThread(uint64_t promptId, QPointer<CefPermissionRequest> request);
+    void invalidateOnQtThread(uint64_t promptId);
+
     QPointer<CefBrowserWrapper> m_wrapper;
+    QHash<uint64_t, QPointer<CefPermissionRequest>> m_pendingPrompts;
 
     IMPLEMENT_REFCOUNTING(CefPermissionHandlerImpl);
 };
