@@ -202,6 +202,7 @@ MenuItem AppMenu::fileMenu() const
 {
     return MenuItem::subMenu(QStringLiteral("File"), {
         MenuItem::action(QStringLiteral("tab.new"), QStringLiteral("New Tab"), shortcut("newTab")),
+        MenuItem::action(QStringLiteral("tab.close"), QStringLiteral("Close Tab"), shortcut("closeTab")),
         MenuItem::separator(),
         MenuItem::action(QStringLiteral("app.closeWindow"), QStringLiteral("Close Window"), shortcut("closeWindow")),
         MenuItem::separator(),

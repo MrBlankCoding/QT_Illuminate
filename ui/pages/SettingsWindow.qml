@@ -60,7 +60,7 @@ ApplicationWindow {
     Rectangle {
         id: navRoot
         property int currentIndex: 0
-        readonly property var sections: ["Startup", "Search", "Privacy", "Tabs", "Shortcuts"]
+        readonly property var sections: ["General", "Startup", "Search", "Privacy", "Tabs", "Shortcuts"]
 
         anchors.top: header.visible ? header.bottom : parent.top
         anchors.left: parent.left
@@ -127,8 +127,9 @@ ApplicationWindow {
             height: pageList[navRoot.currentIndex].implicitHeight
             currentIndex: navRoot.currentIndex
 
-            readonly property var pageList: [startupPage, searchPage, privacyPage, tabsPage, shortcutsPage]
+            readonly property var pageList: [generalPage, startupPage, searchPage, privacyPage, tabsPage, shortcutsPage]
 
+            GeneralSettingsPage { id: generalPage }
             StartupSettingsPage { id: startupPage }
             SearchSettingsPage { id: searchPage }
             PrivacySettingsPage { id: privacyPage }

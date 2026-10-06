@@ -62,6 +62,33 @@ private slots:
         BrowserSettings prefs(nullptr);
         QCOMPARE(prefs.sidebarWidth(), BrowserSettings::kSidebarMinWidth);
     }
+
+    void browserLanguageDefaults()
+    {
+        BrowserSettings prefs(nullptr);
+        QCOMPARE(prefs.browserLanguage(), QString());
+    }
+
+    void browserLanguagePersists()
+    {
+        {
+            BrowserSettings prefs(nullptr);
+            QSignalSpy spy(&prefs, &BrowserSettings::browserLanguageChanged);
+            prefs.setBrowserLanguage(QStringLiteral("de"));
+            QCOMPARE(spy.size(), 1);
+            prefs.setBrowserLanguage(QStringLiteral("de"));
+            QCOMPARE(spy.size(), 1);
+        }
+        BrowserSettings reopened(nullptr);
+        QCOMPARE(reopened.browserLanguage(), QStringLiteral("de"));
+    }
+
+    void browserLanguageStoredUnderGeneralKey()
+    {
+        QSettings().setValue(QStringLiteral("general/language"), QStringLiteral("fr-FR"));
+        BrowserSettings prefs(nullptr);
+        QCOMPARE(prefs.browserLanguage(), QStringLiteral("fr-FR"));
+    }
 };
 
 QTEST_GUILESS_MAIN(TestBrowserSettings)

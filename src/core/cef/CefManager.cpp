@@ -9,6 +9,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QSettings>
 #include <QThread>
 #include <QFileInfo>
 #include <QTimer>
@@ -19,6 +20,9 @@ QStringList CefManager::s_extraFlags;
 
 // upper bound between pump iterations so CEF work is never starved
 static constexpr int kMaxPumpDelayMs = 1000 / 30;
+
+// key shared with BrowserSettings
+constexpr char kBrowserLanguageKey[] = "general/language";
 
 CefManager &CefManager::instance()
 {
@@ -205,6 +209,13 @@ void CefManager::OnBeforeCommandLineProcessing(const CefString &process_type,
             }
         }
     }
+
+    // browser UI language; an empty value means "system default"
+    QSettings browserLanguageSettings;
+    const QString language =
+        browserLanguageSettings.value(QLatin1String(kBrowserLanguageKey), QString()).toString();
+    if (!language.isEmpty())
+        command_line->AppendSwitchWithValue(qStringToCef("lang"), qStringToCef(language));
 
 
 // TODO: remove in production

@@ -78,6 +78,24 @@ private slots:
             QVERIFY(browser.activeCustomThemeId().isEmpty());
         }
     }
+    void closingTheActiveTabDoesNotRequestAWindowClose()
+    {
+        Profile profile(QStringLiteral("close-test"), QStringLiteral("Close Test"),
+                        m_dir.filePath(QStringLiteral("close-profile")));
+        BrowserController browser(&profile);
+        browser.newTab(QStringLiteral("https://example.com/a"));
+        browser.newTab(QStringLiteral("https://example.com/b"));
+        QCOMPARE(browser.tabModel()->rowCount(), 3);
+
+        browser.activateTab(1);
+        QCOMPARE(browser.activeIndex(), 1);
+
+        QSignalSpy closeSpy(&browser, &BrowserController::closeWindowRequested);
+        browser.closeTab(browser.activeIndex());
+
+        QCOMPARE(browser.tabModel()->rowCount(), 2);
+        QCOMPARE(closeSpy.size(), 0);
+    }
 
     void invalidCustomThemeIsRejected()
     {

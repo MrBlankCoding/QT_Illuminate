@@ -37,6 +37,8 @@ class BrowserSettings : public QObject, public ExternalQmlSingleton<BrowserSetti
     Q_PROPERTY(bool sidebarCollapsed READ sidebarCollapsed WRITE setSidebarCollapsed NOTIFY sidebarCollapsedChanged)
     Q_PROPERTY(int sidebarMinWidth READ sidebarMinWidth CONSTANT)
     Q_PROPERTY(int sidebarMaxWidth READ sidebarMaxWidth CONSTANT)
+    // general
+    Q_PROPERTY(QString browserLanguage READ browserLanguage WRITE setBrowserLanguage NOTIFY browserLanguageChanged)
 
 public:
     // startupBehavior values
@@ -91,6 +93,9 @@ public:
     int sidebarMinWidth() const { return kSidebarMinWidth; }
     int sidebarMaxWidth() const { return kSidebarMaxWidth; }
 
+    QString browserLanguage() const;
+    void setBrowserLanguage(const QString &language);
+
 signals:
     void startupBehaviorChanged();
     void homepageUrlChanged();
@@ -101,6 +106,7 @@ signals:
     void confirmCloseMultipleTabsChanged();
     void sidebarWidthChanged();
     void sidebarCollapsedChanged();
+    void browserLanguageChanged();
 
 private:
     void reloadProfileSettings();
@@ -123,4 +129,5 @@ private:
     bool m_confirmCloseMultipleTabs = true;
     int m_sidebarWidth = kSidebarDefaultWidth;
     bool m_sidebarCollapsed = false;
+    QString m_browserLanguage;
 };

@@ -330,8 +330,6 @@ if(APPLE)
     target_sources(QT_Illuminatemodule PRIVATE src/core/system/PermissionHandler_mac.mm)
     target_sources(QT_Illuminatemodule PRIVATE src/core/cef/CefManager_mac.mm src/core/cef/CefBrowserWrapper_mac.mm)
     set_source_files_properties(src/utils/PointerLockEmulation.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
-    # ARC for the location manager too: without it the file-local static
-    # CLLocationManager leaks and its lifetime is unmanaged.
     set_source_files_properties(src/core/system/PermissionHandler_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_link_libraries(QT_Illuminatemodule PRIVATE
         "-framework Cocoa" "-framework AppKit" "-framework QuartzCore" "-framework AVFoundation" "-framework CoreLocation" "-framework IOSurface")
@@ -398,6 +396,7 @@ foreach(_f
     ui/pages/settings/ShortcutsSettingsPage.qml
     ui/pages/settings/StartupSettingsPage.qml
     ui/pages/settings/TabsSettingsPage.qml
+    ui/pages/settings/GeneralSettingsPage.qml
     ui/components/LetterAvatar.qml
     ui/components/LucideIcon.qml
     ui/components/PillButton.qml
@@ -483,6 +482,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/pages/settings/ShortcutsSettingsPage.qml
         ui/pages/settings/StartupSettingsPage.qml
         ui/pages/settings/TabsSettingsPage.qml
+        ui/pages/settings/GeneralSettingsPage.qml
         ui/components/LetterAvatar.qml
         ui/components/LucideIcon.qml
         ui/components/PillButton.qml

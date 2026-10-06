@@ -48,20 +48,21 @@ Item {
         }
 
         function test_blankTabIsHidden() {
-            let tab = createTemporaryObject(tabItemComponent, root)
+            let tab = createTemporaryObject(tabItemComponent, root, {
+                model: { title: "New Tab", url: "newtab://newtab", iconUrl: "", loading: false, suspended: false }
+            })
             verify(!!tab, "Component exists")
-            tab.tabUrl = "newtab://newtab"
+            compare(tab.tabUrl, "newtab://newtab")
             compare(tab.visible, false)
         }
 
-        function test_titleWritable() {
-            let tab = createTemporaryObject(tabItemComponent, root)
+        function test_titleReflectsModel() {
+            let tab = createTemporaryObject(tabItemComponent, root, {
+                model: { title: "GitHub", url: "https://github.com", iconUrl: "https://github.com/favicon.ico", loading: true, suspended: false }
+            })
             verify(!!tab, "Component exists")
-            tab.tabTitle = qsTr("GitHub")
             compare(tab.tabTitle, qsTr("GitHub"))
-            tab.tabIconUrl = qsTr("https://github.com/favicon.ico")
             compare(tab.tabIconUrl, qsTr("https://github.com/favicon.ico"))
-            tab.tabLoading = true
             compare(tab.tabLoading, true)
         }
 

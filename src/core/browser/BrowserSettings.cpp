@@ -76,6 +76,7 @@ namespace
     // an auto-unload delay of zero would mean "constantly discard"
     constexpr int kMinAutoUnloadMinutes = 1;
     constexpr int kMaxAutoUnloadMinutes = 120;
+    constexpr char kBrowserLanguageKey[] = "general/language";
 }
 
 BrowserSettings::BrowserSettings(Profile *profile, QObject *parent)
@@ -87,7 +88,9 @@ BrowserSettings::BrowserSettings(Profile *profile, QObject *parent)
                             m_appSettings->value(QLatin1String(kSidebarWidthKey), kSidebarDefaultWidth).toInt(),
                             kSidebarMaxWidth);
     m_sidebarCollapsed = m_appSettings->value(QLatin1String(kSidebarCollapsedKey), false).toBool();
+    m_browserLanguage = readValue(m_appSettings, kBrowserLanguageKey, QString()).toString();
     setProfile(profile);
+    emit browserLanguageChanged();
 }
 
 void BrowserSettings::setProfile(Profile *profile)
@@ -336,3 +339,20 @@ void BrowserSettings::setSidebarCollapsed(bool collapsed)
     writeValue(m_appSettings, kSidebarCollapsedKey, collapsed);
     emit sidebarCollapsedChanged();
 }
+
+// general
+
+QString BrowserSettings::browserLanguage() const
+{
+    return m_browserLanguage;
+}
+
+void BrowserSettings::setBrowserLanguage(const QString &language)
+{
+    if (m_browserLanguage == language)
+        return;
+    m_browserLanguage = language;
+    writeValue(m_appSettings, kBrowserLanguageKey, language);
+    emit browserLanguageChanged();
+}
+
