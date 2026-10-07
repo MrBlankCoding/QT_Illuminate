@@ -12,10 +12,16 @@
 #include "../utils/BrowserLogger.h"
 
 #include <QClipboard>
+#include <QCoreApplication>
+#include <QDebug>
 #include <QGuiApplication>
+#include <QMetaObject>
+#include <QPointer>
 #include <QRect>
 #include <QQuickWindow>
 #include <QTimer>
+
+#include <cmath>
 
 #include <include/cef_app.h>
 #include <include/cef_parser.h>
@@ -46,7 +52,37 @@ static void cefSetNativeViewCornerRadius(cef_window_handle_t, qreal) {}
 static bool cefResignNativeFocus(cef_window_handle_t) { return false; }
 #endif
 
-static QRect toNativeRect(const QRect &rect, const QQuickWindow *window)
+namespace
+{
+// Chromium maps zoom levels to factors as factor = 1.2^level.
+constexpr qreal kZoomBase = 1.2;
+constexpr qreal kMinZoomFactor = 0.25;
+constexpr qreal kMaxZoomFactor = 5.0;
+
+CefRefPtr<CefBrowserHost> hostOf(const CefRefPtr<CefBrowser> &browser)
+{
+    return browser ? browser->GetHost() : CefRefPtr<CefBrowserHost>();
+}
+
+CefRefPtr<CefFrame> mainFrameOf(const CefRefPtr<CefBrowser> &browser)
+{
+    return browser ? browser->GetMainFrame() : CefRefPtr<CefFrame>();
+}
+
+void applyZoom(const CefRefPtr<CefBrowser> &browser, qreal factor)
+{
+    if (auto host = hostOf(browser))
+        host->SetZoomLevel(std::log(factor) / std::log(kZoomBase));
+}
+
+void *nativeHandleOf(const QQuickWindow *window)
+{
+    return reinterpret_cast<void *>(window->winId());
+}
+
+// Qt works in device-independent pixels; on Windows the child HWND is
+// positioned in physical pixels. macOS views use points, X11 is unhandled.
+QRect toNativeRect(const QRect &rect, const QQuickWindow *window)
 {
 #ifdef _WIN32
     const qreal dpr = window ? window->devicePixelRatio() : 1.0;
@@ -57,17 +93,39 @@ static QRect toNativeRect(const QRect &rect, const QQuickWindow *window)
 #endif
 }
 
+void setAsChild(CefWindowInfo &windowInfo, void *parentHandle, const QRect &nativeRect)
+{
+    const CefRect rect(nativeRect.x(), nativeRect.y(), nativeRect.width(), nativeRect.height());
+#if defined(__APPLE__)
+    windowInfo.SetAsChild(parentHandle, rect);
+#elif defined(_WIN32)
+    windowInfo.SetAsChild(reinterpret_cast<HWND>(parentHandle), rect);
+#else
+    windowInfo.SetAsChild(reinterpret_cast<cef_window_handle_t>(parentHandle), rect);
+#endif
+}
+
+} // namespace
+
 class CefPdfCallbackImpl : public CefPdfPrintCallback
 {
 public:
-    explicit CefPdfCallbackImpl(CefBrowserWrapper *wrapper, const QString &path)
+    CefPdfCallbackImpl(CefBrowserWrapper *wrapper, const QString &path)
         : m_wrapper(wrapper), m_path(path) {}
 
     void OnPdfPrintFinished(const CefString &path, bool ok) override
     {
         Q_UNUSED(path);
-        if (m_wrapper)
-            m_wrapper->onPdfPrintFinished(m_path, ok);
+        QPointer<CefBrowserWrapper> wrapper = m_wrapper;
+        const QString outPath = m_path;
+        QMetaObject::invokeMethod(
+            QCoreApplication::instance(),
+            [wrapper, outPath, ok]()
+            {
+                if (wrapper)
+                    wrapper->onPdfPrintFinished(outPath, ok);
+            },
+            Qt::QueuedConnection);
     }
 
 private:
@@ -76,6 +134,7 @@ private:
 
     IMPLEMENT_REFCOUNTING(CefPdfCallbackImpl);
 };
+
 
 CefBrowserWrapper::CefBrowserWrapper(QQuickItem *parent)
     : QQuickItem(parent),
@@ -86,18 +145,17 @@ CefBrowserWrapper::CefBrowserWrapper(QQuickItem *parent)
 
 CefBrowserWrapper::~CefBrowserWrapper()
 {
-    if (m_browser)
-    {
-        if (auto host = m_browser->GetHost())
-        {
-            // DevTools browsers are owned by the page's host, not by us
-            if (m_externalBrowser)
-                host->CloseDevTools();
-            else
-                host->CloseBrowser(true);
-        }
-        m_browser = nullptr;
-    }
+    auto host = hostOf(m_browser);
+    m_browser = nullptr;
+    if (!host)
+        return;
+    cefSetNativeViewGeometry(host->GetWindowHandle(), m_nativeRect, false);
+
+    // DevTools browsers are owned by the page's host, not by us
+    if (m_externalBrowser)
+        host->CloseDevTools();
+    else
+        host->CloseBrowser(true);
 }
 
 void CefBrowserWrapper::setUrl(const QUrl &url)
@@ -108,11 +166,8 @@ void CefBrowserWrapper::setUrl(const QUrl &url)
     m_url = url;
     emit urlChanged();
 
-    if (m_browser)
-    {
-        if (auto frame = m_browser->GetMainFrame())
-            frame->LoadURL(qUrlToCefString(url));
-    }
+    if (auto frame = mainFrameOf(m_browser))
+        frame->LoadURL(qUrlToCefString(url));
 }
 
 void CefBrowserWrapper::setProfile(CefProfile *profile)
@@ -144,41 +199,13 @@ void CefBrowserWrapper::setExternalBrowser(bool external)
 
 void CefBrowserWrapper::setZoomFactor(qreal factor)
 {
+    factor = factor > 0 ? qBound(kMinZoomFactor, factor, kMaxZoomFactor) : 1.0;
     if (qFuzzyCompare(m_zoomFactor, factor))
         return;
 
     m_zoomFactor = factor;
     emit zoomFactorChanged();
-
-    if (m_browser)
-    {
-        if (auto host = m_browser->GetHost())
-            host->SetZoomLevel(factor > 0 ? (factor - 1.0) * 2.0 : 0.0);
-    }
-}
-
-void CefBrowserWrapper::notifyWindowRenderingHidden(bool hidden)
-{
-    // WasHidden()/WasResized() only apply to off-screen browsers
-    if (!m_browser)
-        return;
-    auto host = m_browser->GetHost();
-    if (!host || !host->IsWindowRenderingDisabled())
-        return;
-
-    host->WasHidden(hidden);
-}
-
-void CefBrowserWrapper::notifyWindowRenderingResized()
-{
-    // see notifyWindowRenderingHidden(): only valid for off-screen rendering
-    if (!m_browser)
-        return;
-    auto host = m_browser->GetHost();
-    if (!host || !host->IsWindowRenderingDisabled())
-        return;
-
-    host->WasResized();
+    applyZoom(m_browser, m_zoomFactor);
 }
 
 void CefBrowserWrapper::setLifecycleState(int state)
@@ -204,14 +231,16 @@ void CefBrowserWrapper::setBackgroundColor(const QColor &color)
 void CefBrowserWrapper::setCornerRadius(qreal radius)
 {
     radius = qMax<qreal>(0, radius);
-    if (m_cornerRadius == radius)
+    if (qFuzzyIsNull(m_cornerRadius - radius))
         return;
+
     m_cornerRadius = radius;
     emit cornerRadiusChanged();
-    if (m_browser)
+
+    if (auto host = hostOf(m_browser))
     {
         m_nativeCornerRadius = m_cornerRadius;
-        cefSetNativeViewCornerRadius(m_browser->GetHost()->GetWindowHandle(), m_cornerRadius);
+        cefSetNativeViewCornerRadius(host->GetWindowHandle(), m_cornerRadius);
     }
 }
 
@@ -224,13 +253,9 @@ void CefBrowserWrapper::setInputSuppressed(bool suppressed)
     applyInputSuppression();
 }
 
-// The page stays on screen under an overlay; only keyboard focus moves. The
-// native view would otherwise keep receiving keys before Qt sees them.
 void CefBrowserWrapper::applyInputSuppression()
 {
-    if (!m_browser)
-        return;
-    auto host = m_browser->GetHost();
+    auto host = hostOf(m_browser);
     if (!host)
         return;
 
@@ -244,6 +269,21 @@ void CefBrowserWrapper::applyInputSuppression()
         m_restoreFocus = false;
         host->SetFocus(true);
     }
+}
+// notifications
+void CefBrowserWrapper::notifyWindowRenderingHidden(bool hidden)
+{
+    auto host = hostOf(m_browser);
+    if (host && host->IsWindowRenderingDisabled())
+        host->WasHidden(hidden);
+}
+
+void CefBrowserWrapper::notifyWindowRenderingResized()
+{
+    // see notifyWindowRenderingHidden(): only valid for off-screen rendering
+    auto host = hostOf(m_browser);
+    if (host && host->IsWindowRenderingDisabled())
+        host->WasResized();
 }
 
 void CefBrowserWrapper::goBack()
@@ -269,13 +309,10 @@ void CefBrowserWrapper::stop()
     if (m_browser)
         m_browser->StopLoad();
 }
-
+// find
 void CefBrowserWrapper::findText(const QString &text, int flags)
 {
-    if (!m_browser)
-        return;
-
-    auto host = m_browser->GetHost();
+    auto host = hostOf(m_browser);
     if (!host)
         return;
 
@@ -283,29 +320,29 @@ void CefBrowserWrapper::findText(const QString &text, int flags)
     // StopFinding(true).
     if (text.isEmpty())
     {
+        m_lastFindText.clear();
         host->StopFinding(true);
         return;
     }
 
     const bool forward = !(flags & FindBackward);
-    host->Find(qStringToCef(text), forward, false, false);
+    const bool findNext = (text == m_lastFindText);
+    m_lastFindText = text;
+
+    // Case-insensitive; extend here if the header gains a case-sensitivity flag.
+    host->Find(qStringToCef(text), forward, false, findNext);
 }
 
 void CefBrowserWrapper::stopFinding(bool clearSelection)
 {
-    if (m_browser)
-    {
-        if (auto host = m_browser->GetHost())
-            host->StopFinding(clearSelection);
-    }
+    m_lastFindText.clear();
+    if (auto host = hostOf(m_browser))
+        host->StopFinding(clearSelection);
 }
 
 void CefBrowserWrapper::triggerWebAction(int action, const QUrl &url)
 {
-    if (!m_browser)
-        return;
-
-    auto frame = m_browser->GetMainFrame();
+    auto frame = mainFrameOf(m_browser);
     if (!frame)
         return;
 
@@ -324,11 +361,9 @@ void CefBrowserWrapper::triggerWebAction(int action, const QUrl &url)
     case DownloadImageToDisk:
     case DownloadMediaToDisk:
     case DownloadLinkToDisk:
-        // goes through CefDownloadHandlerImpl, so it lands in the downloads
-        // panel like any other download instead of being written behind the UI
         if (url.isValid() && !url.isEmpty())
         {
-            if (auto host = m_browser->GetHost())
+            if (auto host = hostOf(m_browser))
                 host->StartDownload(qUrlToCefString(url));
         }
         break;
@@ -343,30 +378,32 @@ void CefBrowserWrapper::triggerWebAction(int action, const QUrl &url)
 void CefBrowserWrapper::runJavaScript(const QString &script, int worldId)
 {
     Q_UNUSED(worldId);
-    if (m_browser)
-    {
-        if (auto frame = m_browser->GetMainFrame())
-            frame->ExecuteJavaScript(qStringToCef(script), frame->GetURL(), 0);
-    }
+    if (auto frame = mainFrameOf(m_browser))
+        frame->ExecuteJavaScript(qStringToCef(script), frame->GetURL(), 0);
 }
 
 void CefBrowserWrapper::printToPdf(const QString &path)
 {
-    if (!m_browser)
-        return;
-
-    if (auto host = m_browser->GetHost())
+    auto host = hostOf(m_browser);
+    if (!host)
     {
-        CefPdfPrintSettings settings;
-        CefRefPtr<CefPdfPrintCallback> callback(new CefPdfCallbackImpl(this, path));
-        host->PrintToPDF(qStringToCef(path), settings, callback);
+        // Callers wait for pdfPrintingFinished; don't leave them hanging.
+        QTimer::singleShot(0, this, [this, path]()
+                           { onPdfPrintFinished(path, false); });
+        return;
     }
-}
 
+    CefPdfPrintSettings settings;
+    CefRefPtr<CefPdfPrintCallback> callback(new CefPdfCallbackImpl(this, path));
+    host->PrintToPDF(qStringToCef(path), settings, callback);
+}
+// full screen
 void CefBrowserWrapper::exitFullScreen()
 {
-    if (m_browser && m_fullScreen)
-        m_browser->GetHost()->ExitFullscreen(true);
+    if (!m_fullScreen)
+        return;
+    if (auto host = hostOf(m_browser))
+        host->ExitFullscreen(true);
 }
 
 void CefBrowserWrapper::onFullscreenModeChanged(bool fullscreen)
@@ -376,20 +413,27 @@ void CefBrowserWrapper::onFullscreenModeChanged(bool fullscreen)
     m_fullScreen = fullscreen;
     emit fullScreenChanged();
 }
-
+// dev tools
 void CefBrowserWrapper::showDevTools(const QPoint &inspectAt)
 {
-    if (!m_browser)
-        return;
-
-    auto host = m_browser->GetHost();
+    auto host = hostOf(m_browser);
     if (!host)
         return;
 
     CefWindowInfo windowInfo;
     CefBrowserSettings settings;
     // (0,0) tells CEF to open DevTools without selecting an element
-    CefPoint inspectAtCef(inspectAt.x(), inspectAt.y());
+    const CefPoint inspectAtCef(inspectAt.x(), inspectAt.y());
+
+    if (m_devToolsView && m_devToolsView->window())
+    {
+        // dock DevTools into the embedded view instead of a popup window
+        QQuickWindow *devToolsWindow = m_devToolsView->window();
+        setAsChild(windowInfo, nativeHandleOf(devToolsWindow),
+                   toNativeRect(m_devToolsView->sceneRect(), devToolsWindow));
+        windowInfo.runtime_style = CEF_RUNTIME_STYLE_CHROME;
+    }
+
     qInfo() << "[DevTools] showDevTools inspectAt=" << inspectAt;
     host->ShowDevTools(windowInfo, m_client, settings, inspectAtCef);
 }
@@ -398,37 +442,40 @@ void CefBrowserWrapper::closeDevTools()
 {
     m_client->setDevToolsView(nullptr);
 
-    if (m_browser)
-    {
-        if (auto host = m_browser->GetHost())
-            host->CloseDevTools();
-    }
+    if (auto host = hostOf(m_browser))
+        host->CloseDevTools();
 }
 
+// lifecycle
 void CefBrowserWrapper::setBrowser(CefRefPtr<CefBrowser> browser)
 {
     m_browser = browser;
     m_creatingBrowser = false;
     m_nativeRect = QRect();
+    m_nativeVisible = false;
+    m_nativeCornerRadius = 0;
+
     if (!m_browser)
-        onFullscreenModeChanged(false);
-    if (m_browser)
     {
-        updateNativeGeometry();
-        if (m_inputSuppressed)
-            applyInputSuppression();
-        if (m_lifecycleState != Active)
-            notifyWindowRenderingHidden(true);
+        onFullscreenModeChanged(false);
+        return;
+    }
 
-        m_renderProcessPid = 0;
-        emit renderProcessPidChanged(m_renderProcessPid);
+    updateNativeGeometry();
+    if (m_inputSuppressed)
+        applyInputSuppression();
+    if (m_lifecycleState != Active)
+        notifyWindowRenderingHidden(true);
+    if (!qFuzzyCompare(m_zoomFactor, 1.0))
+        applyZoom(m_browser, m_zoomFactor);
 
-        // CreateBrowser already started loading the initial URL
-        if (!m_url.isEmpty() && m_url != m_createdUrl)
-        {
-            if (auto frame = m_browser->GetMainFrame())
-                frame->LoadURL(qUrlToCefString(m_url));
-        }
+    m_renderProcessPid = 0;
+    emit renderProcessPidChanged(m_renderProcessPid);
+
+    if (!m_externalBrowser && !m_url.isEmpty() && m_url != m_createdUrl)
+    {
+        if (auto frame = m_browser->GetMainFrame())
+            frame->LoadURL(qUrlToCefString(m_url));
     }
 }
 
@@ -440,16 +487,7 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
     m_creatingBrowser = true;
 
     CefWindowInfo windowInfo;
-    const QRect nativeGeometry = toNativeRect(geometry, window());
-    CefRect rect(nativeGeometry.x(), nativeGeometry.y(), nativeGeometry.width(), nativeGeometry.height());
-
-#if defined(OS_MAC) || defined(OS_MACOSX)
-    windowInfo.SetAsChild(nativeWindowHandle, rect);
-#elif defined(OS_WIN)
-    windowInfo.SetAsChild(reinterpret_cast<HWND>(nativeWindowHandle), rect);
-#else
-    windowInfo.SetAsChild(reinterpret_cast<cef_window_handle_t>(nativeWindowHandle), rect);
-#endif
+    setAsChild(windowInfo, nativeWindowHandle, toNativeRect(geometry, window()));
 
     CefBrowserSettings settings;
     if (m_backgroundColor.isValid())
@@ -461,28 +499,59 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
 
     m_createdUrl = m_url;
     const CefString initialUrl = m_url.isEmpty() ? CefString() : qUrlToCefString(m_url);
-    CefBrowserHost::CreateBrowser(windowInfo, m_client, initialUrl, settings, nullptr, requestContext);
+    if (!CefBrowserHost::CreateBrowser(windowInfo, m_client, initialUrl, settings, nullptr, requestContext))
+    {
+        // Without this the wrapper would wait forever for OnAfterCreated.
+        m_creatingBrowser = false;
+        qWarning() << "[CEF] CreateBrowser failed for" << m_url;
+    }
+}
+
+void CefBrowserWrapper::initializeBrowserHost()
+{
+    if (m_creatingBrowser || m_browser || m_externalBrowser || !window())
+        return;
+
+    QTimer::singleShot(0, this, [this]()
+                       {
+        if (window())
+            createBrowser(nativeHandleOf(window()), sceneRect()); });
+}
+
+QRect CefBrowserWrapper::sceneRect() const
+{
+    return mapRectToScene(QRectF(0, 0, width(), height())).toAlignedRect();
+}
+
+void CefBrowserWrapper::updateNativeGeometry()
+{
+    if (!window() || !m_browser)
+        return;
+    updateGeometry(sceneRect());
 }
 
 void CefBrowserWrapper::updateGeometry(const QRect &geometry)
 {
-    if (!m_browser)
+    auto host = hostOf(m_browser);
+    if (!host)
         return;
 
+    // cache
+    const QRect nativeRect = toNativeRect(geometry, window());
     const bool visible = isVisible() && window() && window()->isVisible();
-    if (geometry == m_nativeRect && visible == m_nativeVisible)
+    if (nativeRect == m_nativeRect && visible == m_nativeVisible)
         return;
 
-    const bool resized = geometry.size() != m_nativeRect.size();
-    m_nativeRect = geometry;
+    const bool resized = nativeRect.size() != m_nativeRect.size();
+    m_nativeRect = nativeRect;
     m_nativeVisible = visible;
 
-    auto host = m_browser->GetHost();
-    cefSetNativeViewGeometry(host->GetWindowHandle(), toNativeRect(geometry, window()), visible);
+    const auto handle = host->GetWindowHandle();
+    cefSetNativeViewGeometry(handle, nativeRect, visible);
     if (m_nativeCornerRadius != m_cornerRadius)
     {
         m_nativeCornerRadius = m_cornerRadius;
-        cefSetNativeViewCornerRadius(host->GetWindowHandle(), m_cornerRadius);
+        cefSetNativeViewCornerRadius(handle, m_cornerRadius);
     }
     if (resized)
         notifyWindowRenderingResized();
@@ -568,13 +637,19 @@ void CefBrowserWrapper::itemChange(ItemChange change, const ItemChangeData &data
     if (change == ItemSceneChange)
     {
         QObject::disconnect(m_frameConnection);
-        if (window())
+        if (data.window)
         {
-            // ancestors moving (e.g. toolbars hiding for fullscreen) don't
-            // notify this item, so re-check the native frame every frame
-            m_frameConnection = connect(window(), &QQuickWindow::afterAnimating,
+            m_frameConnection = connect(data.window, &QQuickWindow::afterAnimating,
                                         this, &CefBrowserWrapper::updateNativeGeometry);
             initializeBrowserHost();
+        }
+        else if (auto host = hostOf(m_browser))
+        {
+            if (m_nativeVisible)
+            {
+                m_nativeVisible = false;
+                cefSetNativeViewGeometry(host->GetWindowHandle(), m_nativeRect, false);
+            }
         }
     }
     else if (change == ItemVisibleHasChanged)
@@ -587,27 +662,4 @@ void CefBrowserWrapper::geometryChange(const QRectF &newGeometry, const QRectF &
 {
     QQuickItem::geometryChange(newGeometry, oldGeometry);
     updateNativeGeometry();
-}
-
-void CefBrowserWrapper::initializeBrowserHost()
-{
-    if (m_creatingBrowser || m_browser || m_externalBrowser || !window())
-        return;
-
-    const QRect rect = sceneRect();
-    void *winId = reinterpret_cast<void *>(window()->winId());
-    QTimer::singleShot(0, this, [this, winId, rect]()
-                       { createBrowser(winId, rect); });
-}
-
-QRect CefBrowserWrapper::sceneRect() const
-{
-    return mapRectToScene(QRectF(0, 0, width(), height())).toAlignedRect();
-}
-
-void CefBrowserWrapper::updateNativeGeometry()
-{
-    if (!window() || !m_browser)
-        return;
-    updateGeometry(sceneRect());
 }

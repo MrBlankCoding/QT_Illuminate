@@ -9,20 +9,101 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
+#include <QFileInfo>
+#include <QMetaObject>
+#include <QMutexLocker>
+#include <QScopedValueRollback>
 #include <QSettings>
 #include <QThread>
-#include <QFileInfo>
 #include <QTimer>
+
+#include <vector>
 
 #include <include/cef_version.h>
 
 QStringList CefManager::s_extraFlags;
 
-// upper bound between pump iterations so CEF work is never starved
-static constexpr int kMaxPumpDelayMs = 1000 / 30;
+namespace
+{
 
-// key shared with BrowserSettings
+constexpr int kMaxPumpDelayMs = 1000 / 30;
+constexpr qint64 kBrowserCloseTimeoutMs = 3000;
 constexpr char kBrowserLanguageKey[] = "general/language";
+constexpr const char *kCustomSchemes[] = {"illuminate", "newtab"};
+constexpr const char *kListSwitches[] = {
+    "enable-features",
+    "disable-features",
+    "enable-blink-features",
+    "disable-blink-features",
+};
+
+bool isListSwitch(const QString &name)
+{
+    for (const char *listSwitch : kListSwitches)
+    {
+        if (name == QLatin1String(listSwitch))
+            return true;
+    }
+    return false;
+}
+
+QString mergeLists(const QString &existing, const QString &added)
+{
+    QStringList merged;
+    const QStringList items = (existing + QLatin1Char(',') + added)
+                                  .split(QLatin1Char(','), Qt::SkipEmptyParts);
+    for (const QString &item : items)
+    {
+        if (!merged.contains(item))
+            merged.append(item);
+    }
+    return merged.join(QLatin1Char(','));
+}
+
+// Returns false if the flag is malformed and was skipped.
+bool applyChromiumFlag(const CefRefPtr<CefCommandLine> &commandLine, const QString &flag)
+{
+    if (!flag.startsWith(QLatin1String("--")))
+        return false;
+
+    const QString body = flag.mid(2);
+    if (body.isEmpty())
+        return false;
+
+    const int eq = body.indexOf(QLatin1Char('='));
+    if (eq < 0)
+    {
+        commandLine->AppendSwitch(qStringToCef(body));
+        return true;
+    }
+    if (eq == 0)
+        return false;
+
+    const QString key = body.left(eq);
+    QString value = body.mid(eq + 1);
+    if (isListSwitch(key))
+    {
+        const CefString existing = commandLine->GetSwitchValue(qStringToCef(key));
+        if (!existing.empty())
+            value = mergeLists(QString::fromStdString(existing.ToString()), value);
+    }
+    commandLine->AppendSwitchWithValue(qStringToCef(key), qStringToCef(value));
+    return true;
+}
+
+CefMainArgs makeMainArgs(int argc, char **argv)
+{
+#if defined(OS_WIN)
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+    return CefMainArgs(::GetModuleHandle(nullptr));
+#else
+    return CefMainArgs(argc, argv);
+#endif
+}
+
+} // namespace
 
 CefManager &CefManager::instance()
 {
@@ -35,49 +116,43 @@ void CefManager::setChromiumFlags(const QStringList &flags)
     s_extraFlags = flags;
 }
 
-// (cef#3912).
+// Stack protector is disabled for this function, see cef#3912.
 NO_STACK_PROTECTOR int CefManager::executeProcess(int argc, char **argv)
 {
-#if defined(OS_WIN)
-    Q_UNUSED(argc);
-    Q_UNUSED(argv);
-    CefMainArgs main_args(::GetModuleHandle(nullptr));
-#else
-    CefMainArgs main_args(argc, argv);
-#endif
+    const CefMainArgs mainArgs = makeMainArgs(argc, argv);
+
     // On macOS sub-processes run from the separate "QT_Illuminate Helper" apps,
     // so this always returns -1 there.
-    return CefExecuteProcess(main_args, CefRefPtr<CefApp>(&instance()), nullptr);
+    return CefExecuteProcess(mainArgs, CefRefPtr<CefApp>(&instance()), nullptr);
 }
 
 bool CefManager::initialize(int argc, char **argv)
 {
-#if defined(OS_WIN)
-    CefMainArgs main_args(::GetModuleHandle(nullptr));
-#else
-    CefMainArgs main_args(argc, argv);
-#endif
+    CefManager &self = instance();
+    if (self.m_initialized)
+        return true;
 
-    CefRefPtr<CefApp> app(&instance());
+    const CefMainArgs mainArgs = makeMainArgs(argc, argv);
+    CefRefPtr<CefApp> app(&self);
 
     CefSettings settings;
     settings.no_sandbox = true;
 
 #ifdef __APPLE__
-    settings.multi_threaded_message_loop = false;
-    settings.external_message_pump = true;
-    instance().m_externalPump = true;
-    installCefAppProtocol();
-
     // CEF requires absolute, clean paths here
     const QString frameworkPath = QFileInfo(QCoreApplication::applicationDirPath()
         + QStringLiteral("/../Frameworks/Chromium Embedded Framework.framework")).canonicalFilePath();
-    if (!frameworkPath.isEmpty()) {
-        CefString(&settings.framework_dir_path) = qStringToCef(frameworkPath);
-        BrowserLogger::instance().info("CEF", "Framework directory: " + frameworkPath);
-    } else {
+    if (frameworkPath.isEmpty()) {
         BrowserLogger::instance().error("CEF", "Chromium Embedded Framework.framework missing from the app bundle");
+        return false;
     }
+    CefString(&settings.framework_dir_path) = qStringToCef(frameworkPath);
+    BrowserLogger::instance().info("CEF", "Framework directory: " + frameworkPath);
+
+    settings.multi_threaded_message_loop = false;
+    settings.external_message_pump = true;
+    self.m_externalPump = true;
+    installCefAppProtocol();
     // Sub-processes are found by CEF at
     // Contents/Frameworks/QT_Illuminate Helper*.app, so browser_subprocess_path stays empty.
 #else
@@ -94,20 +169,20 @@ bool CefManager::initialize(int argc, char **argv)
     }
 #endif
 
-    // profile caches live below this, which CEF requires for per-profile
-    // request contexts to persist to disk
     const QString rootCache = CefProfile::rootCachePath();
-    QDir().mkpath(rootCache);
+    if (!QDir().mkpath(rootCache))
+        BrowserLogger::instance().warning("CEF", "Could not create cache directory: " + rootCache);
     CefString(&settings.root_cache_path) = qStringToCef(rootCache);
 
-    const bool success = CefInitialize(main_args, settings, app, nullptr);
-    instance().m_initialized = success;
+    const bool success = CefInitialize(mainArgs, settings, app, nullptr);
+    self.m_initialized = success;
     if (success) {
-        BrowserLogger::instance().info("CEF", QString("CEF %1 initialized").arg(CEF_VERSION));
-        if (instance().m_externalPump)
-            instance().scheduleMessagePumpWork(0);
+        BrowserLogger::instance().info("CEF", QStringLiteral("CEF %1 initialized")
+            .arg(QString::fromLatin1(CEF_VERSION)));
+        if (self.m_externalPump)
+            self.scheduleMessagePumpWork(0);
     } else {
-        BrowserLogger::instance().error("CEF", QString("CefInitialize failed (exit code %1)")
+        BrowserLogger::instance().error("CEF", QStringLiteral("CefInitialize failed (exit code %1)")
             .arg(CefGetExitCode()));
     }
 
@@ -116,48 +191,58 @@ bool CefManager::initialize(int argc, char **argv)
 
 void CefManager::browserCreated(CefRefPtr<CefBrowser> browser)
 {
+    if (!browser)
+        return;
+
     QMutexLocker lock(&m_browsersMutex);
     m_browsers.push_back(browser);
 }
 
 void CefManager::browserClosed(CefRefPtr<CefBrowser> browser)
 {
+    if (!browser)
+        return;
+
     QMutexLocker lock(&m_browsersMutex);
     std::erase_if(m_browsers, [&](const CefRefPtr<CefBrowser> &b) { return b->IsSame(browser); });
 }
 
 void CefManager::closeAllBrowsers()
 {
-    std::vector<CefRefPtr<CefBrowser>> browsers;
     {
-        QMutexLocker lock(&m_browsersMutex);
-        browsers = m_browsers;
-    }
-    for (const auto &browser : browsers)
-        browser->GetHost()->CloseBrowser(true);
-    browsers.clear();
-
-    // wait for OnBeforeClose; queued Qt events let the wrappers drop their refs
-    QElapsedTimer timer;
-    timer.start();
-    while (timer.elapsed() < 3000)
-    {
+        std::vector<CefRefPtr<CefBrowser>> browsers;
         {
             QMutexLocker lock(&m_browsersMutex);
-            if (m_browsers.empty())
-                break;
+            browsers = m_browsers;
         }
+        for (const auto &browser : browsers)
+        {
+            if (auto host = browser->GetHost())
+                host->CloseBrowser(true);
+        }
+    }
+
+    const auto openBrowserCount = [this]() {
+        QMutexLocker lock(&m_browsersMutex);
+        return m_browsers.size();
+    };
+
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < kBrowserCloseTimeoutMs && openBrowserCount() > 0)
+    {
         if (m_externalPump)
             CefDoMessageLoopWork();
-        else
-            QThread::msleep(5);
         QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+        // processEvents() returns immediately when idle; don't spin a core
+        QThread::msleep(2);
     }
     QCoreApplication::processEvents();
 
     QMutexLocker lock(&m_browsersMutex);
     if (!m_browsers.empty())
-        BrowserLogger::instance().warning("CEF", QString("%1 browser(s) still open at shutdown").arg(m_browsers.size()));
+        BrowserLogger::instance().warning("CEF", QStringLiteral("%1 browser(s) still open at shutdown")
+            .arg(static_cast<int>(m_browsers.size())));
     m_browsers.clear();
 }
 
@@ -178,10 +263,11 @@ void CefManager::shutdown()
     BrowserLogger::instance().info("CEF", "CEF shutdown complete");
 }
 
+
 void CefManager::OnBeforeCommandLineProcessing(const CefString &process_type,
                                                CefRefPtr<CefCommandLine> command_line)
 {
-    Q_UNUSED(process_type);
+    const bool isBrowserProcess = process_type.empty();
 
     // Append flags from SystemInfo if not already passed
     QStringList flags = s_extraFlags;
@@ -193,22 +279,12 @@ void CefManager::OnBeforeCommandLineProcessing(const CefString &process_type,
 
     for (const QString &flag : flags)
     {
-        if (flag.startsWith(QStringLiteral("--")))
-        {
-            const QString stripped = flag.mid(2);
-            const int eq = stripped.indexOf('=');
-            if (eq > 0)
-            {
-                const QString key = stripped.left(eq);
-                const QString val = stripped.mid(eq + 1);
-                command_line->AppendSwitchWithValue(qStringToCef(key), qStringToCef(val));
-            }
-            else
-            {
-                command_line->AppendSwitch(qStringToCef(stripped));
-            }
-        }
+        if (!applyChromiumFlag(command_line, flag) && isBrowserProcess)
+            BrowserLogger::instance().warning("CEF", "Ignoring malformed Chromium flag: " + flag);
     }
+
+    if (!isBrowserProcess)
+        return;
 
     // browser UI language; an empty value means "system default"
     QSettings browserLanguageSettings;
@@ -217,8 +293,7 @@ void CefManager::OnBeforeCommandLineProcessing(const CefString &process_type,
     if (!language.isEmpty())
         command_line->AppendSwitchWithValue(qStringToCef("lang"), qStringToCef(language));
 
-
-// TODO: remove in production
+    // TODO: remove in production
 #ifdef Q_OS_MACOS
     if (!command_line->HasSwitch("use-mock-keychain"))
         command_line->AppendSwitch("use-mock-keychain");
@@ -227,8 +302,8 @@ void CefManager::OnBeforeCommandLineProcessing(const CefString &process_type,
 
 void CefManager::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar)
 {
-    registrar->AddCustomScheme("illuminate", CEF_SCHEME_OPTION_STANDARD | CEF_SCHEME_OPTION_SECURE);
-    registrar->AddCustomScheme("newtab", CEF_SCHEME_OPTION_STANDARD | CEF_SCHEME_OPTION_SECURE);
+    for (const char *scheme : kCustomSchemes)
+        registrar->AddCustomScheme(scheme, CEF_SCHEME_OPTION_STANDARD | CEF_SCHEME_OPTION_SECURE);
 }
 
 void CefManager::OnContextInitialized()
@@ -239,14 +314,18 @@ void CefManager::OnContextInitialized()
 void CefManager::OnScheduleMessagePumpWork(int64_t delay_ms)
 {
     // may be called from any thread; the pump itself runs on the Qt main thread
-    QMetaObject::invokeMethod(qApp, [delay_ms]() {
+    QCoreApplication *app = QCoreApplication::instance();
+    if (!app)
+        return;
+
+    QMetaObject::invokeMethod(app, [delay_ms]() {
         instance().scheduleMessagePumpWork(delay_ms);
     }, Qt::QueuedConnection);
 }
 
 void CefManager::scheduleMessagePumpWork(int64_t delayMs)
 {
-    if (!m_initialized || m_shuttingDown)
+    if (!m_externalPump || !m_initialized || m_shuttingDown)
         return;
 
     if (!m_pumpTimer) {
@@ -259,6 +338,7 @@ void CefManager::scheduleMessagePumpWork(int64_t delayMs)
     }
 
     const int delay = static_cast<int>(qBound<int64_t>(0, delayMs, int64_t(kMaxPumpDelayMs)));
+    // keep whichever deadline comes first
     if (m_pumpTimer->isActive() && m_pumpTimer->remainingTime() <= delay)
         return;
     m_pumpTimer->start(delay);
@@ -269,10 +349,11 @@ void CefManager::doMessageLoopWork()
     if (!m_initialized || m_shuttingDown || m_inPumpWork)
         return;
 
-    m_inPumpWork = true;
-    CefDoMessageLoopWork();
-    m_inPumpWork = false;
+    {
+        QScopedValueRollback<bool> inPump(m_inPumpWork, true);
+        CefDoMessageLoopWork();
+    }
 
-    if (!m_pumpTimer->isActive())
+    if (m_pumpTimer && !m_pumpTimer->isActive())
         m_pumpTimer->start(kMaxPumpDelayMs);
 }

@@ -10,4 +10,5 @@ I need another hobby
 4. Closing tabs shouldnt close the window
 5. Hide mac title bar
 6. Ad blocker 
-7. Privacy dashboard 
+7. Privacy dashboard
+8. https://github.com/nicoverbruggen/libron/releases -> fonts

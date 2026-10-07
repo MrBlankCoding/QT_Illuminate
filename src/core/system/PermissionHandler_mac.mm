@@ -136,7 +136,7 @@ void PermissionHandler::platformMakeDefaultBrowser()
                            finish(false, QString::fromNSString(httpError.localizedDescription));
                            return;
                        }
-                       [ws setDefaultApplicationAtURL:app
+                        [NSWorkspace.sharedWorkspace setDefaultApplicationAtURL:app
                                toOpenURLsWithScheme:@"https"
                                   completionHandler:^(NSError *httpsError) {
                                       finish(!httpsError,

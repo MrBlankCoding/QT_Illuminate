@@ -201,4 +201,5 @@ private:
     bool m_nativeVisible = true;
     QMetaObject::Connection m_frameConnection;
     QUrl m_createdUrl;
+    QString m_lastFindText;
 };
