@@ -42,6 +42,11 @@ Window {
         onActivated: root.visible = false
     }
 
+    ChromeGlass {
+        windowTarget: root
+        vibrancy: false
+    }
+
     ListModel {
         id: downloadsModel
     }
@@ -181,7 +186,7 @@ Window {
         id: panel
         anchors.fill: parent
         radius: 8
-        color: Theme.surface
+        color: Theme.glassSurface
         border.color: Theme.border
         border.width: 1
         clip: true

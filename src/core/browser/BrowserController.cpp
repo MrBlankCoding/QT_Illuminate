@@ -274,6 +274,19 @@ QVariantMap BrowserController::activeThemeColors() const
     return {};
 }
 
+bool BrowserController::transparentChrome() const
+{
+    return m_settings && m_settings->value(QStringLiteral("transparentChrome"), false).toBool();
+}
+
+void BrowserController::setTransparentChrome(bool enabled)
+{
+    if (!m_settings || transparentChrome() == enabled)
+        return;
+    m_settings->setValue(QStringLiteral("transparentChrome"), enabled);
+    emit transparentChromeChanged();
+}
+
 void BrowserController::setThemePalette(const QString &palette)
 {
     if (!m_settings || !kThemePalettes.contains(palette))

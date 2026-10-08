@@ -1,6 +1,7 @@
 #include <QApplication>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QQuickWindow>
 #include <QDir>
 #include <QFileInfo>
 #include <QFileOpenEvent>
@@ -155,6 +156,7 @@ NO_STACK_PROTECTOR int main(int argc, char *argv[])
     CefManager::setChromiumFlags(flagsList);
 
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+    QQuickWindow::setDefaultAlphaBuffer(true);
     if (!qEnvironmentVariableIsSet("QSG_ATLAS_WIDTH"))
         qputenv("QSG_ATLAS_WIDTH", "1024");
     if (!qEnvironmentVariableIsSet("QSG_ATLAS_HEIGHT"))
@@ -233,6 +235,9 @@ NO_STACK_PROTECTOR int main(int argc, char *argv[])
         if (std::exchange(shuttingDown, true))
             return;
         controller.saveSession();
+        // close CEF browsers first so their native views are released before the
+        // Qt windows that own them are destroyed (avoids dangling-view crashes)
+        CefManager::instance().closeAllBrowsers();
         controller.destroyAdoptedWindows();
         engine.reset();
         CefManager::shutdown();

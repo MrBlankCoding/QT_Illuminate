@@ -1,7 +1,10 @@
 #include "WindowRounding.h"
 
 #import <AppKit/AppKit.h>
+#import <objc/runtime.h>
 #include <QQuickWindow>
+
+static const void *kIlluminateVibrancyKey = &kIlluminateVibrancyKey;
 
 namespace WindowRounding {
 
@@ -66,6 +69,64 @@ void setMacWindowButtonsVisible(QQuickWindow *window, bool visible) {
   for (NSWindowButton kind : {NSWindowCloseButton, NSWindowMiniaturizeButton,
                               NSWindowZoomButton})
     [nsWindow standardWindowButton:kind].hidden = !visible;
+}
+
+void setMacWindowTransparent(QQuickWindow *window, bool transparent) {
+  if (!window)
+    return;
+  NSView *view = reinterpret_cast<NSView *>(window->winId());
+  NSWindow *nsWindow = view ? view.window : nil;
+  if (!nsWindow)
+    return;
+  nsWindow.opaque = !transparent;
+  nsWindow.backgroundColor =
+      transparent ? [NSColor clearColor] : [NSColor windowBackgroundColor];
+
+  if (view.wantsLayer || transparent) {
+    view.wantsLayer = YES;
+    view.layer.opaque = !transparent;
+  }
+}
+
+void setMacWindowVibrancy(QQuickWindow *window, bool enabled, bool dark) {
+  if (!window)
+    return;
+  NSView *content = reinterpret_cast<NSView *>(window->winId());
+  NSWindow *nsWindow = content ? content.window : nil;
+  if (!nsWindow)
+    return;
+  NSView *frameView = content.superview;
+  if (!frameView)
+    return;
+
+  NSVisualEffectView *effect =
+      objc_getAssociatedObject(nsWindow, kIlluminateVibrancyKey);
+
+  if (!enabled) {
+    if (effect) {
+      [effect removeFromSuperview];
+      objc_setAssociatedObject(nsWindow, kIlluminateVibrancyKey, nil,
+                               OBJC_ASSOCIATION_RETAIN);
+    }
+    return;
+  }
+
+  if (!effect) {
+    effect = [[NSVisualEffectView alloc] initWithFrame:content.frame];
+    effect.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    effect.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+    effect.material = NSVisualEffectMaterialUnderWindowBackground;
+    effect.state = NSVisualEffectStateActive;
+    [frameView addSubview:effect positioned:NSWindowBelow relativeTo:content];
+    objc_setAssociatedObject(nsWindow, kIlluminateVibrancyKey, effect,
+                             OBJC_ASSOCIATION_RETAIN);
+  }
+
+  effect.frame = content.frame;
+  effect.appearance =
+      [NSAppearance appearanceNamed:dark ? NSAppearanceNameDarkAqua
+                                         : NSAppearanceNameAqua];
+  effect.hidden = NO;
 }
 
 } // namespace WindowRounding

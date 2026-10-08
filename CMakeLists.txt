@@ -485,6 +485,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/pages/settings/GeneralSettingsPage.qml
         ui/components/LetterAvatar.qml
         ui/components/LucideIcon.qml
+        ui/components/ChromeGlass.qml
         ui/components/PillButton.qml
         ui/components/chrome/ResizeGrips.qml
         ui/components/chrome/WindowControls.qml

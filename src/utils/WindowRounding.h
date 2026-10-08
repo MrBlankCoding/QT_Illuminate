@@ -11,5 +11,7 @@ namespace WindowRounding
     // quit the file
     void applyMacTitleBarStyle(QQuickWindow *window, qreal barHeight);
     void setMacWindowButtonsVisible(QQuickWindow *window, bool visible);
+    void setMacWindowTransparent(QQuickWindow *window, bool transparent);
+    void setMacWindowVibrancy(QQuickWindow *window, bool enabled, bool dark);
 #endif
 }

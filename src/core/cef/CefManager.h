@@ -23,6 +23,9 @@ public:
 
     void browserCreated(CefRefPtr<CefBrowser> browser);
     void browserClosed(CefRefPtr<CefBrowser> browser);
+    // closes and waits (briefly) for all open CEF browsers; call before tearing
+    // down Qt windows so wrappers release their native views first
+    void closeAllBrowsers();
 
     CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override { return this; }
     void OnBeforeCommandLineProcessing(const CefString &process_type,
@@ -40,7 +43,6 @@ private:
     // external message pump (macOS): CEF work runs on the Qt main thread
     void scheduleMessagePumpWork(int64_t delayMs);
     void doMessageLoopWork();
-    void closeAllBrowsers();
 
     static QStringList s_extraFlags;
 

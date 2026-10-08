@@ -13,7 +13,7 @@ Window {
     minimumWidth: 640
     minimumHeight: 420
     title: (Browser.activeTitle || "New Tab") + " — QT_Illuminate"
-    color: Theme.sidebarBg
+    color: Theme.chromeBg
     readonly property bool frameless: Qt.platform.os !== "osx"
     flags: frameless ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
     readonly property bool contentFullScreen: viewStack.activeWebView ? viewStack.activeWebView.fullScreen : false
@@ -347,10 +347,20 @@ Window {
         Logger.info("BrowserWindow", "Window ready, platform=" + Qt.platform.os);
         WindowHelper.applyTitleBarStyle(root, Theme.titleBarHeight);
         WindowHelper.setWindowButtonsVisible(root, !root.sidebarCollapsed || root.sidebarPeeked);
+        WindowHelper.setWindowTransparent(root, Theme.transparentChrome, Theme.isDark);
         AppMenu.attach(root);
     }
 
     Component.onDestruction: AppMenu.detach(root)
+
+    Connections {
+        // keep the native vibrancy appearance in sync with the system scheme
+        target: Application.styleHints
+        function onColorSchemeChanged() {
+            if (Browser.themeMode === "system")
+                WindowHelper.setWindowTransparent(root, Theme.transparentChrome, Theme.isDark);
+        }
+    }
 
     RowLayout {
         anchors.fill: parent
@@ -451,6 +461,14 @@ Window {
 
                         function onCloseWindowRequested() {
                             root.requestWindowClose();
+                        }
+
+                        function onTransparentChromeChanged() {
+                            WindowHelper.setWindowTransparent(root, Browser.transparentChrome, Theme.isDark);
+                        }
+
+                        function onThemeModeChanged() {
+                            WindowHelper.setWindowTransparent(root, Theme.transparentChrome, Theme.isDark);
                         }
                     }
 
@@ -577,15 +595,15 @@ Window {
                 offset.x: 2
                 color: Theme.shadow
             }
-            Rectangle {
-                id: overlayCard
-                anchors.fill: parent
-                anchors.margins: sidebarOverlay.shadowPad
-                radius: Theme.radiusCard
-                color: Theme.sidebarBg
-                border.width: 1
-                border.color: Theme.cardBorder
-            }
+                Rectangle {
+                    id: overlayCard
+                    anchors.fill: parent
+                    anchors.margins: sidebarOverlay.shadowPad
+                    radius: Theme.radiusCard
+                    color: Theme.chromeBg
+                    border.width: 1
+                    border.color: Theme.cardBorder
+                }
         }
 
         contentItem: Item {

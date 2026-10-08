@@ -101,6 +101,10 @@ Popup {
 
     Overlay.modal: Item { anchors.fill: parent }
 
+    ChromeGlass {
+        popupTarget: root
+    }
+
     enter: Transition {
         NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 160; easing.type: Easing.OutCubic }
         NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: 160; easing.type: Easing.OutBack; easing.overshoot: 0.8 }
@@ -123,7 +127,7 @@ Popup {
             anchors.fill: parent
             anchors.margins: root.shadowPad
             radius: Theme.radiusCommand
-            color: Theme.cardBg
+            color: Theme.glassCardBg
             border.width: 1
             border.color: Theme.cardBorder
         }
@@ -136,7 +140,7 @@ Popup {
             preferredRendererType: Shape.CurveRenderer
 
             ShapePath {
-                fillColor: Theme.cardBg
+                fillColor: Theme.glassCardBg
                 strokeColor: "transparent"
                 PathSvg { path: "M14 0 L12 0 L2.6 12.1 Q0 14.5 2.6 16.9 L12 29 L14 29 Z" }
             }
@@ -294,6 +298,79 @@ Popup {
                     }
                 }
             }
+        }
+
+        // ── Transparent background ─────────────────────────────────
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.leftMargin: Theme.space4
+            Layout.rightMargin: Theme.space4
+            implicitHeight: 1
+            color: Theme.cardBorder
+        }
+
+        Item {
+            id: transparencyToggle
+            Layout.fillWidth: true
+            Layout.topMargin: Theme.space2
+            Layout.leftMargin: Theme.space4
+            Layout.rightMargin: Theme.space4
+            Layout.bottomMargin: Theme.space1
+            implicitHeight: 40
+
+            readonly property bool active: Browser.transparentChrome
+
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.radiusItem
+                color: transparencyToggle.active ? Theme.itemActive
+                     : trHover.hovered ? Theme.itemHover : "transparent"
+                border.width: transparencyToggle.active ? 1 : 0
+                border.color: Theme.itemActiveBorder
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: Theme.space3
+                anchors.rightMargin: Theme.space3
+                spacing: Theme.space2
+                enabled: false
+
+                LucideIcon {
+                    size: 15
+                    source: "qrc:/QT_Illuminate/ui/icons/square.svg"
+                    color: transparencyToggle.active ? Theme.accent : Theme.textMuted
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: "Transparent background"
+                    font.pixelSize: Theme.fontSizeS
+                    font.family: Theme.fontFamily
+                    color: transparencyToggle.active ? Theme.text : Theme.textMuted
+                }
+
+                Rectangle {
+                    implicitWidth: 34
+                    implicitHeight: 20
+                    radius: height / 2
+                    color: transparencyToggle.active ? Theme.accent : Theme.fieldBg
+                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+
+                    Rectangle {
+                        width: 16
+                        height: 16
+                        radius: height / 2
+                        y: 2
+                        x: transparencyToggle.active ? parent.width - width - 2 : 2
+                        color: "#ffffff"
+                        Behavior on x { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
+                    }
+                }
+            }
+
+            HoverHandler { id: trHover; cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: Browser.transparentChrome = !Browser.transparentChrome }
         }
 
         // ── Reset to default ───────────────────────────────────────

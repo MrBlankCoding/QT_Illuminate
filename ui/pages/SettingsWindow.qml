@@ -11,10 +11,14 @@ ApplicationWindow {
     minimumWidth: 560
     minimumHeight: 420
     title: "Settings"
-    color: Theme.bg
+    color: Theme.glassBg
 
     readonly property bool frameless: Qt.platform.os !== "osx"
     flags: frameless ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
+
+    ChromeGlass {
+        windowTarget: root
+    }
 
     Rectangle {
         id: header
@@ -24,7 +28,7 @@ ApplicationWindow {
         // collapsed on macOS so everything below still sits at the top
         height: root.frameless ? Theme.titleBarHeight : 0
         visible: root.frameless
-        color: Theme.surface
+        color: Theme.glassSurface
 
         Rectangle {
             anchors.bottom: parent.bottom
@@ -66,7 +70,7 @@ ApplicationWindow {
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         width: 168
-        color: Theme.surface
+        color: Theme.glassSurface
 
         Rectangle {
             anchors.top: parent.top
