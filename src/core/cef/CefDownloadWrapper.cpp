@@ -5,10 +5,14 @@
 
 CefDownloadWrapper::CefDownloadWrapper(CefRefPtr<CefDownloadItem> item,
                                        CefRefPtr<CefBeforeDownloadCallback> callback,
+                                       const QString &suggestedName,
                                        QObject *parent)
     : QObject(parent), m_beforeCallback(callback)
 {
-    m_suggestedFileName = cefStringToQString(item->GetSuggestedFileName());
+
+    m_suggestedFileName = !suggestedName.isEmpty()
+                              ? suggestedName
+                              : cefStringToQString(item->GetSuggestedFileName());
     m_fileName = m_suggestedFileName;
     m_downloadDirectory = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
     m_totalBytes = item->GetTotalBytes();
@@ -47,24 +51,17 @@ void CefDownloadWrapper::cancel()
     emit stateChanged();
 }
 
-void CefDownloadWrapper::update(CefRefPtr<CefDownloadItem> item, CefRefPtr<CefDownloadItemCallback> callback)
+void CefDownloadWrapper::update(qint64 receivedBytes, qint64 totalBytes, int state,
+                                CefRefPtr<CefDownloadItemCallback> callback)
 {
     m_itemCallback = callback;
-    m_totalBytes = item->GetTotalBytes();
-    m_receivedBytes = item->GetReceivedBytes();
+    m_totalBytes = totalBytes;
+    m_receivedBytes = receivedBytes;
     emit progressChanged();
 
-    int newState = m_state;
-    if (item->IsComplete())
-        newState = DownloadCompleted;
-    else if (item->IsCanceled())
-        newState = DownloadCancelled;
-    else if (item->IsInProgress())
-        newState = DownloadInProgress;
-
-    if (newState != m_state)
+    if (state >= 0 && state != m_state)
     {
-        m_state = newState;
+        m_state = state;
         emit stateChanged();
     }
 }

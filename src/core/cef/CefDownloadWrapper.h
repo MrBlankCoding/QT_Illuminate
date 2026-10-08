@@ -33,6 +33,7 @@ public:
 
     explicit CefDownloadWrapper(CefRefPtr<CefDownloadItem> item,
                                 CefRefPtr<CefBeforeDownloadCallback> callback,
+                                const QString &suggestedName = QString(),
                                 QObject *parent = nullptr);
 
     QString downloadFileName() const { return m_fileName; }
@@ -48,7 +49,8 @@ public:
     Q_INVOKABLE void accept();
     Q_INVOKABLE void cancel();
 
-    void update(CefRefPtr<CefDownloadItem> item, CefRefPtr<CefDownloadItemCallback> callback);
+    void update(qint64 receivedBytes, qint64 totalBytes, int state,
+                CefRefPtr<CefDownloadItemCallback> callback);
 
 signals:
     void downloadDirectoryChanged();

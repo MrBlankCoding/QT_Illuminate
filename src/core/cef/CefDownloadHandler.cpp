@@ -2,6 +2,7 @@
 #include "CefBrowserWrapper.h"
 #include "CefDownloadWrapper.h"
 #include "BrowserController.h"
+#include "../utils/cef_helpers.h"
 
 #include <QMetaObject>
 
@@ -26,10 +27,11 @@ bool CefDownloadHandlerImpl::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
                                               CefRefPtr<CefBeforeDownloadCallback> callback)
 {
     Q_UNUSED(browser);
-    Q_UNUSED(suggested_name);
 
-    auto *download = new CefDownloadWrapper(download_item, callback);
     const uint32_t id = download_item->GetId();
+
+    auto *download = new CefDownloadWrapper(download_item, callback,
+                                            cefStringToQString(suggested_name));
     m_activeDownloads.insert(id, download);
 
     if (m_wrapper)
@@ -52,6 +54,10 @@ bool CefDownloadHandlerImpl::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
             // no UI to ask, so don't drop the download
             download->accept(); }, Qt::QueuedConnection);
     }
+    else
+    {
+        download->accept();
+    }
 
     return true;
 }
@@ -62,12 +68,25 @@ void CefDownloadHandlerImpl::OnDownloadUpdated(CefRefPtr<CefBrowser> browser,
 {
     Q_UNUSED(browser);
     const uint32_t id = download_item->GetId();
+
+    const qint64 receivedBytes = download_item->GetReceivedBytes();
+    const qint64 totalBytes = download_item->GetTotalBytes();
+    int state = -1;
+    if (download_item->IsComplete())
+        state = CefDownloadWrapper::DownloadCompleted;
+    else if (download_item->IsCanceled())
+        state = CefDownloadWrapper::DownloadCancelled;
+    else if (download_item->IsInterrupted())
+        state = CefDownloadWrapper::DownloadInterrupted;
+    else if (download_item->IsInProgress())
+        state = CefDownloadWrapper::DownloadInProgress;
+
     if (auto download = m_activeDownloads.value(id))
     {
-        QMetaObject::invokeMethod(download, [download, download_item, callback]()
+        QMetaObject::invokeMethod(download, [download, receivedBytes, totalBytes, state, callback]()
                                   {
             if (download)
-                download->update(download_item, callback); }, Qt::QueuedConnection);
+                download->update(receivedBytes, totalBytes, state, callback); }, Qt::QueuedConnection);
 
         if (download_item->IsComplete() || download_item->IsCanceled())
             m_activeDownloads.remove(id);

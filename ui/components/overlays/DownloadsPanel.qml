@@ -5,32 +5,41 @@ import QT_Illuminate.ui
 
 pragma ComponentBehavior: Bound
 
-// downloads
-// UI shows when one has started
-Popup {
+Window {
     id: root
-    popupType: Popup.Window
-    modal: false
-    focus: true
-    closePolicy: Popup.NoAutoClose
-    x: parent ? parent.width - width - 16 : 0
-    y: 52
-    width: 320
-    height: 360
-    padding: 0
+    property Window hostWindow: null
 
-    // number of in progress downloads
+    transientParent: hostWindow
+    flags: Qt.Popup
+    color: "transparent"
+    visible: false
+    width: 320 // avg hard coded value 
+    readonly property int maxPanelHeight: 360
+    readonly property int contentMargins: 20
+    height: Math.min(maxPanelHeight, layout.implicitHeight + contentMargins)
+    x: hostWindow ? Math.round(hostWindow.x + hostWindow.width - width - 16) : 0
+    y: hostWindow ? Math.round(hostWindow.y + 52) : 52
+
+    readonly property int stateRequested: 0
+    readonly property int stateInProgress: 1
+    readonly property int stateCompleted: 2
+    readonly property int stateCancelled: 3
+    readonly property int stateFailed: 4
     property int activeCount: 0
-
-    // downloads in the session
-    // used for showing/hiding toolbar
     readonly property alias downloadCount: downloadsModel.count
 
+    function openPanel() {
+        root.visible = true;
+    }
+
     function toggle() {
-        if (root.visible)
-            root.close();
-        else
-            root.open();
+        root.visible = !root.visible;
+    }
+
+    Shortcut {
+        sequence: "Escape"
+        enabled: root.visible
+        onActivated: root.visible = false
     }
 
     ListModel {
@@ -46,40 +55,65 @@ Popup {
     }
 
     function formatBytes(n) {
-        if (n < 0)
+        n = Number(n);
+        if (!isFinite(n) || n < 0)
             return "";
         if (n < 1024)
-            return n + " B";
+            return Math.round(n) + " B";
         if (n < 1024 * 1024)
             return (n / 1024).toFixed(1) + " KB";
-        return (n / (1024 * 1024)).toFixed(1) + " MB";
+        if (n < 1024 * 1024 * 1024)
+            return (n / (1024 * 1024)).toFixed(1) + " MB";
+        return (n / (1024 * 1024 * 1024)).toFixed(2) + " GB";
     }
 
-    function statusText(state, receivedBytes, totalBytes) {
-        if (state === 2)
-            return "Completed";
-        if (state === 3)
+    function formatSpeed(bytesPerSecond) {
+        return bytesPerSecond > 0 ? formatBytes(bytesPerSecond) + "/s" : "";
+    }
+
+    function statusText(state, receivedBytes, totalBytes, speed) {
+        if (state === root.stateCompleted)
+            return totalBytes > 0 ? "Completed — " + formatBytes(totalBytes) : "Completed";
+        if (state === root.stateCancelled)
             return "Cancelled";
-        if (state === 4)
+        if (state === root.stateFailed)
             return "Failed";
-        return formatBytes(receivedBytes) + (totalBytes > 0 ? " / " + formatBytes(totalBytes) : "");
+        let text = formatBytes(receivedBytes) + (totalBytes > 0 ? " / " + formatBytes(totalBytes) : "");
+        const suffix = formatSpeed(speed);
+        return suffix.length > 0 ? text + " — " + suffix : text;
     }
 
     function cancelOrRemove(index) {
         const row = downloadsModel.get(index);
-        if (row.downloadState === 1 || row.downloadState === 0)
+        if (row.downloadState === root.stateInProgress || row.downloadState === root.stateRequested)
             row.downloadObj.cancel();
         else
             downloadsModel.remove(index);
     }
 
+    function removeFinished() {
+        for (let i = downloadsModel.count - 1; i >= 0; i--) {
+            const state = downloadsModel.get(i).downloadState;
+            if (state !== root.stateInProgress && state !== root.stateRequested)
+                downloadsModel.remove(i);
+        }
+    }
+
+    function fileUrl(path) {
+        const safe = path.replace(/\\/g, "/")
+                         .replace(/%/g, "%25")
+                         .replace(/\?/g, "%3F")
+                         .replace(/#/g, "%23");
+        return "file:///" + (safe.startsWith("/") ? safe.substring(1) : safe);
+    }
+
     function revealInFolder(index) {
-        Qt.openUrlExternally("file://" + downloadsModel.get(index).directory);
+        Qt.openUrlExternally(fileUrl(downloadsModel.get(index).directory));
     }
 
     function openFile(index) {
         const row = downloadsModel.get(index);
-        Qt.openUrlExternally("file://" + row.directory + "/" + row.fileName);
+        Qt.openUrlExternally(fileUrl(row.directory + "/" + row.fileName));
     }
 
     Connections {
@@ -95,8 +129,13 @@ Popup {
                 directory: download.downloadDirectory,
                 totalBytes: download.totalBytes,
                 receivedBytes: download.receivedBytes,
-                downloadState: download.state
+                downloadState: download.state,
+                speed: 0
             });
+
+            // "UI shows when one has started"
+            if (!root.visible)
+                root.openPanel();
         }
     }
 
@@ -104,29 +143,43 @@ Popup {
         model: downloadsModel
         delegate: Connections {
             required property var downloadObj
+            property real lastBytes: 0
+            property real lastTime: 0
             target: downloadObj
             enabled: Boolean(downloadObj)
-
-            // totalBytes and receivedBytes share one notify signal
             function onProgressChanged() {
                 const i = root.rowIndexFor(downloadObj);
                 if (i < 0)
                     return;
+
+                const now = Date.now();
+                if (lastTime > 0 && now > lastTime) {
+                    const delta = downloadObj.receivedBytes - lastBytes;
+                    const speed = delta / ((now - lastTime) / 1000);
+                    downloadsModel.setProperty(i, "speed", Math.max(0, speed));
+                }
+                lastBytes = downloadObj.receivedBytes;
+                lastTime = now;
+
                 downloadsModel.setProperty(i, "receivedBytes", downloadObj.receivedBytes);
                 downloadsModel.setProperty(i, "totalBytes", downloadObj.totalBytes);
             }
 
             function onStateChanged() {
                 const i = root.rowIndexFor(downloadObj);
-                if (i >= 0)
+                if (i >= 0) {
                     downloadsModel.setProperty(i, "downloadState", downloadObj.state);
+                    downloadsModel.setProperty(i, "speed", 0);
+                }
                 if (downloadObj.isFinished)
                     root.activeCount = Math.max(0, root.activeCount - 1);
             }
         }
     }
 
-    contentItem: Rectangle {
+    Rectangle {
+        id: panel
+        anchors.fill: parent
         radius: 8
         color: Theme.surface
         border.color: Theme.border
@@ -134,19 +187,45 @@ Popup {
         clip: true
 
         ColumnLayout {
+            id: layout
             anchors.fill: parent
             anchors.margins: 10
             spacing: 8
 
             RowLayout {
                 Layout.fillWidth: true
+                spacing: 8
 
                 Text {
                     text: "Downloads"
                     color: Theme.text
                     font.pixelSize: Theme.fontSizeM
                     font.family: Theme.fontFamily
+                }
+
+                Text {
+                    visible: root.activeCount > 0
+                    text: root.activeCount + " active"
+                    color: Theme.textMuted
+                    font.pixelSize: Theme.fontSizeS
+                    font.family: Theme.fontFamily
                     Layout.fillWidth: true
+                }
+
+                Text {
+                    visible: downloadsModel.count > 0
+                    text: "Clear"
+                    color: clearHover.hovered ? Theme.text : Theme.textMuted
+                    font.pixelSize: Theme.fontSizeS
+                    font.family: Theme.fontFamily
+
+                    HoverHandler {
+                        id: clearHover
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                    TapHandler {
+                        onTapped: root.removeFinished()
+                    }
                 }
 
                 LucideIcon {
@@ -156,6 +235,7 @@ Popup {
 
                     HoverHandler {
                         id: panelCloseHover
+                        cursorShape: Qt.PointingHandCursor
                     }
                     TapHandler {
                         onTapped: root.close()
@@ -170,32 +250,41 @@ Popup {
                 font.pixelSize: Theme.fontSizeS
                 font.family: Theme.fontFamily
                 Layout.fillWidth: true
-                Layout.fillHeight: true
+                Layout.preferredHeight: 64
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
 
             ListView {
+                id: listView
                 visible: downloadsModel.count > 0
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.preferredHeight: contentHeight
                 clip: true
                 spacing: 6
                 model: downloadsModel
 
+                ScrollBar.vertical: ScrollBar {
+                    interactive: true
+                }
+
                 delegate: Rectangle {
                     id: row
-                    // ComponentBehavior: Bound needs roles declared, not read off `model`
                     required property int index
                     required property string fileName
                     required property int downloadState
                     required property real receivedBytes
                     required property real totalBytes
+                    required property real speed
 
                     width: ListView.view.width
                     height: rowCol.height + 16
                     radius: 6
                     color: Theme.surfaceHigh
+
+                    readonly property bool completed: row.downloadState === root.stateCompleted
+                    readonly property bool inProgress: row.downloadState === root.stateInProgress
 
                     ColumnLayout {
                         id: rowCol
@@ -213,26 +302,31 @@ Popup {
                                 text: row.fileName
                                 textFormat: Text.PlainText
                                 font.preferShaping: false
-                                color: Theme.text
+                                color: row.completed ? Theme.accent : Theme.text
                                 font.pixelSize: Theme.fontSizeS
                                 font.family: Theme.fontFamily
                                 elide: Text.ElideMiddle
                                 Layout.fillWidth: true
 
+                                HoverHandler {
+                                    enabled: row.completed
+                                    cursorShape: Qt.PointingHandCursor
+                                }
                                 TapHandler {
-                                    enabled: row.downloadState === CefDownloadItem.DownloadCompleted
+                                    enabled: row.completed
                                     onTapped: root.openFile(row.index)
                                 }
                             }
 
                             LucideIcon {
-                                visible: row.downloadState === CefDownloadItem.DownloadCompleted
+                                visible: row.completed
                                 size: 13
                                 source: "qrc:/QT_Illuminate/ui/icons/folder.svg"
                                 color: folderHover.hovered ? Theme.text : Theme.textMuted
 
                                 HoverHandler {
                                     id: folderHover
+                                    cursorShape: Qt.PointingHandCursor
                                 }
                                 TapHandler {
                                     onTapped: root.revealInFolder(row.index)
@@ -246,6 +340,7 @@ Popup {
 
                                 HoverHandler {
                                     id: cancelHover
+                                    cursorShape: Qt.PointingHandCursor
                                 }
                                 TapHandler {
                                     onTapped: root.cancelOrRemove(row.index)
@@ -254,7 +349,7 @@ Popup {
                         }
 
                         Text {
-                            text: root.statusText(row.downloadState, row.receivedBytes, row.totalBytes)
+                            text: root.statusText(row.downloadState, row.receivedBytes, row.totalBytes, row.speed)
                             textFormat: Text.PlainText
                             font.preferShaping: false
                             color: Theme.textMuted
@@ -263,7 +358,7 @@ Popup {
                         }
 
                         Rectangle {
-                            visible: row.downloadState === CefDownloadItem.DownloadInProgress
+                            visible: row.inProgress
                             Layout.fillWidth: true
                             Layout.preferredHeight: 3
                             radius: 1.5
@@ -273,7 +368,8 @@ Popup {
                                 height: parent.height
                                 radius: parent.radius
                                 color: Theme.accent
-                                width: parent.width * (row.totalBytes > 0 ? row.receivedBytes / row.totalBytes : 0)
+                                width: parent.width * Math.min(1, Math.max(0,
+                                    row.totalBytes > 0 ? row.receivedBytes / row.totalBytes : 0))
                                 Behavior on width {
                                     NumberAnimation {
                                         duration: 120

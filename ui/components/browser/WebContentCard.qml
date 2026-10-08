@@ -8,9 +8,6 @@ Item {
     id: root
 
     property real radius: Theme.radiusCard
-    // Clip QML content (internal pages) to the rounded corners. Web views are
-    // native and round themselves (CefBrowser.cornerRadius), so this stays off
-    // for them and costs nothing.
     property bool roundContent: false
     property bool shadowEnabled: true
 

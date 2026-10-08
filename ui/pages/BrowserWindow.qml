@@ -435,6 +435,7 @@ Window {
 
                     DownloadsPanel {
                         id: downloadsPanel
+                        hostWindow: root
                     }
 
                     Connections {
