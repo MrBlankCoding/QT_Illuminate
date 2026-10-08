@@ -15,60 +15,20 @@ Item {
     readonly property string tabUrl: model && model.url ? model.url.toString() : ""
     readonly property bool tabLoading: model ? model.loading : false
     readonly property bool tabSuspended: model ? model.suspended : false
+    readonly property bool tabInFolder: model ? model.inFolder === true : false
     property bool isActive: false
-    property int tabCount: 1      // total tab count, for drag-reorder clamping
+    property bool dragging: false  // the sidebar moves rows; this only dims
     property bool faviconFailed: false
 
-    visible: tabUrl !== "newtab://newtab"
+    // a folder's new tab still shows while the user picks a page for it
+    visible: tabInFolder || tabUrl !== "newtab://newtab"
 
     signal activated
     signal closeClicked
-    signal reorderRequested(int targetIndex)   // drag crossed into a neighbour's slot
+    signal contextMenuRequested
 
-    readonly property bool dragging: dragHandler.active
     readonly property bool hovered: hoverHandler.hovered
     onTabIconUrlChanged: faviconFailed = false
-    ListView.onPooled: {
-        visible = false
-        dragTranslate.y = 0
-    }
-    ListView.onReused: visible = root.tabUrl !== "newtab://newtab"
-
-    transform: Translate {
-        id: dragTranslate
-    }
-
-    DragHandler {
-        id: dragHandler
-        xAxis.enabled: false
-        target: null
-        property real committedY: 0
-
-        onActiveChanged: {
-            committedY = 0;
-            if (!active)
-                dragTranslate.y = 0;
-        }
-
-        onTranslationChanged: {
-            const list = root.ListView.view;
-            const step = root.height + (list ? list.spacing : 0);
-            if (!active || step <= 0)
-                return;
-            let offset = translation.y - committedY;
-            while (offset > step / 2 && root.index < root.tabCount - 1) {
-                root.reorderRequested(root.index + 1);
-                committedY += step;
-                offset -= step;
-            }
-            while (offset < -step / 2 && root.index > 0) {
-                root.reorderRequested(root.index - 1);
-                committedY -= step;
-                offset += step;
-            }
-            dragTranslate.y = offset;
-        }
-    }
 
     Rectangle {
         id: body
@@ -206,6 +166,11 @@ Item {
     TapHandler {
         id: tapHandler
         onTapped: if (!closeHover.hovered) root.activated()
+    }
+
+    TapHandler {
+        acceptedButtons: Qt.RightButton
+        onTapped: root.contextMenuRequested()
     }
 
     TapHandler {

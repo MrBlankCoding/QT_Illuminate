@@ -150,6 +150,8 @@ QtObject {
     readonly property int iconButton:    28
     readonly property int faviconSize:   18
     readonly property int resizeHandleW: 8
+    readonly property int sidebarIndent: 14          // per folder level
+    readonly property int sidebarMaxIndent: 6        // deeper levels stop indenting
 
     readonly property int progressH:     2
 
@@ -164,5 +166,7 @@ QtObject {
     readonly property int durationFast:   120        // hover
     readonly property int durationMid:    200        // panels
     readonly property int durationSlow:   300        // space transitions
+    readonly property int durationFolder: 150        // folder open/close
+    readonly property int folderHoverExpandMs: 600   // drag over a closed folder
     readonly property real pressScale:    0.97
 }

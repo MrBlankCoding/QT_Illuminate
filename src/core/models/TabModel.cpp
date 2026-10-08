@@ -184,6 +184,24 @@ BrowserTab *TabModel::tabAt(int index)
     return m_tabs.at(index);
 }
 
+int TabModel::indexOf(const BrowserTab *tab) const
+{
+    return m_tabs.indexOf(const_cast<BrowserTab *>(tab));
+}
+
+int TabModel::nearestLiveIndex(int index) const
+{
+    for (int d = 1; d < m_tabs.size(); ++d)
+    {
+        for (const int i : {index + d, index - d})
+        {
+            if (i >= 0 && i < m_tabs.size() && !m_tabs.at(i)->suspended())
+                return i;
+        }
+    }
+    return -1;
+}
+
 int TabModel::activeIndex() const { return m_activeIndex; }
 
 void TabModel::setActiveIndex(int index)

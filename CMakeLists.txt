@@ -250,6 +250,8 @@ qt_add_library(QT_Illuminatemodule STATIC
 
     src/core/models/TabModel.h
     src/core/models/TabModel.cpp
+    src/core/models/SidebarModel.h
+    src/core/models/SidebarModel.cpp
     src/core/models/BookmarkModel.h
     src/core/models/BookmarkModel.cpp
     src/core/models/HistoryManager.h
@@ -405,6 +407,7 @@ foreach(_f
     ui/components/chrome/WindowDragRegion.qml
     ui/components/browser/AddressPill.qml
     ui/components/browser/EssentialsGrid.qml
+    ui/components/browser/FolderRow.qml
     ui/components/browser/KeyboardShortcuts.qml
     ui/components/browser/PrintController.qml
     ui/components/browser/Sidebar.qml
@@ -441,6 +444,9 @@ foreach(_f
     ui/icons/copy.svg
     ui/icons/download.svg
     ui/icons/folder.svg
+    ui/icons/folder-open.svg
+    ui/icons/folder-plus.svg
+    ui/icons/more-horizontal.svg
     ui/icons/globe.svg
     ui/icons/lock.svg
     ui/icons/activity.svg
@@ -492,6 +498,7 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/components/chrome/WindowDragRegion.qml
         ui/components/browser/AddressPill.qml
         ui/components/browser/EssentialsGrid.qml
+        ui/components/browser/FolderRow.qml
         ui/components/browser/KeyboardShortcuts.qml
         ui/components/browser/PrintController.qml
         ui/components/browser/Sidebar.qml
@@ -529,6 +536,9 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/icons/copy.svg
         ui/icons/download.svg
         ui/icons/folder.svg
+        ui/icons/folder-open.svg
+        ui/icons/folder-plus.svg
+        ui/icons/more-horizontal.svg
         ui/icons/globe.svg
         ui/icons/lock.svg
         ui/icons/activity.svg

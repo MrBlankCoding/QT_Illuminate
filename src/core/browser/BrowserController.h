@@ -8,6 +8,7 @@
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 #include "TabModel.h"
+#include "SidebarModel.h"
 #include "Profile.h"
 #include "CefProfile.h"
 #include "../utils/ExternalQmlSingleton.h"
@@ -24,6 +25,7 @@ class BrowserController : public QObject, public ExternalQmlSingleton<BrowserCon
 
     // MOC revice tab model
     Q_PROPERTY(TabModel *tabModel READ tabModel CONSTANT)
+    Q_PROPERTY(SidebarModel *sidebar READ sidebar CONSTANT)
     Q_PROPERTY(int activeIndex READ activeIndex NOTIFY activeIndexChanged)
     Q_PROPERTY(QString activeUrl READ activeUrl NOTIFY activeUrlChanged)
     Q_PROPERTY(QString activeTitle READ activeTitle NOTIFY activeTitleChanged)
@@ -47,6 +49,7 @@ public:
     void setHistory(HistoryManager *history);
 
     TabModel *tabModel() const;
+    SidebarModel *sidebar() const;
     int activeIndex() const;
     QString activeUrl() const;
     QString activeTitle() const;
@@ -71,6 +74,8 @@ public:
     Q_INVOKABLE void completeFirstRun();
     Q_INVOKABLE void closeTab(int index);
     Q_INVOKABLE void activateTab(int index);
+    // position in sidebar order; -1 is the last tab
+    Q_INVOKABLE void activateTabAt(int position);
     Q_INVOKABLE void cycleTab(int delta);
     Q_INVOKABLE void navigate(const QString &input);
     Q_INVOKABLE void reload();
@@ -127,8 +132,10 @@ private:
     void restoreSession();
     void openInitialTab();
     QString sessionFilePath() const;
+    QString sidebarFilePath() const;
 
     TabModel *m_model;
+    SidebarModel *m_sidebar;
     Profile *m_profile;
     QObject *m_activeTabCtx = nullptr;
     QList<QPointer<QObject>> m_adoptedWindows;

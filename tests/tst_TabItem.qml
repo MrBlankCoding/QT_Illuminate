@@ -44,7 +44,7 @@ Item {
             compare(tab.tabIconUrl, "")
             compare(tab.tabLoading, false)
             compare(tab.isActive, false)
-            compare(tab.tabCount, 1)
+            compare(tab.tabInFolder, false)
         }
 
         function test_blankTabIsHidden() {

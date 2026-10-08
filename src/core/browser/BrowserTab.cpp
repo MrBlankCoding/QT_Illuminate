@@ -2,9 +2,14 @@
 #include "CefProfile.h"
 #include "CefBrowserWrapper.h"
 
-BrowserTab::BrowserTab(CefProfile *profile, QObject *parent) : QObject(parent)
+#include <QUuid>
+
+BrowserTab::BrowserTab(CefProfile *profile, QObject *parent)
+    : QObject(parent), m_id(QUuid::createUuid().toString(QUuid::WithoutBraces))
 {
 }
+
+QString BrowserTab::id() const { return m_id; }
 
 QUrl BrowserTab::url() const { return m_url; }
 QString BrowserTab::title() const { return m_title; }

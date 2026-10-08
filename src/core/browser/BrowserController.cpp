@@ -85,6 +85,8 @@ void BrowserController::setProfile(Profile *profile)
                                      QSettings::IniFormat, this)
                      : nullptr;
 
+    // the tree is saved and let go before its tabs are
+    m_sidebar->unload();
     m_model->clear();
     emit webProfileChanged();
     emit themeModeChanged();
@@ -95,13 +97,18 @@ void BrowserController::setProfile(Profile *profile)
     if (m_history && profile)
         m_history->setProfile(profile->id(), profile->path());
 
+    if (profile)
+        m_sidebar->load(sidebarFilePath(), profile->webProfile());
     restoreSession();
 }
 
 BrowserController::BrowserController(Profile *profile, QObject *parent)
-    : QObject(parent), m_profile(profile), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_model(new TabModel(this)), m_appSettings(new QSettings(this))
+    : QObject(parent), m_profile(profile), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_model(new TabModel(this)), m_sidebar(new SidebarModel(m_model, this)), m_appSettings(new QSettings(this))
 {
     m_isFirstRun = !m_appSettings->value("setup/completed", false).toBool();
+
+    connect(m_sidebar, &SidebarModel::newTabOpened, this, &BrowserController::newTabOpened);
+    connect(m_sidebar, &SidebarModel::newTabRequested, this, [this]() { newTab(); });
 
     connect(m_model, &TabModel::activeIndexChanged, this, [this]()
             {
@@ -109,6 +116,7 @@ BrowserController::BrowserController(Profile *profile, QObject *parent)
         emitActiveStateChanged();
         rewireActiveTab(); });
 
+    m_sidebar->load(sidebarFilePath(), profile->webProfile());
     restoreSession();
 }
 
@@ -147,6 +155,7 @@ void BrowserController::emitActiveStateChanged()
 // Property getter
 
 TabModel *BrowserController::tabModel() const { return m_model; }
+SidebarModel *BrowserController::sidebar() const { return m_sidebar; }
 CefProfile *BrowserController::webProfile() const
 {
     return m_profile ? m_profile->webProfile() : nullptr;
@@ -405,6 +414,13 @@ QString BrowserController::sessionFilePath() const
     return m_profile->path() + QDir::separator() + QStringLiteral("session.json");
 }
 
+QString BrowserController::sidebarFilePath() const
+{
+    if (!m_profile)
+        return {};
+    return m_profile->path() + QDir::separator() + QStringLiteral("sidebar.json");
+}
+
 bool BrowserController::confirmCloseRequired() const
 {
     const BrowserSettings *prefs = BrowserSettings::instance();
@@ -426,7 +442,8 @@ void BrowserController::saveSession() const
     {
         BrowserTab *tab = m_model->tabAt(i);
         const QUrl url = tab ? tab->url() : QUrl();
-        if (!tab || !url.isValid() || url.isEmpty() || url == QUrl(NEW_TAB_URL))
+        // tabs in folders come back from sidebar.json
+        if (!tab || !url.isValid() || url.isEmpty() || url == QUrl(NEW_TAB_URL) || m_sidebar->isInFolder(tab))
             continue;
 
         QJsonObject obj;
@@ -437,6 +454,8 @@ void BrowserController::saveSession() const
         if (i == m_model->activeIndex())
             savedActiveIndex = tabsArray.size() - 1;
     }
+
+    m_sidebar->saveNow();
 
     QJsonObject root;
     root[QStringLiteral("activeIndex")] = savedActiveIndex;
@@ -473,6 +492,7 @@ void BrowserController::restoreSession()
     file.close();
 
     const QJsonArray tabsArray = doc.isObject() ? doc.object()[QStringLiteral("tabs")].toArray() : QJsonArray();
+    const int base = m_model->rowCount();
     for (const QJsonValue &value : tabsArray)
     {
         if (!value.isObject())
@@ -487,15 +507,15 @@ void BrowserController::restoreSession()
             tab->setTitle(obj[QStringLiteral("title")].toString());
     }
 
-    if (m_model->rowCount() == 0)
+    if (m_model->rowCount() == base)
     {
         openInitialTab();
         return;
     }
 
-    int activeIndex = doc.object()[QStringLiteral("activeIndex")].toInt(0);
-    if (activeIndex < 0 || activeIndex >= m_model->rowCount())
-        activeIndex = 0;
+    int activeIndex = base + doc.object()[QStringLiteral("activeIndex")].toInt(0);
+    if (activeIndex < base || activeIndex >= m_model->rowCount())
+        activeIndex = base;
     m_model->setActiveIndex(activeIndex);
 }
 
@@ -554,7 +574,7 @@ void BrowserController::newTab(const QString &urlStr, bool background)
         for (int i = 0; i < m_model->rowCount(); ++i)
         {
             BrowserTab *existing = m_model->tabAt(i);
-            if (existing && existing->url() == QUrl(NEW_TAB_URL))
+            if (existing && existing->url() == QUrl(NEW_TAB_URL) && !m_sidebar->isInFolder(existing))
             {
                 m_model->setActiveIndex(i);
                 emit newTabOpened();
@@ -590,9 +610,15 @@ void BrowserController::closeTab(int index)
     if (m_closeInProgress)
         return;
 
-    if (m_model->rowCount() <= 1)
+    BrowserTab *tab = m_model->tabAt(index);
+    if (!tab)
+        return;
+
+    const bool isActive = index == m_model->activeIndex();
+    const int next = isActive ? m_model->nearestLiveIndex(index) : index;
+    const bool lastPage = isActive && next < 0 && tab->url() == QUrl(NEW_TAB_URL);
+    if (m_model->rowCount() <= 1 || lastPage)
     {
-        // last tab: the model keeps it, the window goes instead
         m_closeInProgress = true;
         emit closeWindowRequested();
         QMetaObject::invokeMethod(this, [this]() { m_closeInProgress = false; }, Qt::QueuedConnection);
@@ -600,7 +626,11 @@ void BrowserController::closeTab(int index)
     }
 
     m_closeInProgress = true;
-    m_model->removeTab(index);
+    if (isActive && next >= 0)
+        m_model->setActiveIndex(next);
+    else if (isActive)
+        newTab();
+    m_model->removeTab(m_model->indexOf(tab));
     QMetaObject::invokeMethod(this, [this]() { m_closeInProgress = false; }, Qt::QueuedConnection);
 }
 
@@ -610,16 +640,31 @@ void BrowserController::activateTab(int index)
         m_model->setActiveIndex(index);
 }
 
+void BrowserController::activateTabAt(int position)
+{
+    const QList<int> order = m_sidebar->visualTabOrder();
+    if (order.isEmpty())
+        return;
+    if (position < 0 || position >= order.size())
+        position = order.size() - 1;
+    activateTab(order.at(position));
+}
+
 void BrowserController::cycleTab(int delta)
 {
-    const int count = m_model->rowCount();
-    if (count < MIN_TABS_FOR_CYCLE || delta == NO_TAB_CYCLE_DELTA)
+    const QList<int> order = m_sidebar->visualTabOrder();
+    const int count = order.size();
+    if (delta == NO_TAB_CYCLE_DELTA || count == 0)
         return;
 
-    int index = (m_model->activeIndex() + delta) % count;
-    if (index < 0)
-        index += count;
-    activateTab(index);
+    const int current = order.indexOf(m_model->activeIndex());
+    if (current >= 0 && count < MIN_TABS_FOR_CYCLE)
+        return;
+    int position = current < 0 ? (delta > 0 ? delta - 1 : count + delta) : current + delta;
+    position %= count;
+    if (position < 0)
+        position += count;
+    activateTab(order.at(position));
 }
 
 // navigation
