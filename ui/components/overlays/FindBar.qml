@@ -14,6 +14,7 @@ Popup {
     popupType: Popup.Window
     modal: false
     focus: true
+    Component.onCompleted: PopupCloser.watch(root)
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     x: parent ? parent.width - width - 16 : 0
     y: 8

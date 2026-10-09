@@ -328,6 +328,8 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/utils/WindowRounding.h
     src/utils/WindowHelper.h
     src/utils/WindowHelper.cpp
+    src/utils/PopupCloser.h
+    src/utils/PopupCloser.cpp
 )
 
 if(APPLE)
@@ -389,10 +391,9 @@ if(WIN32 AND CEF_COMPILER_DEFINES)
     target_compile_definitions(QT_Illuminatemodule PUBLIC ${_cef_defines})
 endif()
 
-# supress moc generated code warnings
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(QT_Illuminatemodule PRIVATE -Wno-sfinae-incomplete=)
-    target_compile_options(QT_Illuminate PRIVATE -Wno-sfinae-incomplete=)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"))
+    target_compile_options(QT_Illuminatemodule PRIVATE -Wno-sfinae-incomplete)
+    target_compile_options(QT_Illuminate PRIVATE -Wno-sfinae-incomplete)
 endif()
 
 foreach(_f

@@ -92,14 +92,13 @@ Popup {
     }
 
     popupType: Popup.Window
-    modal: true
+    modal: false
     focus: true
+    Component.onCompleted: PopupCloser.watch(root)
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside | Popup.CloseOnPressOutsideParent
     padding: shadowPad
     implicitWidth: 296 + shadowPad * 2
     implicitHeight: contentHeight + shadowPad * 2
-
-    Overlay.modal: Item { anchors.fill: parent }
 
     ChromeGlass {
         popupTarget: root

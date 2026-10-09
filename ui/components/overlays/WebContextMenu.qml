@@ -7,6 +7,7 @@ pragma ComponentBehavior: Bound
 Menu {
     id: root
     popupType: Popup.Native
+    Component.onCompleted: PopupCloser.watch(root)
 
     property CefBrowser webView: null
     property var request: null

@@ -29,7 +29,7 @@ namespace
 {
 
 constexpr int kMaxPumpDelayMs = 1000 / 30;
-constexpr qint64 kBrowserCloseTimeoutMs = 3000;
+constexpr qint64 kBrowserCloseTimeoutMs = 10000;
 constexpr char kBrowserLanguageKey[] = "general/language";
 constexpr const char *kCustomSchemes[] = {"illuminate", "newtab"};
 constexpr const char *kListSwitches[] = {

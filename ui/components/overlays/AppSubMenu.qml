@@ -12,6 +12,7 @@ Menu {
 
     title: node ? node.label : ""
     popupType: Popup.Native
+    Component.onCompleted: PopupCloser.watch(root)
 
     property var built: []
 

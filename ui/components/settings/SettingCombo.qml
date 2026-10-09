@@ -89,6 +89,8 @@ ComboBox {
     }
 
     popup: Popup {
+        id: comboPopup
+        Component.onCompleted: PopupCloser.watch(comboPopup)
         y: root.height + 4
         width: root.width
         implicitHeight: Math.min(contentItem.implicitHeight + 8, 260)

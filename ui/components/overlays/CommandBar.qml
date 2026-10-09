@@ -38,6 +38,7 @@ Popup {
     popupType: Popup.Window
     modal: false
     focus: true
+    Component.onCompleted: PopupCloser.watch(root)
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside | Popup.CloseOnPressOutsideParent
     padding: shadowPad
     width: Math.min(root.preferredWidth, parent.width - 32)

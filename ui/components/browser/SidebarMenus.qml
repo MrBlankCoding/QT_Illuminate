@@ -18,6 +18,7 @@ Item {
     Menu {
         id: sidebarMenu
         popupType: Popup.Native
+        Component.onCompleted: PopupCloser.watch(sidebarMenu)
 
         MenuItem {
             text: qsTr("New Tab")
@@ -39,6 +40,7 @@ Item {
     Menu {
         id: tabMenu
         popupType: Popup.Native
+        Component.onCompleted: PopupCloser.watch(tabMenu)
 
         property var target: ({})
         property var folders: []
@@ -105,6 +107,7 @@ Item {
     Menu {
         id: folderMenu
         popupType: Popup.Native
+        Component.onCompleted: PopupCloser.watch(folderMenu)
 
         property var target: ({})
 
@@ -185,6 +188,7 @@ Item {
         parent: Overlay.overlay
         modal: true
         focus: true
+        Component.onCompleted: PopupCloser.watch(deleteFolderPopup)
         padding: 20
         width: Math.min(300, parent ? parent.width - 32 : 300)
         x: parent ? Math.round((parent.width - width) / 2) : 0
