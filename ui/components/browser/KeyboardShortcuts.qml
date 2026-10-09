@@ -10,7 +10,6 @@ Item {
     required property var shortcuts
     required property var findBar
     required property var zoomIndicator
-    required property var downloadsPanel
 
     signal settingsRequested
     signal commandBarRequested(string mode)   // "new" | "edit"
@@ -63,7 +62,7 @@ Item {
             root.browser.reload()
             return
         case "history.show":
-            root.browser.newTab("illuminate://history")
+            root.browser.newTab("chrome://history/")
             return
 
         case "view.zoomIn":
@@ -114,7 +113,7 @@ Item {
             root.savePdfRequested()
             return
         case "page.downloads":
-            root.downloadsPanel.toggle()
+            root.browser.newTab("chrome://downloads/")
             return
 
         case "bookmark.toggle":

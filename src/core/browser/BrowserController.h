@@ -104,7 +104,6 @@ public:
     Q_INVOKABLE void onIconUrlChanged(int tabIndex, const QString &iconUrl);
     Q_INVOKABLE void onRenderProcessPidChanged(int tabIndex, qint64 pid);
     Q_INVOKABLE void onNewWindowRequested(int tabIndex, const QString &url);
-    Q_INVOKABLE void onDownloadRequested(QObject *download);
     Q_INVOKABLE void adoptWindow(QObject *window);
     Q_INVOKABLE void releaseWindow(QObject *window);
     void destroyAdoptedWindows();
@@ -126,7 +125,6 @@ signals:
     void newTabOpened(); // UI opens the command bar for a requested new tab
     void loadRequested(int tabIndex, const QUrl &url);
     void navigationRequested(const QString &action); // "back"|"forward"|"reload"|"devtools"
-    void downloadRequested(QObject *download);
     void closeWindowRequested();
 
 private:

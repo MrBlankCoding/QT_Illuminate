@@ -18,7 +18,6 @@ Item {
 
     property var findBar: null
     property var zoomIndicator: null
-    property var downloadsPanel: null
     property var themePicker: null
 
     // floating over the page while collapsed: its own window, so it draws its
@@ -414,31 +413,6 @@ Item {
                                         font.pixelSize: Theme.fontSizeM
                                         elide: Text.ElideRight
                                     }
-                                    Rectangle {
-                                        objectName: "newFolderButton"
-                                        Layout.preferredWidth: 22
-                                        Layout.preferredHeight: 22
-                                        radius: Theme.radiusS
-                                        color: folderTap.pressed ? Theme.itemPressed : folderHover.hovered ? Theme.itemHover : "transparent"
-                                        opacity: newTabHover.hovered ? 1 : 0
-                                        enabled: opacity > 0
-                                        Behavior on opacity { NumberAnimation { duration: Theme.durationFast } }
-
-                                        LucideIcon {
-                                            anchors.centerIn: parent
-                                            source: "qrc:/QT_Illuminate/ui/icons/folder-plus.svg"
-                                            size: 13
-                                            color: folderHover.hovered ? Theme.text : Theme.textMuted
-                                        }
-                                        HoverHandler {
-                                            id: folderHover
-                                        }
-                                        TapHandler {
-                                            id: folderTap
-                                            gesturePolicy: TapHandler.ReleaseWithinBounds
-                                            onTapped: root.newFolder()
-                                        }
-                                    }
                                 }
 
                                 HoverHandler {
@@ -446,7 +420,7 @@ Item {
                                 }
                                 TapHandler {
                                     id: newTabTap
-                                    onTapped: if (!folderHover.hovered) root.commandBarRequested("new")
+                                    onTapped: root.commandBarRequested("new")
                                 }
                                 TapHandler {
                                     acceptedButtons: Qt.RightButton
@@ -621,23 +595,9 @@ Item {
             }
 
             SidebarButton {
-                visible: root.downloadsPanel && root.downloadsPanel.downloadCount > 0
                 icon: "qrc:/QT_Illuminate/ui/icons/download.svg"
                 iconSize: 18
-                active: root.downloadsPanel && root.downloadsPanel.visible
-                onClicked: root.downloadsPanel.toggle()
-
-                // something is still downloading
-                Rectangle {
-                    visible: root.downloadsPanel && root.downloadsPanel.activeCount > 0
-                    width: 6
-                    height: 6
-                    radius: 3
-                    color: Theme.accent
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.margins: 4
-                }
+                onClicked: Browser.newTab("chrome://downloads/")
             }
 
             SidebarButton {
@@ -709,7 +669,7 @@ Item {
 
                     MenuItem {
                         text: "Downloads"
-                        onTriggered: root.downloadsPanel && root.downloadsPanel.toggle()
+                        onTriggered: Browser.newTab("chrome://downloads/")
                     }
 
                     MenuSeparator {}
@@ -726,13 +686,19 @@ Item {
 
                     MenuItem {
                         text: "History"
-                        onTriggered: Browser.newTab("illuminate://history")
+                        onTriggered: Browser.newTab("chrome://history/")
                     }
 
                     MenuItem {
                         text: qsTr("Extensions")
                         visible: Browser.chromeStyle
                         onTriggered: Browser.newTab("chrome://extensions")
+                    }
+
+                    MenuItem {
+                        text: qsTr("Browser Settings…")
+                        visible: Browser.chromeStyle
+                        onTriggered: Browser.newTab("chrome://settings/")
                     }
 
                     MenuSeparator {}

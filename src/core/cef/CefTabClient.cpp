@@ -24,7 +24,7 @@ CefTabClient::CefTabClient(CefBrowserWrapper *wrapper)
       m_loadHandler(new CefLoadHandlerImpl(wrapper, &m_mainBrowser)),
       m_displayHandler(new CefDisplayHandlerImpl(wrapper, &m_mainBrowser)),
       m_contextMenuHandler(new CefContextMenuHandlerImpl(wrapper, &m_mainBrowser)),
-      m_downloadHandler(new CefDownloadHandlerImpl(wrapper)),
+       m_downloadHandler(new CefDownloadHandlerImpl()),
       m_findHandler(new CefFindHandlerImpl(wrapper)),
       m_permissionHandler(new CefPermissionHandlerImpl(wrapper)),
       m_requestHandler(new CefRequestHandlerImpl(wrapper))

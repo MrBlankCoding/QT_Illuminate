@@ -443,11 +443,6 @@ Window {
                         webView: viewStack.activeWebView
                     }
 
-                    DownloadsPanel {
-                        id: downloadsPanel
-                        hostWindow: root
-                    }
-
                     Connections {
                         target: Browser
                         enabled: !root.retiring
@@ -504,7 +499,6 @@ Window {
             canGoForward: viewStack.activeWebView ? viewStack.activeWebView.canGoForward : false
             findBar: findBar
             zoomIndicator: zoomIndicator
-            downloadsPanel: downloadsPanel
 
             onSwitchToProfile: profile => root.switchProfile(profile)
             onOpenProfileSelector: root.openProfileSelector()
@@ -640,12 +634,12 @@ Window {
         quickActions: [
             { label: "Toggle Sidebar", icon: "qrc:/QT_Illuminate/ui/icons/panel-left.svg", run: () => root.toggleSidebar() },
             { label: "Open Settings", icon: "qrc:/QT_Illuminate/ui/icons/more-vertical.svg", run: () => root.openSettings() },
-            { label: "Downloads", icon: "qrc:/QT_Illuminate/ui/icons/download.svg", run: () => downloadsPanel.toggle() },
+            { label: "Downloads", icon: "qrc:/QT_Illuminate/ui/icons/download.svg", run: () => Browser.newTab("chrome://downloads/") },
             { label: "Find in Page", icon: "qrc:/QT_Illuminate/ui/icons/search.svg", run: () => findBar.open() },
             { label: "Copy URL", icon: "qrc:/QT_Illuminate/ui/icons/copy.svg", run: () => Browser.copyActiveUrl() },
             { label: "Developer Tools", icon: "qrc:/QT_Illuminate/ui/icons/activity.svg", run: () => Browser.toggleDevTools() },
             { label: "Memory Usage", icon: "qrc:/QT_Illuminate/ui/icons/activity.svg", run: () => Browser.newTab("illuminate://memory") },
-            { label: "History", icon: "qrc:/QT_Illuminate/ui/icons/search.svg", run: () => Browser.newTab("illuminate://history") }
+            { label: "History", icon: "qrc:/QT_Illuminate/ui/icons/search.svg", run: () => Browser.newTab("chrome://history/") }
         ]
     }
 
@@ -673,10 +667,10 @@ Window {
         logger: Logger
         appMenu: AppMenu
         shortcuts: Shortcuts
-        findBar: findBar
-        zoomIndicator: zoomIndicator
-        downloadsPanel: downloadsPanel
-        onSettingsRequested: root.openSettings()
+            findBar: findBar
+            zoomIndicator: zoomIndicator
+
+            onSettingsRequested: root.openSettings()
         onCommandBarRequested: mode => root.openCommandBar(mode)
         onSidebarToggleRequested: root.toggleSidebar()
         onBookmarkToggleRequested: root.toggleBookmark()

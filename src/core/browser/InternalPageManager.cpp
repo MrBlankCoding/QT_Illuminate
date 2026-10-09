@@ -29,8 +29,6 @@ QString InternalPageManager::qmlSource(const QString &url)
         return QStringLiteral("qrc:/QT_Illuminate/ui/pages/MemoryPage.qml");
     if (t == QLatin1String("illuminate://setup") || t == QLatin1String("illuminate://setup/"))
         return QStringLiteral("qrc:/QT_Illuminate/ui/pages/SetupPage.qml");
-    if (t == QLatin1String("illuminate://history") || t == QLatin1String("illuminate://history/"))
-        return QStringLiteral("qrc:/QT_Illuminate/ui/pages/HistoryPage.qml");
 
     return {};
 }
@@ -42,7 +40,5 @@ QString InternalPageManager::title(const QString &url)
         return QStringLiteral("Memory");
     if (lc == QLatin1String("illuminate://setup") || lc == QLatin1String("illuminate://setup/"))
         return QStringLiteral("Setup");
-    if (lc == QLatin1String("illuminate://history") || lc == QLatin1String("illuminate://history/"))
-        return QStringLiteral("History");
     return {};
 }

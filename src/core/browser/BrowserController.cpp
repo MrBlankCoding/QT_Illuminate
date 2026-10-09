@@ -622,7 +622,11 @@ void BrowserController::closeTab(int index)
     if (m_model->rowCount() <= 1 || lastPage)
     {
         m_closeInProgress = true;
-        emit closeWindowRequested();
+        if (tab->url() != QUrl(NEW_TAB_URL))
+        {
+            tab->setUrl(QUrl(NEW_TAB_URL));
+            tab->requestLoad(QUrl(NEW_TAB_URL));
+        }
         QMetaObject::invokeMethod(this, [this]() { m_closeInProgress = false; }, Qt::QueuedConnection);
         return;
     }
@@ -743,13 +747,9 @@ void BrowserController::onRenderProcessPidChanged(int i, qint64 v)
 void BrowserController::onNewWindowRequested(int i, const QString &url)
 {
     Q_UNUSED(i);
-    newTab(url);
-}
+        newTab(url);
+    }
 
-void BrowserController::onDownloadRequested(QObject *download)
-{
-    emit downloadRequested(download);
-}
 
 // top-level windows
 

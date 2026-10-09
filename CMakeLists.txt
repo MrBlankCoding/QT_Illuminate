@@ -294,8 +294,6 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/cef/CefQuickItem.cpp
     src/core/cef/CefProfile.h
     src/core/cef/CefProfile.cpp
-    src/core/cef/CefDownloadWrapper.h
-    src/core/cef/CefDownloadWrapper.cpp
     src/core/cef/CefMainBrowserId.h
     src/core/cef/CefLoadHandler.h
     src/core/cef/CefLoadHandler.cpp
@@ -401,7 +399,6 @@ foreach(_f
     ui/Theme.qml
     ui/pages/BrowserWindow.qml
     ui/pages/MemoryPage.qml
-    ui/pages/HistoryPage.qml
     ui/pages/ProfilePicker.qml
     ui/pages/SettingsWindow.qml
     ui/pages/SetupPage.qml
@@ -432,7 +429,6 @@ foreach(_f
     ui/components/overlays/CommandBar.qml
     ui/components/overlays/ThemePicker.qml
     ui/components/overlays/WebContextMenu.qml
-    ui/components/overlays/DownloadsPanel.qml
     ui/components/overlays/FindBar.qml
     ui/components/overlays/ZoomIndicator.qml
     ui/components/profiles/ProfileEditor.qml
@@ -491,7 +487,6 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/Theme.qml
         ui/pages/BrowserWindow.qml
         ui/pages/MemoryPage.qml
-        ui/pages/HistoryPage.qml
         ui/pages/ProfilePicker.qml
         ui/pages/SettingsWindow.qml
         ui/pages/SetupPage.qml
@@ -523,7 +518,6 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/components/overlays/CommandBar.qml
         ui/components/overlays/ThemePicker.qml
         ui/components/overlays/WebContextMenu.qml
-        ui/components/overlays/DownloadsPanel.qml
         ui/components/overlays/FindBar.qml
         ui/components/overlays/ZoomIndicator.qml
         ui/components/profiles/ProfileEditor.qml
