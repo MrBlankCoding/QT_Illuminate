@@ -162,6 +162,8 @@ NO_STACK_PROTECTOR int main(int argc, char *argv[])
     if (!qEnvironmentVariableIsSet("QSG_ATLAS_HEIGHT"))
         qputenv("QSG_ATLAS_HEIGHT", "1024");
 
+
+
     QApplication app(argc, argv);
     app.setApplicationName("QT_Illuminate");
     app.setOrganizationName("QT_Illuminate");
