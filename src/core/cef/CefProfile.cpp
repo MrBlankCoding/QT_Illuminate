@@ -14,10 +14,7 @@ static QList<CefProfile *> s_profiles;
 
 namespace
 {
-// SetContentSetting has to run on the CEF UI thread, which is the Qt main
-// thread on macOS but a thread of its own on Windows and Linux. Posting keeps
-// the call correct on all three. The task holds a context ref rather than a
-// CefProfile* so nothing can outlive a destroyed profile.
+
 class CookiePolicyTask : public CefTask
 {
 public:
@@ -29,14 +26,12 @@ public:
 
     void Execute() override
     {
-        // both URLs empty = the default for every site in this context
         m_context->SetContentSetting(CefString(), CefString(),
                                      CEF_CONTENT_SETTING_TYPE_COOKIES,
                                      m_allow ? CEF_CONTENT_SETTING_VALUE_ALLOW
                                              : CEF_CONTENT_SETTING_VALUE_BLOCK);
     }
 
-    // CefTask is ref counted; CEF owns the task until it has run
     void AddRef() const override { m_refCount.Increment(); }
     bool Release() const override
     {
@@ -85,12 +80,14 @@ void CefProfile::setHttpUserAgent(const QString &ua)
 
 QString CefProfile::rootCachePath()
 {
-    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/cef");
+
+    return QDir::toNativeSeparators(
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/cef"));
 }
 
 QString CefProfile::cachePathForProfile(const QString &profileId)
 {
-    return rootCachePath() + QLatin1Char('/') + profileId;
+    return rootCachePath() + QDir::separator() + profileId;
 }
 
 CefRefPtr<CefRequestContext> CefProfile::requestContext()

@@ -4,6 +4,7 @@
 #include "BrowserController.h"
 #include "../utils/cef_helpers.h"
 
+#include <QCoreApplication>
 #include <QMetaObject>
 
 CefDownloadHandlerImpl::CefDownloadHandlerImpl(CefBrowserWrapper *wrapper)
@@ -32,6 +33,10 @@ bool CefDownloadHandlerImpl::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
 
     auto *download = new CefDownloadWrapper(download_item, callback,
                                             cefStringToQString(suggested_name));
+    // OnBeforeDownload runs on the CEF UI thread, which is not the Qt main
+    // thread on Windows/Linux; the wrapper must live on the Qt thread so QML
+    // can connect to it and so setParent below is legal.
+    download->moveToThread(QCoreApplication::instance()->thread());
     m_activeDownloads.insert(id, download);
 
     if (m_wrapper)

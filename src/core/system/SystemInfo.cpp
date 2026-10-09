@@ -132,14 +132,10 @@ void SystemInfo::detectHardware()
     disabledFeatures << "GlicActorUi";
     flags << "--process-per-site";
 
-    // GPU config
-    if (m_forceGpu)
-        flags << "--ignore-gpu-blocklist";
     if (m_gpuRasterization)
         flags << "--enable-gpu-rasterization";
     else
         flags << "--disable-gpu-rasterization";
-    flags << "--disable-gpu-sandbox";
 
     // memory savings for low-end devices
     if (m_lowEndDevice)
