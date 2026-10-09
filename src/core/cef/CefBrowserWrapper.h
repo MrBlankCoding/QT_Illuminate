@@ -11,8 +11,15 @@
 
 #include <atomic>
 
+// Hide CEF includes from moc to avoid SFINAE incomplete-type warnings
+#if defined(Q_MOC_RUN)
+template <typename T> class CefRefPtr;
+class CefBrowser;
+class CefClient;
+#else
 #include <include/cef_browser.h>
 #include <include/cef_client.h>
+#endif
 
 class CefProfile;
 class CefTabClient;

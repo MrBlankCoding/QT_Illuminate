@@ -124,6 +124,16 @@ void SystemInfo::detectHardware()
 
     QStringList flags;
 
+#if defined(Q_OS_LINUX)
+    // Vulkan is not compatible with CEF's Wayland ozone platform; disable it
+    // to avoid GPU adapter failures and the on_device_model service crash.
+    if (qEnvironmentVariable("XDG_SESSION_TYPE") == QLatin1String("wayland")
+        || !qEnvironmentVariable("WAYLAND_DISPLAY").isEmpty())
+    {
+        flags << "--disable-vulkan";
+    }
+#endif
+
     QStringList disabledFeatures;
     disabledFeatures << "SpareRendererForSitePerProcess" << "IntensiveDisking"
                      << "RendererCodeIntegrity" << "AutoplayIgnoreWebPreferences"
