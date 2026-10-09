@@ -391,6 +391,12 @@ if(WIN32 AND CEF_COMPILER_DEFINES)
     target_compile_definitions(QT_Illuminatemodule PUBLIC ${_cef_defines})
 endif()
 
+# supress moc generated code warnings
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(QT_Illuminatemodule PRIVATE -Wno-sfinae-incomplete=)
+    target_compile_options(QT_Illuminate PRIVATE -Wno-sfinae-incomplete=)
+endif()
+
 foreach(_f
     ui/Theme.qml
     ui/pages/BrowserWindow.qml
