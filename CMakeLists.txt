@@ -510,6 +510,10 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/components/browser/PrintController.qml
         ui/components/browser/Sidebar.qml
         ui/components/browser/SidebarButton.qml
+        ui/components/browser/SidebarFooter.qml
+        ui/components/browser/SidebarMenus.qml
+        ui/components/browser/SidebarTitleStrip.qml
+        ui/components/browser/SidebarTree.qml
         ui/components/browser/SuggestionProvider.qml
         ui/components/browser/TabItem.qml
         ui/components/browser/TabSlot.qml
