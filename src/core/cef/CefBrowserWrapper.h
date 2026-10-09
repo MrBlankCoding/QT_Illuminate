@@ -16,6 +16,7 @@
 
 class CefProfile;
 class CefTabClient;
+class CefHostWindow;
 
 class CefBrowserWrapper : public QQuickItem
 {
@@ -41,6 +42,8 @@ class CefBrowserWrapper : public QQuickItem
     Q_PROPERTY(bool fullScreen READ fullScreen NOTIFY fullScreenChanged)
     Q_PROPERTY(CefBrowserWrapper *devToolsView READ devToolsView WRITE setDevToolsView NOTIFY devToolsViewChanged)
     Q_PROPERTY(bool externalBrowser READ externalBrowser WRITE setExternalBrowser NOTIFY externalBrowserChanged)
+    // Chrome style pages print, find and run extensions through Chrome
+    Q_PROPERTY(bool chromeStyle READ chromeStyle CONSTANT)
 
 public:
     enum LifecycleState
@@ -100,6 +103,7 @@ public:
     void setDevToolsView(CefBrowserWrapper *devTools);
     bool externalBrowser() const { return m_externalBrowser; }
     void setExternalBrowser(bool external);
+    bool chromeStyle() const;
 
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goForward();
@@ -110,6 +114,8 @@ public:
     Q_INVOKABLE void triggerWebAction(int action, const QUrl &url = QUrl());
     Q_INVOKABLE void runJavaScript(const QString &script, int worldId = 0);
     Q_INVOKABLE void printToPdf(const QString &path);
+    // Chrome's print preview for Chrome style pages
+    Q_INVOKABLE void print();
     Q_INVOKABLE void load(const QUrl &url) { setUrl(url); }
     Q_INVOKABLE void exitFullScreen();
     Q_INVOKABLE void showDevTools(const QPoint &inspectAt = QPoint());
@@ -138,6 +144,11 @@ protected:
 
 private:
     void initializeBrowserHost();
+    void createHostWindow(const CefBrowserSettings &settings,
+                          CefRefPtr<CefRequestContext> requestContext);
+    void onHostWindowReady();
+    void updateHostWindow();
+    QRect screenRect() const;
     void updateNativeGeometry();
     void applyInputSuppression();
     void notifyWindowRenderingHidden(bool hidden);
@@ -195,6 +206,9 @@ private:
 
     CefRefPtr<CefBrowser> m_browser;
     CefRefPtr<CefTabClient> m_client;
+    // macOS Chrome style: the page's own borderless window, pinned over us
+    CefRefPtr<CefHostWindow> m_hostWindow;
+    bool m_hostWindowReady = false;
     bool m_creatingBrowser = false;
     bool m_fullScreen = false;
     QRect m_nativeRect;

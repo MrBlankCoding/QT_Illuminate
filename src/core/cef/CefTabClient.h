@@ -1,6 +1,7 @@
 #pragma once
 
 #include <include/cef_client.h>
+#include <include/cef_command_handler.h>
 #include <include/cef_focus_handler.h>
 #include <include/cef_keyboard_handler.h>
 #include <include/cef_life_span_handler.h>
@@ -20,7 +21,8 @@ class CefRequestHandlerImpl;
 class CefTabClient : public CefClient,
                      public CefLifeSpanHandler,
                      public CefKeyboardHandler,
-                     public CefFocusHandler
+                     public CefFocusHandler,
+                     public CefCommandHandler
 {
 public:
     explicit CefTabClient(CefBrowserWrapper *wrapper);
@@ -30,6 +32,7 @@ public:
     CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
     CefRefPtr<CefKeyboardHandler> GetKeyboardHandler() override { return this; }
     CefRefPtr<CefFocusHandler> GetFocusHandler() override { return this; }
+    CefRefPtr<CefCommandHandler> GetCommandHandler() override { return this; }
     CefRefPtr<CefLoadHandler> GetLoadHandler() override;
     CefRefPtr<CefDisplayHandler> GetDisplayHandler() override;
     CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override;
@@ -65,6 +68,11 @@ public:
 
     // CefFocusHandler overrides
     bool OnSetFocus(CefRefPtr<CefBrowser> browser, FocusSource source) override;
+
+    // CefCommandHandler overrides (Chrome style only)
+    bool OnChromeCommand(CefRefPtr<CefBrowser> browser,
+                         int command_id,
+                         cef_window_open_disposition_t disposition) override;
     void setDevToolsView(CefBrowserWrapper *view) { m_devToolsView = view; }
     bool isMainBrowser(const CefRefPtr<CefBrowser> &browser) const
     {

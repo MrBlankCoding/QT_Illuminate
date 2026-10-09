@@ -729,6 +729,12 @@ Item {
                         onTriggered: Browser.newTab("illuminate://history")
                     }
 
+                    MenuItem {
+                        text: qsTr("Extensions")
+                        visible: Browser.chromeStyle
+                        onTriggered: Browser.newTab("chrome://extensions")
+                    }
+
                     MenuSeparator {}
 
                     MenuItem {

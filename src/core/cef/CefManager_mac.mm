@@ -29,6 +29,16 @@ static void cefSendEvent(id self, SEL cmd, NSEvent *event)
     reinterpret_cast<void (*)(id, SEL, NSEvent *)>(s_originalSendEvent)(self, cmd, event);
 }
 
+// a window Chrome made for itself; |view| is its browser's NSView
+void cefHideNativeWindow(void *view)
+{
+    NSWindow *window = ((__bridge NSView *)view).window;
+    if (!window)
+        return;
+    window.alphaValue = 0;
+    [window orderOut:nil];
+}
+
 void installCefAppProtocol()
 {
     if (s_originalSendEvent)

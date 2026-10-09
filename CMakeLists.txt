@@ -284,6 +284,12 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/cef/CefBrowserWrapper.cpp
     src/core/cef/CefTabClient.h
     src/core/cef/CefTabClient.cpp
+    src/core/cef/CefChromeCommands.h
+    src/core/cef/CefChromeCommands.cpp
+    src/core/cef/CefStrayBrowserClient.h
+    src/core/cef/CefStrayBrowserClient.cpp
+    src/core/cef/CefHostWindow.h
+    src/core/cef/CefHostWindow.cpp
     src/core/cef/CefQuickItem.h
     src/core/cef/CefQuickItem.cpp
     src/core/cef/CefProfile.h

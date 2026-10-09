@@ -8,6 +8,10 @@
 #include "CefFindHandler.h"
 #include "CefPermissionHandler.h"
 #include "CefRequestHandler.h"
+#include "CefChromeCommands.h"
+#include "../menus/AppMenu.h"
+
+#include <include/cef_command_ids.h>
 #include "../utils/cef_helpers.h"
 #include "../utils/ShortcutBridge.h"
 
@@ -176,4 +180,38 @@ bool CefTabClient::OnSetFocus(CefRefPtr<CefBrowser> browser, FocusSource source)
 {
     Q_UNUSED(source);
     return isMainBrowser(browser) && m_wrapper && m_wrapper->inputSuppressed();
+}
+
+bool CefTabClient::OnChromeCommand(CefRefPtr<CefBrowser> browser,
+                                   int command_id,
+                                   cef_window_open_disposition_t disposition)
+{
+    Q_UNUSED(disposition);
+
+    // DevTools keeps Chrome's own handling
+    if (!isMainBrowser(browser))
+        return false;
+
+    ChromeCommandRoute route = routeChromeCommand(command_id);
+    // Chrome would open it in a tab strip we don't have
+    if (command_id == IDC_VIEW_SOURCE)
+    {
+        const QString url = QString::fromStdString(browser->GetMainFrame()->GetURL().ToString());
+        route = {ChromeCommandRoute::Action, QStringLiteral("tab.open"), QStringLiteral("view-source:") + url};
+    }
+
+    switch (route.kind)
+    {
+    case ChromeCommandRoute::Chrome:
+        return false;
+    case ChromeCommandRoute::Blocked:
+        return true;
+    case ChromeCommandRoute::Action:
+        QMetaObject::invokeMethod(QCoreApplication::instance(), [route]() {
+            if (AppMenu *menu = AppMenu::instance())
+                menu->trigger(route.action, route.payload);
+        }, Qt::QueuedConnection);
+        return true;
+    }
+    return false;
 }

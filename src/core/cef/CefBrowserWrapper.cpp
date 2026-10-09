@@ -8,6 +8,8 @@
 #include "CefPermissionHandler.h"
 #include "CefRequestHandler.h"
 #include "CefProfile.h"
+#include "CefManager.h"
+#include "CefHostWindow.h"
 #include "../utils/cef_helpers.h"
 #include "../utils/BrowserLogger.h"
 
@@ -30,6 +32,10 @@
 void cefSetNativeViewGeometry(void *view, const QRect &rect, bool visible); // CefBrowserWrapper_mac.mm
 void cefSetNativeViewCornerRadius(void *view, qreal radius);                // CefBrowserWrapper_mac.mm
 bool cefResignNativeFocus(void *view);                                      // CefBrowserWrapper_mac.mm
+void cefAttachChildWindow(void *parentView, void *childHandle);             // CefBrowserWrapper_mac.mm
+void cefDetachChildWindow(void *childHandle);                               // CefBrowserWrapper_mac.mm
+void cefSetChildWindowCornerRadius(void *childHandle, qreal radius);        // CefBrowserWrapper_mac.mm
+void cefFocusParentWindow(void *parentView);                                // CefBrowserWrapper_mac.mm
 #elif defined(_WIN32)
 #include <windows.h>
 static void cefSetNativeViewGeometry(cef_window_handle_t hwnd, const QRect &rect, bool visible)
@@ -50,6 +56,11 @@ static void cefSetNativeViewGeometry(cef_window_handle_t, const QRect &, bool) {
 #ifndef __APPLE__
 static void cefSetNativeViewCornerRadius(cef_window_handle_t, qreal) {}
 static bool cefResignNativeFocus(cef_window_handle_t) { return false; }
+// only macOS hosts pages in a window of their own
+static void cefAttachChildWindow(void *, void *) {}
+static void cefDetachChildWindow(void *) {}
+static void cefSetChildWindowCornerRadius(void *, qreal) {}
+static void cefFocusParentWindow(void *) {}
 #endif
 
 namespace
@@ -147,6 +158,15 @@ CefBrowserWrapper::~CefBrowserWrapper()
 {
     auto host = hostOf(m_browser);
     m_browser = nullptr;
+    if (m_hostWindow)
+    {
+        cefDetachChildWindow(m_hostWindow->nativeHandle());
+        if (host)
+            host->CloseBrowser(true);
+        m_hostWindow->close();
+        m_hostWindow = nullptr;
+        return;
+    }
     if (!host)
         return;
     cefSetNativeViewGeometry(host->GetWindowHandle(), m_nativeRect, false);
@@ -197,6 +217,11 @@ void CefBrowserWrapper::setExternalBrowser(bool external)
     }
 }
 
+bool CefBrowserWrapper::chromeStyle() const
+{
+    return CefManager::chromeStyle();
+}
+
 void CefBrowserWrapper::setZoomFactor(qreal factor)
 {
     factor = factor > 0 ? qBound(kMinZoomFactor, factor, kMaxZoomFactor) : 1.0;
@@ -237,7 +262,12 @@ void CefBrowserWrapper::setCornerRadius(qreal radius)
     m_cornerRadius = radius;
     emit cornerRadiusChanged();
 
-    if (auto host = hostOf(m_browser))
+    if (m_hostWindowReady)
+    {
+        m_nativeCornerRadius = m_cornerRadius;
+        cefSetChildWindowCornerRadius(m_hostWindow->nativeHandle(), m_cornerRadius);
+    }
+    else if (auto host = hostOf(m_browser))
     {
         m_nativeCornerRadius = m_cornerRadius;
         cefSetNativeViewCornerRadius(host->GetWindowHandle(), m_cornerRadius);
@@ -261,7 +291,11 @@ void CefBrowserWrapper::applyInputSuppression()
 
     if (m_inputSuppressed)
     {
-        m_restoreFocus = cefResignNativeFocus(host->GetWindowHandle());
+        // the page's own window holds key focus; give it back to ours
+        if (m_hostWindow && window())
+            cefFocusParentWindow(nativeHandleOf(window()));
+        else
+            m_restoreFocus = cefResignNativeFocus(host->GetWindowHandle());
         host->SetFocus(false);
     }
     else
@@ -397,6 +431,12 @@ void CefBrowserWrapper::printToPdf(const QString &path)
     CefRefPtr<CefPdfPrintCallback> callback(new CefPdfCallbackImpl(this, path));
     host->PrintToPDF(qStringToCef(path), settings, callback);
 }
+void CefBrowserWrapper::print()
+{
+    if (auto host = hostOf(m_browser))
+        host->Print();
+}
+
 // full screen
 void CefBrowserWrapper::exitFullScreen()
 {
@@ -451,9 +491,12 @@ void CefBrowserWrapper::setBrowser(CefRefPtr<CefBrowser> browser)
 {
     m_browser = browser;
     m_creatingBrowser = false;
-    m_nativeRect = QRect();
-    m_nativeVisible = false;
-    m_nativeCornerRadius = 0;
+    if (!m_hostWindow)
+    {
+        m_nativeRect = QRect();
+        m_nativeVisible = false;
+        m_nativeCornerRadius = 0;
+    }
 
     if (!m_browser)
     {
@@ -481,13 +524,16 @@ void CefBrowserWrapper::setBrowser(CefRefPtr<CefBrowser> browser)
 
 void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geometry)
 {
-    if (m_browser || m_creatingBrowser || m_externalBrowser)
+    if (m_browser || m_creatingBrowser || m_externalBrowser || m_hostWindow)
         return;
 
     m_creatingBrowser = true;
 
     CefWindowInfo windowInfo;
     setAsChild(windowInfo, nativeWindowHandle, toNativeRect(geometry, window()));
+    // Chrome style still embeds in our window: no Chrome toolbar or tab strip
+    if (CefManager::chromeStyle())
+        windowInfo.runtime_style = CEF_RUNTIME_STYLE_CHROME;
 
     CefBrowserSettings settings;
     if (m_backgroundColor.isValid())
@@ -497,6 +543,15 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
     if (m_profile)
         requestContext = m_profile->requestContext();
 
+#ifdef __APPLE__
+    // CEF only allows Chrome style here in a window of the page's own
+    if (CefManager::chromeStyle())
+    {
+        createHostWindow(settings, requestContext);
+        return;
+    }
+#endif
+
     m_createdUrl = m_url;
     const CefString initialUrl = m_url.isEmpty() ? CefString() : qUrlToCefString(m_url);
     if (!CefBrowserHost::CreateBrowser(windowInfo, m_client, initialUrl, settings, nullptr, requestContext))
@@ -505,6 +560,64 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
         m_creatingBrowser = false;
         qWarning() << "[CEF] CreateBrowser failed for" << m_url;
     }
+}
+
+void CefBrowserWrapper::createHostWindow(const CefBrowserSettings &settings,
+                                         CefRefPtr<CefRequestContext> requestContext)
+{
+    m_createdUrl = m_url;
+    const QRect screen = screenRect();
+    QPointer<CefBrowserWrapper> guard = this;
+    m_hostWindow = new CefHostWindow(CefRect(screen.x(), screen.y(), screen.width(), screen.height()),
+                                     [guard]() {
+                                         if (guard)
+                                             guard->onHostWindowReady();
+                                     });
+    m_hostWindow->create(m_client, m_url.isEmpty() ? CefString() : qUrlToCefString(m_url),
+                         settings, requestContext);
+}
+
+// the window exists: hang it off ours, then size and show it like a view
+void CefBrowserWrapper::onHostWindowReady()
+{
+    if (!m_hostWindow || !window())
+        return;
+    m_hostWindowReady = true;
+    cefAttachChildWindow(nativeHandleOf(window()), m_hostWindow->nativeHandle());
+    m_nativeCornerRadius = m_cornerRadius;
+    cefSetChildWindowCornerRadius(m_hostWindow->nativeHandle(), m_cornerRadius);
+    m_nativeRect = QRect();
+    updateHostWindow();
+}
+
+void CefBrowserWrapper::updateHostWindow()
+{
+    if (!m_hostWindowReady || !window())
+        return;
+
+    const QRect screen = screenRect();
+    const bool visible = isVisible() && window()->isVisible();
+    if (screen == m_nativeRect && visible == m_nativeVisible)
+        return;
+    m_nativeRect = screen;
+    m_nativeVisible = visible;
+
+    m_hostWindow->setBounds(CefRect(screen.x(), screen.y(), screen.width(), screen.height()));
+    m_hostWindow->setVisible(visible);
+    if (m_nativeCornerRadius != m_cornerRadius)
+    {
+        m_nativeCornerRadius = m_cornerRadius;
+        cefSetChildWindowCornerRadius(m_hostWindow->nativeHandle(), m_cornerRadius);
+    }
+}
+
+// where the item is on screen: what a window of its own is positioned by
+QRect CefBrowserWrapper::screenRect() const
+{
+    const QRect scene = sceneRect();
+    if (!window())
+        return scene;
+    return QRect(window()->mapToGlobal(scene.topLeft()), scene.size());
 }
 
 void CefBrowserWrapper::initializeBrowserHost()
@@ -525,6 +638,11 @@ QRect CefBrowserWrapper::sceneRect() const
 
 void CefBrowserWrapper::updateNativeGeometry()
 {
+    if (m_hostWindow)
+    {
+        updateHostWindow();
+        return;
+    }
     if (!window() || !m_browser)
         return;
     updateGeometry(sceneRect());
@@ -641,7 +759,15 @@ void CefBrowserWrapper::itemChange(ItemChange change, const ItemChangeData &data
         {
             m_frameConnection = connect(data.window, &QQuickWindow::afterAnimating,
                                         this, &CefBrowserWrapper::updateNativeGeometry);
+            if (m_hostWindowReady)
+                onHostWindowReady();
             initializeBrowserHost();
+        }
+        else if (m_hostWindowReady)
+        {
+            m_nativeVisible = false;
+            m_hostWindow->setVisible(false);
+            cefDetachChildWindow(m_hostWindow->nativeHandle());
         }
         else if (auto host = hostOf(m_browser))
         {

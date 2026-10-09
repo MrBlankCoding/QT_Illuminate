@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QT_Illuminate.ui
 
+pragma ComponentBehavior: Bound
+
 Menu {
     id: root
     popupType: Popup.Native
@@ -17,6 +19,17 @@ Menu {
     readonly property url linkUrl: request ? request.linkUrl : ""
     readonly property url downloadUrl: mediaUrl.toString() !== "" ? mediaUrl : linkUrl
     readonly property int mediaType: request ? request.mediaType : 0
+    readonly property var extensionItems: request ? request.extensionItems : []
+    function extensionsEndIndex() {
+        for (let i = 0; i < root.count; ++i) {
+            if (root.itemAt(i) === extensionsEnd)
+                return i;
+        }
+        return root.count;
+    }
+
+    // tells Chrome the menu is done, unless an extension item was picked
+    onClosed: if (request) request.dismiss()
 
     MenuItem {
         text: "Back"
@@ -39,9 +52,6 @@ Menu {
         onTriggered: root.webView.triggerWebAction(CefBrowser.CopyLinkToClipboard, root.linkUrl)
     }
     MenuItem {
-        // rename based on what was clicked
-        // this allows for downloads to be specific
-        // download image etc
         text: root.mediaType === 1 ? "Download Image" : root.mediaType === 2 ? "Download Video" : root.mediaType === 3 ? "Download Audio" : "Download Link"
         visible: (root.mediaType === 1 || root.mediaType === 2 || root.mediaType === 3) || root.downloadUrl.toString() !== ""
         onTriggered: {
@@ -64,6 +74,24 @@ Menu {
         onTriggered: root.webView.triggerWebAction(CefBrowser.Paste)
     }
     MenuSeparator {}
+
+    // whatever extensions added for this spot on the page
+    Instantiator {
+        model: root.extensionItems
+        delegate: MenuItem {
+            id: extensionItem
+            required property var modelData
+            text: extensionItem.modelData.label
+            enabled: extensionItem.modelData.enabled
+            onTriggered: root.request.runCommand(extensionItem.modelData.commandId)
+        }
+        onObjectAdded: (index, object) => root.insertItem(root.extensionsEndIndex(), object)
+        onObjectRemoved: (index, object) => root.removeItem(object)
+    }
+    MenuSeparator {
+        id: extensionsEnd
+        visible: root.extensionItems.length > 0
+    }
 
     MenuItem {
         text: "Inspect"

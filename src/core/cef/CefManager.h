@@ -20,6 +20,9 @@ public:
     static bool isInitialized() { return instance().m_initialized; }
     static void shutdown();
     static void setChromiumFlags(const QStringList &flags);
+    // page browsers use Chrome style (extensions, print preview, Chrome
+    // commands); ILLUMINATE_ALLOY_STYLE=1 falls back to Alloy style
+    static bool chromeStyle();
 
     void browserCreated(CefRefPtr<CefBrowser> browser);
     void browserClosed(CefRefPtr<CefBrowser> browser);
@@ -35,6 +38,8 @@ public:
     // CefBrowserProcessHandler overrides
     void OnContextInitialized() override;
     void OnScheduleMessagePumpWork(int64_t delay_ms) override;
+    // windows Chrome opens by itself; see CefStrayBrowserClient
+    CefRefPtr<CefClient> GetDefaultClient() override;
 
 private:
     CefManager() = default;
@@ -55,6 +60,7 @@ private:
     QMutex m_browsersMutex;
     std::vector<CefRefPtr<CefBrowser>> m_browsers;
     QTimer *m_pumpTimer = nullptr;
+    CefRefPtr<CefClient> m_strayClient;
 
     IMPLEMENT_REFCOUNTING(CefManager);
 };

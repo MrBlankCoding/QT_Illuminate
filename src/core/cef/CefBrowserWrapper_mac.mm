@@ -1,5 +1,7 @@
 #include <QRect>
 
+#include <unordered_set>
+
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
@@ -75,4 +77,83 @@ bool cefResignNativeFocus(void *view)
 
     [window makeFirstResponder:nsView.superview];
     return true;
+}
+
+// Chrome style pages live in a CEF window of their own (see CefHostWindow);
+// these pin that window to ours as a borderless child.
+
+static NSWindow *cefWindowFromHandle(void *handle)
+{
+    id object = (__bridge id)handle;
+    if ([object isKindOfClass:[NSWindow class]])
+        return (NSWindow *)object;
+    if ([object isKindOfClass:[NSView class]])
+        return ((NSView *)object).window;
+    return nil;
+}
+
+static BOOL cefCannotBecomeMain(id, SEL)
+{
+    return NO;
+}
+
+// clicking the page makes its window key; ours has to stay the main window so
+// the traffic lights and the rest of our UI don't read as inactive. AppKit's
+// key-value observing already swaps the window's class at runtime, so the
+// override goes on Chrome's own window class, once, rather than on this
+// object. Every Chrome window in this app is a hosted page or a hidden stray.
+static void keepParentMain(NSWindow *child)
+{
+    Class cls = object_getClass(child);
+    while (cls && [NSStringFromClass(cls) hasPrefix:@"NSKVONotifying_"])
+        cls = class_getSuperclass(cls);
+    // plain C++: this file isn't ARC, so an autoreleased set would not last
+    static std::unordered_set<void *> patched;
+    if (!cls || !patched.insert((__bridge void *)cls).second)
+        return;
+    class_replaceMethod(cls, @selector(canBecomeMainWindow), (IMP)cefCannotBecomeMain, "B@:");
+}
+
+// |parentView| is our Qt window's NSView, |childHandle| the CEF window's handle
+void cefAttachChildWindow(void *parentView, void *childHandle)
+{
+    NSWindow *parent = ((__bridge NSView *)parentView).window;
+    NSWindow *child = cefWindowFromHandle(childHandle);
+    if (!parent || !child || child.parentWindow == parent)
+        return;
+
+    [child.parentWindow removeChildWindow:child];
+    keepParentMain(child);
+    child.hasShadow = NO;
+    child.opaque = NO;
+    child.backgroundColor = NSColor.clearColor;
+    // not a window of its own to Mission Control or Cmd-`
+    child.collectionBehavior |= NSWindowCollectionBehaviorTransient
+        | NSWindowCollectionBehaviorIgnoresCycle
+        | NSWindowCollectionBehaviorFullScreenAuxiliary;
+    [parent addChildWindow:child ordered:NSWindowAbove];
+}
+
+void cefDetachChildWindow(void *childHandle)
+{
+    NSWindow *child = cefWindowFromHandle(childHandle);
+    if (child && child.parentWindow)
+        [child.parentWindow removeChildWindow:child];
+}
+
+void cefSetChildWindowCornerRadius(void *childHandle, qreal radius)
+{
+    NSView *content = cefWindowFromHandle(childHandle).contentView;
+    if (!content)
+        return;
+    content.wantsLayer = YES;
+    content.layer.cornerRadius = radius;
+    content.layer.cornerCurve = kCACornerCurveContinuous;
+    content.layer.masksToBounds = radius > 0;
+}
+
+// hands keyboard focus back to our window while an overlay is up
+void cefFocusParentWindow(void *parentView)
+{
+    [((__bridge NSView *)parentView).window makeKeyWindow];
 }

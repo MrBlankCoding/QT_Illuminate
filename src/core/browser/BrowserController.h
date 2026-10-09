@@ -41,6 +41,8 @@ class BrowserController : public QObject, public ExternalQmlSingleton<BrowserCon
     // true until page has been dismissed
     Q_PROPERTY(bool firstRun READ isFirstRun NOTIFY firstRunChanged)
     Q_PROPERTY(CefProfile *webProfile READ webProfile NOTIFY webProfileChanged)
+    // pages run in Chrome style: extensions and Chrome's own pages work
+    Q_PROPERTY(bool chromeStyle READ chromeStyle CONSTANT)
 
 public:
     explicit BrowserController(Profile *profile, QObject *parent = nullptr);
@@ -67,6 +69,7 @@ public:
     void setTransparentChrome(bool enabled);
     bool isFirstRun() const;
     CefProfile *webProfile() const;
+    bool chromeStyle() const;
 
     // user actions
     // background: open without switching to it

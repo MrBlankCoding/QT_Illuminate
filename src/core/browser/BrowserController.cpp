@@ -1,6 +1,7 @@
 #include "BrowserController.h"
 #include "BrowserSettings.h"
 #include "BrowserTab.h"
+#include "CefManager.h"
 #include "../utils/BrowserLogger.h"
 #include "../utils/UrlResolver.h"
 
@@ -160,6 +161,7 @@ CefProfile *BrowserController::webProfile() const
 {
     return m_profile ? m_profile->webProfile() : nullptr;
 }
+bool BrowserController::chromeStyle() const { return CefManager::chromeStyle(); }
 int BrowserController::activeIndex() const { return m_model->activeIndex(); }
 
 QString BrowserController::activeUrl() const

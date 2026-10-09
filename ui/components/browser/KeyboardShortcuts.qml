@@ -45,6 +45,13 @@ Item {
         case "tab.jump":
             root.browser.activateTab(parseInt(payload, 10))
             return
+        case "tab.last":
+            root.browser.activateTab(root.browser.tabModel.count - 1)
+            return
+        // a page in a tab of its own, e.g. chrome://extensions
+        case "tab.open":
+            root.browser.newTab(payload)
+            return
 
         case "history.back":
             root.browser.goBack()

@@ -13,7 +13,12 @@ Item {
 
     function printActivePage() {
         const wv = printController.activeWebView;
-        if (wv)
+        if (!wv)
+            return;
+        // Chrome style pages get Chrome's own print preview
+        if (wv.chromeStyle)
+            wv.print();
+        else
             openSystemPrintFor(wv);
     }
 

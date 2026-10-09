@@ -3,6 +3,7 @@
 #include "../utils/BrowserLogger.h"
 #include <include/base/cef_compiler_specific.h>
 #include "CefProfile.h"
+#include "CefStrayBrowserClient.h"
 #include <include/cef_browser.h>
 #include "SystemInfo.h"
 
@@ -116,13 +117,16 @@ void CefManager::setChromiumFlags(const QStringList &flags)
     s_extraFlags = flags;
 }
 
+bool CefManager::chromeStyle()
+{
+    static const bool chrome = qEnvironmentVariableIntValue("ILLUMINATE_ALLOY_STYLE") == 0;
+    return chrome;
+}
+
 // Stack protector is disabled for this function, see cef#3912.
 NO_STACK_PROTECTOR int CefManager::executeProcess(int argc, char **argv)
 {
     const CefMainArgs mainArgs = makeMainArgs(argc, argv);
-
-    // On macOS sub-processes run from the separate "QT_Illuminate Helper" apps,
-    // so this always returns -1 there.
     return CefExecuteProcess(mainArgs, CefRefPtr<CefApp>(&instance()), nullptr);
 }
 
@@ -259,6 +263,7 @@ void CefManager::shutdown()
     self.closeAllBrowsers();
     // request contexts hold CEF refs that must go before CefShutdown
     CefProfile::releaseAllRequestContexts();
+    self.m_strayClient = nullptr;
     CefShutdown();
     BrowserLogger::instance().info("CEF", "CEF shutdown complete");
 }
@@ -304,6 +309,13 @@ void CefManager::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar
 {
     for (const char *scheme : kCustomSchemes)
         registrar->AddCustomScheme(scheme, CEF_SCHEME_OPTION_STANDARD | CEF_SCHEME_OPTION_SECURE);
+}
+
+CefRefPtr<CefClient> CefManager::GetDefaultClient()
+{
+    if (!m_strayClient)
+        m_strayClient = new CefStrayBrowserClient();
+    return m_strayClient;
 }
 
 void CefManager::OnContextInitialized()
