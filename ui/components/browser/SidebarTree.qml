@@ -21,6 +21,10 @@ Item {
     property string dragTitle: ""
     property string dragIconUrl: ""
     property string dragKind: ""
+    property string dragSplitMemberId: ""
+    property string dragSplitMemberTitle: ""
+    property string dragSplitMemberIcon: ""
+    property point dragSplitPosition: Qt.point(0, 0)
     property real dragY: 0
     property string dropTargetId: ""
     property int dropPosition: -1
@@ -47,6 +51,10 @@ Item {
         tree.dropPosition = -1;
     }
 
+    function isBlankPlaceholder(url) {
+        return !url || url.toString() === "" || url.toString() === "newtab://newtab";
+    }
+
     function dragMove(scenePos) {
         const p = tree.mapFromItem(null, scenePos.x, scenePos.y);
         tree.dragY = p.y;
@@ -55,7 +63,8 @@ Item {
         tree.updateTarget();
     }
 
-    // top or bottom edge of a row: beside it; the middle of a folder: into it
+    // Drop a tab in another tab's center to create a split. Folder centers
+    // continue to accept tabs; other row edges keep their reorder behavior.
     function updateTarget() {
         const cy = tree.dragY + tabList.contentY;
         let item = tabList.itemAt(tabList.width / 2, cy);
@@ -77,6 +86,8 @@ Item {
             pos = frac < 0.25 ? SidebarModel.Before
                 : frac > 0.75 && !item.expanded ? SidebarModel.After
                 : SidebarModel.Into;
+        else if (tree.dragKind === "tab" && item.kind === "tab" && frac >= 0.25 && frac <= 0.75)
+            pos = SidebarModel.Into;
         else
             pos = frac < 0.5 ? SidebarModel.Before : SidebarModel.After;
 
@@ -87,7 +98,7 @@ Item {
         if (item.nodeId !== tree.dropTargetId || pos !== tree.dropPosition) {
             tree.dropTargetId = item.nodeId;
             tree.dropPosition = pos;
-            if (pos === SidebarModel.Into && !item.expanded)
+            if (pos === SidebarModel.Into && item.kind === "folder" && !item.expanded)
                 expandTimer.restart();
             else
                 expandTimer.stop();
@@ -127,7 +138,7 @@ Item {
         spacing: 2
         reuseItems: true
         boundsBehavior: Flickable.StopAtBounds
-        interactive: tree.dragId === ""
+        interactive: tree.dragId === "" && tree.dragSplitMemberId === ""
         model: Browser.sidebar
 
         ScrollBar.vertical: ScrollBar {
@@ -147,9 +158,6 @@ Item {
         add: Transition {
             NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.durationFolder; easing.type: Easing.OutCubic }
             NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: Theme.durationFolder; easing.type: Easing.OutCubic }
-        }
-        remove: Transition {
-            NumberAnimation { property: "opacity"; to: 0; duration: Theme.durationFast }
         }
         displaced: Transition {
             NumberAnimation { properties: "y"; duration: Theme.durationFolder; easing.type: Easing.OutCubic }
@@ -171,7 +179,7 @@ Item {
 
             width: tabList.width
             height: kind === "header"
-                ? Theme.tabRowHeight + (Browser.sidebar.folderCount > 0 ? Theme.space2 + 1 : 0)
+                ? (Browser.sidebar.folderCount > 0 ? Theme.space2 + 1 : 0)
                 : Theme.tabRowHeight
             opacity: tree.dragId !== "" && tree.dragId === nodeId ? 0.4 : 1
             z: dragHandler.active ? 2 : 1
@@ -194,9 +202,47 @@ Item {
                 width: row.width - row.indent
                 height: row.height
                 sourceComponent: row.kind === "folder" ? folderComponent
+                               : row.kind === "split" ? splitComponent
                                : row.kind === "tab" ? tabComponent
                                : row.kind === "header" ? headerComponent
                                : null
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                z: 4
+                visible: row.kind === "tab" && tree.dragKind === "tab"
+                    && tree.dropTargetId === row.nodeId && tree.dropPosition === SidebarModel.Into
+                radius: Theme.radiusTab
+                color: Qt.alpha(Theme.accent, 0.17)
+                border.color: Theme.accent
+                border.width: 1
+                RowLayout {
+                    anchors.centerIn: parent
+                    spacing: 7
+                    Rectangle {
+                        width: 27
+                        height: 18
+                        radius: 4
+                        color: "transparent"
+                        border.color: Theme.accent
+                        border.width: 1
+                        Row {
+                            anchors.fill: parent
+                            anchors.margins: 2
+                            spacing: 2
+                            Rectangle { width: (parent.width - parent.spacing) / 2; height: parent.height; radius: 2; color: Theme.accent }
+                            Rectangle { width: (parent.width - parent.spacing) / 2; height: parent.height; radius: 2; color: Theme.accent }
+                        }
+                    }
+                    Text {
+                        text: qsTr("Release to split")
+                        color: Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeS
+                        font.weight: Font.Medium
+                    }
+                }
             }
 
             Component {
@@ -206,7 +252,10 @@ Item {
                     index: row.index
                     isActive: row.model.active === true
                     dragging: tree.dragId === row.nodeId
-                    onActivated: Browser.activateTab(row.model.tabIndex)
+                    onActivated: {
+                        if (!tree.isBlankPlaceholder(row.model.url))
+                            Browser.activateTab(row.model.tabIndex);
+                    }
                     onCloseClicked: Browser.closeTab(row.model.tabIndex)
                     onContextMenuRequested: sidebar.openTabMenu(row.model)
                 }
@@ -232,6 +281,139 @@ Item {
                 }
             }
 
+            Component {
+                id: splitComponent
+                Rectangle {
+                    anchors.fill: parent
+                    radius: Theme.radiusTab
+                    color: row.model.active ? Theme.itemActive : Theme.itemHover
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: Theme.space3
+                        anchors.rightMargin: Theme.space2
+                        spacing: Theme.space1
+                        Repeater {
+                            model: row.model.splitMembers || []
+                            delegate: Item {
+                                id: splitMember
+                                required property var modelData
+                                required property int index
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                Layout.minimumWidth: 0
+                                property bool faviconFailed: false
+                                readonly property string memberIconUrl: modelData.iconUrl || ""
+                                onMemberIconUrlChanged: faviconFailed = false
+
+                                readonly property bool memberActive: modelData.active === true
+                                readonly property bool memberHovered: memberHover.hovered
+                                readonly property bool memberDragging: tree.dragSplitMemberId === modelData.id
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: Theme.radiusS
+                                    color: parent.memberDragging ? Qt.alpha(Theme.accent, 0.28)
+                                         : parent.memberActive ? Qt.alpha(Theme.accent, 0.16)
+                                         : parent.memberHovered ? Theme.itemHover : "transparent"
+                                    border.width: parent.memberActive || parent.memberDragging ? 1 : 0
+                                    border.color: Qt.alpha(Theme.accent, 0.48)
+                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+                                }
+
+                                HoverHandler { id: memberHover }
+
+                                TapHandler {
+                                    onTapped: {
+                                        for (let i = 0; i < Browser.tabModel.count; ++i) {
+                                            const tab = Browser.tabModel.tabAt(i);
+                                            if (tab && tab.id === modelData.id && !tree.isBlankPlaceholder(tab.url)) {
+                                                Browser.activateTab(i);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                DragHandler {
+                                    target: null
+                                    onActiveChanged: {
+                                        if (active) {
+                                            tree.dragSplitMemberId = modelData.id;
+                                            tree.dragSplitMemberTitle = modelData.title;
+                                            tree.dragSplitMemberIcon = modelData.iconUrl;
+                                            const p = tree.mapFromItem(null, centroid.scenePosition.x, centroid.scenePosition.y);
+                                            tree.dragSplitPosition = Qt.point(p.x + 14, p.y + 14);
+                                        } else if (tree.dragSplitMemberId === modelData.id) {
+                                            const p = row.mapFromItem(null, centroid.scenePosition.x, centroid.scenePosition.y);
+                                            const droppedOutside = p.x < 0 || p.y < 0 || p.x > row.width || p.y > row.height;
+                                            tree.dragSplitMemberId = "";
+                                            if (droppedOutside)
+                                                Browser.sidebar.separateSplitTab(modelData.id);
+                                        }
+                                    }
+                                    onCentroidChanged: if (active) {
+                                        const p = tree.mapFromItem(null, centroid.scenePosition.x, centroid.scenePosition.y);
+                                        tree.dragSplitPosition = Qt.point(p.x + 14, p.y + 14);
+                                    }
+                                }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: Theme.space1
+                                    anchors.rightMargin: Theme.space1
+                                    spacing: Theme.space1
+                                    Rectangle {
+                                        visible: index > 0
+                                        Layout.preferredWidth: 1
+                                        Layout.preferredHeight: 14
+                                        color: Theme.itemActiveBorder
+                                    }
+                                    Item {
+                                        Layout.preferredWidth: 16
+                                        Layout.preferredHeight: 16
+                                        Image {
+                                            anchors.fill: parent
+                                            visible: splitMember.memberIconUrl !== "" && !splitMember.faviconFailed
+                                            source: visible ? splitMember.memberIconUrl : ""
+                                            sourceSize.width: 32
+                                            sourceSize.height: 32
+                                            fillMode: Image.PreserveAspectFit
+                                            asynchronous: true
+                                            onStatusChanged: if (status === Image.Error) splitMember.faviconFailed = true
+                                        }
+                                        LucideIcon {
+                                            anchors.centerIn: parent
+                                            visible: splitMember.memberIconUrl === "" || splitMember.faviconFailed
+                                            source: "qrc:/QT_Illuminate/ui/icons/globe.svg"
+                                            size: 14
+                                            color: Theme.textMuted
+                                        }
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        Layout.minimumWidth: 0
+                                        text: modelData.title
+                                        color: Theme.text
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fontSizeS
+                                        elide: Text.ElideRight
+                                    }
+                                }
+                            }
+                        }
+                        Text {
+                            Layout.leftMargin: Theme.space1
+                            text: "×"
+                            color: Theme.textMuted
+                            font.pixelSize: Theme.fontSizeM
+                            TapHandler {
+                                onTapped: Browser.sidebar.separateSplit(row.nodeId)
+                            }
+                        }
+                    }
+                }
+            }
+
             // the divider under the folders, and "+ New Tab"
             Component {
                 id: headerComponent
@@ -239,59 +421,10 @@ Item {
                     Rectangle {
                         visible: Browser.sidebar.folderCount > 0
                         x: Theme.space2
-                        y: Theme.space1
+                        anchors.verticalCenter: parent.verticalCenter
                         width: parent.width - Theme.space2 * 2
                         height: 1
                         color: Theme.itemHover
-                    }
-
-                    Item {
-                        id: newTabRow
-                        anchors.bottom: parent.bottom
-                        width: parent.width
-                        height: Theme.tabRowHeight
-                        scale: newTabTap.pressed ? Theme.pressScale : 1
-                        Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
-
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: Theme.radiusTab
-                            color: newTabTap.pressed ? Theme.itemPressed : newTabHover.hovered ? Theme.itemHover : "transparent"
-                            Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                        }
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: Theme.space3 - 2
-                            anchors.rightMargin: Theme.space1 + 2
-                            spacing: Theme.space2 + 2
-
-                            LucideIcon {
-                                size: Theme.faviconSize
-                                source: "qrc:/QT_Illuminate/ui/icons/plus.svg"
-                                color: newTabHover.hovered ? Theme.text : Theme.textMuted
-                            }
-                            Text {
-                                Layout.fillWidth: true
-                                text: "New Tab"
-                                color: newTabHover.hovered ? Theme.text : Theme.textMuted
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSizeM
-                                elide: Text.ElideRight
-                            }
-                        }
-
-                        HoverHandler {
-                            id: newTabHover
-                        }
-                        TapHandler {
-                            id: newTabTap
-                            onTapped: sidebar.commandBarRequested("new")
-                        }
-                        TapHandler {
-                            acceptedButtons: Qt.RightButton
-                            onTapped: tree.contextMenuRequested()
-                        }
                     }
                 }
             }
@@ -332,6 +465,62 @@ Item {
                 const p = eventPoint.position;
                 if (!tabList.itemAt(p.x + tabList.contentX, p.y + tabList.contentY))
                     tree.contextMenuRequested();
+            }
+        }
+    }
+
+    Rectangle {
+        x: tree.dragSplitPosition.x
+        y: tree.dragSplitPosition.y
+        z: 21
+        width: 190
+        height: Theme.tabRowHeight
+        radius: Theme.radiusTab
+        visible: tree.dragSplitMemberId !== ""
+        color: Theme.itemActive
+        border.color: Theme.accent
+        border.width: 1
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: Theme.space2
+            anchors.rightMargin: Theme.space2
+            spacing: Theme.space2
+            Item {
+                Layout.preferredWidth: 18
+                Layout.preferredHeight: 18
+                Image {
+                    anchors.fill: parent
+                    visible: tree.dragSplitMemberIcon !== ""
+                    source: visible ? tree.dragSplitMemberIcon : ""
+                    sourceSize.width: 36
+                    sourceSize.height: 36
+                    asynchronous: true
+                }
+                LucideIcon {
+                    anchors.centerIn: parent
+                    visible: tree.dragSplitMemberIcon === ""
+                    source: "qrc:/QT_Illuminate/ui/icons/globe.svg"
+                    size: 15
+                    color: Theme.textMuted
+                }
+            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 0
+                Text {
+                    Layout.fillWidth: true
+                    text: tree.dragSplitMemberTitle
+                    color: Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeS
+                    elide: Text.ElideRight
+                }
+                Text {
+                    text: qsTr("Release outside to separate")
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeS
+                }
             }
         }
     }

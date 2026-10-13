@@ -4,8 +4,7 @@ Usage:
     build.ps1                # configure (if needed) + build
     build.ps1 --run          # build + launch detached (no logs)
     build.ps1 --dev          # build Debug + run with live logs in terminal
-    build.ps1 --clean        # wipe build dir AND app data (cookies, sessions,
-                             # profiles, caches, prefs) for a clean slate
+    build.ps1 --clean        # wipe build dir AND app data
     build.ps1 --clean --keep-data  # wipe build dir only, keep app data
     build.ps1 --package      # Release build + .zip in dist/
 #>
@@ -388,7 +387,7 @@ if ($DoClean) {
     if ($DoKeepData) {
         Write-Host '→ Keeping app data (--keep-data).'
     } else {
-        Write-Host '→ Removing app data (cookies, sessions, profiles, caches, prefs)…'
+        Write-Host '→ Removing app data…'
         # QStandardPaths puts config/data under %APPDATA% and caches under
         # %LOCALAPPDATA%, both rooted in a QT_Illuminate org directory.
         foreach ($base in @($env:APPDATA, $env:LOCALAPPDATA)) {

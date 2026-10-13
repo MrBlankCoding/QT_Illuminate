@@ -8,6 +8,9 @@ pragma ComponentBehavior: Bound
 
 Window {
     id: root
+    // the root object is not shown for us; this is the app's only window at
+    // startup, so it opens itself
+    visible: true
     width: 1280
     height: 840
     minimumWidth: 640
@@ -65,25 +68,7 @@ Window {
             viewStack.activeWebView.exitFullScreen();
     }
 
-    function switchProfile(profile) {
-        if (!profile)
-            return;
-        const component = Qt.createComponent("qrc:/QT_Illuminate/ui/pages/BrowserWindow.qml");
-        if (component.status !== Component.Ready) {
-            Logger.error("BrowserWindow", "Failed to load window for profile switch: " + component.errorString());
-            return;
-        }
-        root.retiring = true;
-        ProfileManager.activeProfile = profile;
-        const w = component.createObject(null) as Window;
-        if (!w) {
-            root.retiring = false;
-            return;
-        }
-        Browser.adoptWindow(w);
-        w.show();
-        root.retire();
-    }
+
 
     // closing (with skipCloseConfirm set) releases the window in onClosing
     function retire() {
@@ -143,6 +128,15 @@ Window {
         Prefs.sidebarCollapsed = !Prefs.sidebarCollapsed;
     }
 
+    // the sidebar exists twice when it is collapsed: in the dock and in the
+    // peek overlay; a shortcut should reach whichever one is on screen
+    function forEachSidebar(action) {
+        for (const sidebar of [dockLoader.item, overlayLoader.item]) {
+            if (sidebar)
+                action(sidebar);
+        }
+    }
+
     function openCommandBar(mode) {
         sidebarOverlay.close();
         const url = Browser.activeUrl;
@@ -175,19 +169,7 @@ Window {
         settingsWindow.requestActivate();
     }
 
-    function openProfileSelector() {
-        const component = Qt.createComponent("qrc:/QT_Illuminate/ui/pages/ProfilePicker.qml");
-        if (component.status !== Component.Ready)
-            return;
-        const picker = component.createObject(null) as Window;
-        if (!picker)
-            return;
-        Browser.adoptWindow(picker);
-        picker.show();
-        picker.raise();
-        picker.requestActivate();
-        root.retire();
-    }
+
 
     Dialog {
         id: closeDialog
@@ -323,9 +305,6 @@ Window {
         }
     }
 
-    property bool pointerLockActive: false
-    property PointerLockEmu pointerLockEmu: PointerLockEmu {}
-
     PrintController {
         id: printController
         activeWebView: viewStack.activeWebView
@@ -335,13 +314,6 @@ Window {
     function savePdfActivePage() { printController.savePdfActivePage(); }
     function openSystemPrintFor(view) { printController.openSystemPrintFor(view); }
     function onPdfPrintingFinished(filePath, success) { printController.onPdfPrintingFinished(filePath, success); }
-
-    function releasePointerLock() {
-        const tab = viewRepeater.itemAt(Browser.tabModel.activeIndex) as TabSlot;
-        if (tab)
-            tab.releaseLock();
-        pointerLockActive = false;
-    }
 
     Component.onCompleted: {
         Logger.info("BrowserWindow", "Window ready, platform=" + Qt.platform.os);
@@ -374,11 +346,6 @@ Window {
                 ? 0 : fullWidth
             clip: true
             visible: Layout.preferredWidth > 0 || width > 0
-
-            Behavior on Layout.preferredWidth {
-                enabled: !dockLoader.item || dockLoader.item.dragWidth < 0
-                NumberAnimation { duration: 320; easing.type: Easing.OutQuint }
-            }
 
             HoverHandler {
                 id: dockHover
@@ -430,7 +397,11 @@ Window {
                         viewStack.activeWebView = next;
                     }
 
-                    Component.onCompleted: Qt.callLater(viewStack.refreshActiveWebView)
+                    Component.onCompleted: {
+                        Qt.callLater(viewStack.refreshActiveWebView);
+                        if (activeSplitIds.length === 2)
+                            Browser.sidebar.prepareSplit(activeSplitIds[0]);
+                    }
 
                     FindBar {
                         id: findBar
@@ -479,6 +450,14 @@ Window {
                         onItemAdded: viewStack.refreshActiveWebView()
                         onItemRemoved: viewStack.refreshActiveWebView()
                     }
+
+                    readonly property var activeSplitIds: {
+                        const tab = Browser.tabModel.tabAt(Browser.tabModel.activeIndex);
+                        const revision = Browser.sidebar.structureRevision;
+                        return tab && revision >= 0 ? Browser.sidebar.splitTabs(tab.id) : [];
+                    }
+                    onActiveSplitIdsChanged: if (activeSplitIds.length === 2)
+                        Browser.sidebar.prepareSplit(activeSplitIds[0]);
                 }
             }
         }
@@ -500,8 +479,6 @@ Window {
             findBar: findBar
             zoomIndicator: zoomIndicator
 
-            onSwitchToProfile: profile => root.switchProfile(profile)
-            onOpenProfileSelector: root.openProfileSelector()
             onOpenSettings: root.openSettings()
             onCommandBarRequested: mode => root.openCommandBar(mode)
             onToggleCollapsed: root.toggleSidebar()
@@ -663,14 +640,22 @@ Window {
 
     KeyboardShortcuts {
         browser: Browser
-        profileManager: ProfileManager
         logger: Logger
         appMenu: AppMenu
         shortcuts: Shortcuts
             findBar: findBar
             zoomIndicator: zoomIndicator
 
-            onSettingsRequested: root.openSettings()
+        onSettingsRequested: root.openSettings()
+        onSpaceSwitchRequested: spaceId => {
+            const space = Spaces.spaceById(spaceId);
+            if (space)
+                Spaces.activeSpace = space;
+            else
+                Logger.warning("BrowserWindow", "No space with id " + spaceId);
+        }
+        // the editor lives in the sidebar, which may be in either loader
+        onNewSpaceRequested: root.forEachSidebar(sidebar => sidebar.openSpaceEditor(null))
         onCommandBarRequested: mode => root.openCommandBar(mode)
         onSidebarToggleRequested: root.toggleSidebar()
         onBookmarkToggleRequested: root.toggleBookmark()
@@ -678,8 +663,6 @@ Window {
         onSavePdfRequested: root.savePdfActivePage()
         onFullScreenRequested: root.toggleFullScreen()
         onCloseWindowRequested: root.requestWindowClose()
-        onProfilePickerRequested: root.openProfileSelector()
-        onProfileSwitchRequested: profile => root.switchProfile(profile)
         onWindowRequested: function (action) {
             if (action === "minimize") {
                 root.showMinimized();
@@ -694,33 +677,4 @@ Window {
         onQuitRequested: Qt.quit()
     }
 
-    Connections {
-        target: root.pointerLockEmu
-        function onActiveChanged(a) {
-            if (!a) {
-                const tab = viewRepeater.itemAt(Browser.tabModel.activeIndex) as TabSlot;
-                if (tab && tab.pointerLocked)
-                    tab.releaseLock();
-            }
-        }
-        function onMovementReady(dx, dy) {
-            const wv = viewStack.activeWebView;
-            if (!wv)
-                return;
-
-            const rx = Math.round(dx);
-            const ry = Math.round(dy);
-            if (rx === 0 && ry === 0)
-                return;
-            wv.runJavaScript("window.__illuminate__onLockDelta && window.__illuminate__onLockDelta("
-                + rx + "," + ry + ")");
-        }
-    }
-
-    Shortcut {
-        context: Qt.WindowShortcut
-        sequence: "Esc"
-        enabled: root.pointerLockActive
-        onActivated: root.releasePointerLock()
-    }
 }

@@ -117,6 +117,11 @@ void CefManager::setChromiumFlags(const QStringList &flags)
     s_extraFlags = flags;
 }
 
+CefProfile *CefManager::defaultProfile()
+{
+    return CefProfile::instance();
+}
+
 bool CefManager::chromeStyle()
 {
     static const bool chrome = qEnvironmentVariableIntValue("ILLUMINATE_ALLOY_STYLE") == 0;

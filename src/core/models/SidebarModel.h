@@ -13,7 +13,6 @@
 #include <vector>
 
 class BrowserTab;
-class CefProfile;
 class TabModel;
 
 class SidebarModel : public QAbstractListModel
@@ -23,12 +22,13 @@ class SidebarModel : public QAbstractListModel
     QML_UNCREATABLE("Use Browser.sidebar")
     Q_PROPERTY(int folderCount READ folderCount NOTIFY folderCountChanged)
     Q_PROPERTY(QString headerId READ headerId CONSTANT)
+    Q_PROPERTY(int structureRevision READ structureRevision NOTIFY structureChanged)
 
 public:
     enum Roles
     {
         NodeIdRole = Qt::UserRole + 1,
-        KindRole,  // "folder" | "tab" | "header"
+        KindRole,  // "folder" | "split" | "tab" | "header"
         DepthRole,
         ParentIdRole,
         TitleRole,
@@ -43,6 +43,9 @@ public:
         InFolderRole,
         PeekRole,  // active tab shown under its collapsed folder
         TabCountRole,
+        SplitTabsRole,
+        SplitTitleRole,
+        SplitMembersRole,
     };
 
     enum DropPosition
@@ -61,7 +64,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     // reads the folders and adds their tabs to the TabModel, suspended
-    void load(const QString &filePath, CefProfile *profile);
+    void load(const QString &filePath, bool restoreTabs = true);
     // writes the folders and forgets them; the tabs stay in the TabModel
     void unload();
     void saveNow();
@@ -71,6 +74,7 @@ public:
     QList<int> visualTabOrder() const;
     int folderCount() const;
     QString headerId() const;
+    int structureRevision() const { return m_structureRevision; }
 
     Q_INVOKABLE void toggleFolder(const QString &id);
     Q_INVOKABLE void setExpanded(const QString &id, bool expanded, bool recursive = false);
@@ -91,6 +95,12 @@ public:
     Q_INVOKABLE QString moveToNewFolder(const QString &id);
     Q_INVOKABLE void newTabInFolder(const QString &folderId);
     Q_INVOKABLE void closeFolderTabs(const QString &folderId);
+    Q_INVOKABLE QString createSplit(const QString &firstTabId, const QString &secondTabId);
+    Q_INVOKABLE QVariantList splitTabs(const QString &id) const;
+    Q_INVOKABLE bool isSplitTab(const QString &id) const;
+    Q_INVOKABLE void prepareSplit(const QString &id);
+    Q_INVOKABLE void separateSplit(const QString &id);
+    Q_INVOKABLE bool separateSplitTab(const QString &tabId);
     Q_INVOKABLE void copyLink(const QString &id) const;
     Q_INVOKABLE int rowOf(const QString &id) const;
     // [{id, title, icon, depth}] depth-first, for "Add to Folder" menus
@@ -98,6 +108,7 @@ public:
 
 signals:
     void folderCountChanged();
+    void structureChanged();
     // a tab is going away and nothing live is left to show
     void newTabRequested();
     // a tab was opened for the user to type into
@@ -108,6 +119,7 @@ private:
     {
         QString id;
         bool folder = false;
+        bool split = false;
         Node *parent = nullptr;
         std::vector<std::unique_ptr<Node>> children;
         QString title;
@@ -122,6 +134,7 @@ private:
     enum class Kind
     {
         Folder,
+        Split,
         Tab,
         Header,
     };
@@ -158,7 +171,6 @@ private:
     void scheduleSave();
 
     TabModel *m_tabs;
-    CefProfile *m_profile = nullptr;
     Node m_root;
     QHash<QString, Node *> m_nodes;
     QVector<Row> m_rows;
@@ -167,4 +179,5 @@ private:
     QString m_path;
     QTimer m_saveTimer;
     int m_folderCount = 0;
+    int m_structureRevision = 0;
 };

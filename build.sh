@@ -9,9 +9,7 @@ fi
 #   ./build.sh              # configure (if needed) + build
 #   ./build.sh --run        # build + launch detached (no logs)
 #   ./build.sh --dev        # build Debug + run with live logs in terminal
-#   ./build.sh --clean      # wipe build dir AND app data (cookies, sessions,
-#                           # profiles, caches, prefs/flags such as first-run
-#                           # setup) for a true clean slate, then reconfigure
+#   ./build.sh --clean      # wipe build dir AND app data
 #   ./build.sh --clean --keep-data  # wipe build dir only, keep app data
 #   ./build.sh --package    # Release build + distributable package in dist/
 #                           # (macOS: deployed .app + .dmg, Linux: .tar.gz)
@@ -198,7 +196,7 @@ fi
 clean_app_data() {
     (( DO_CLEAN )) || return 0
     (( DO_KEEP_DATA )) && { echo "→ Keeping app data (--keep-data)."; return 0; }
-    echo "→ Removing app data (cookies, sessions, profiles, caches, prefs)…"
+    echo "→ Removing app data…"
     if (( IS_MAC )); then
         if pgrep -f "QT_Illuminate.app/Contents/MacOS/QT_Illuminate" >/dev/null 2>&1; then
             echo "  Quitting other running copies…"

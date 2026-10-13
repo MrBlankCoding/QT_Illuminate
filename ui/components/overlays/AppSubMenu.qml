@@ -33,7 +33,7 @@ Menu {
         MenuSeparator {}
     }
 
-    // built when shown: the tree changes with tabs, bookmarks and profiles
+    // built when shown: the tree changes with tabs, bookmarks and spaces
     function build() {
         for (let i = root.built.length - 1; i >= 0; --i) {
             root.removeItem(root.built[i]);

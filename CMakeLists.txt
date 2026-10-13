@@ -254,13 +254,8 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/models/SidebarModel.cpp
     src/core/models/BookmarkModel.h
     src/core/models/BookmarkModel.cpp
-    src/core/models/HistoryManager.h
-    src/core/models/HistoryManager.cpp
 
-    src/core/profiles/Profile.h
-    src/core/profiles/Profile.cpp
-    src/core/profiles/ProfileManager.h
-    src/core/profiles/ProfileManager.cpp
+
 
     src/core/menus/MenuItem.h
     src/core/menus/MenuItem.cpp
@@ -277,6 +272,11 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/system/MemoryMonitor.cpp
     src/core/system/PermissionHandler.h
     src/core/system/PermissionHandler.cpp
+
+    src/core/spaces/Space.h
+    src/core/spaces/Space.cpp
+    src/core/spaces/SpaceManager.h
+    src/core/spaces/SpaceManager.cpp
 
     src/core/cef/CefManager.h
     src/core/cef/CefManager.cpp
@@ -317,9 +317,6 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/utils/BrowserLogger.cpp
     src/utils/ExternalQmlSingleton.h
     src/utils/LogBridge.h
-    src/utils/PointerLockPermission.h
-    src/utils/PointerLockPermission.cpp
-    src/utils/PointerLockEmulation.h
     src/utils/PrintHelper.h
     src/utils/PrintHelper.cpp
     src/utils/ShortcutBridge.h
@@ -334,16 +331,11 @@ qt_add_library(QT_Illuminatemodule STATIC
 
 if(APPLE)
     target_sources(QT_Illuminatemodule PRIVATE src/utils/WindowRounding_mac.mm)
-    target_sources(QT_Illuminatemodule PRIVATE src/utils/PointerLockEmulation.mm)
     target_sources(QT_Illuminatemodule PRIVATE src/core/system/PermissionHandler_mac.mm)
     target_sources(QT_Illuminatemodule PRIVATE src/core/cef/CefManager_mac.mm src/core/cef/CefBrowserWrapper_mac.mm)
-    set_source_files_properties(src/utils/PointerLockEmulation.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     set_source_files_properties(src/core/system/PermissionHandler_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_link_libraries(QT_Illuminatemodule PRIVATE
         "-framework Cocoa" "-framework AppKit" "-framework QuartzCore" "-framework AVFoundation" "-framework CoreLocation" "-framework IOSurface")
-else()
-    # generic Qt event-filter/cursor-warp pointer lock for Linux and Windows
-    target_sources(QT_Illuminatemodule PRIVATE src/utils/PointerLockEmulation.cpp)
 endif()
 
 if(WIN32)
@@ -357,8 +349,8 @@ target_include_directories(QT_Illuminatemodule PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/cef
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/menus
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/models
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/profiles
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/system
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/spaces
     ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
     ${CEF_INCLUDE_PATH}
 )
@@ -400,7 +392,6 @@ foreach(_f
     ui/Theme.qml
     ui/pages/BrowserWindow.qml
     ui/pages/MemoryPage.qml
-    ui/pages/ProfilePicker.qml
     ui/pages/SettingsWindow.qml
     ui/pages/SetupPage.qml
     ui/pages/settings/PrivacySettingsPage.qml
@@ -432,8 +423,6 @@ foreach(_f
     ui/components/overlays/WebContextMenu.qml
     ui/components/overlays/FindBar.qml
     ui/components/overlays/ZoomIndicator.qml
-    ui/components/profiles/ProfileEditor.qml
-    ui/components/profiles/ProfileTile.qml
     ui/components/settings/Footnote.qml
     ui/components/settings/NavItem.qml
     ui/components/settings/SectionHeader.qml
@@ -444,8 +433,6 @@ foreach(_f
     ui/components/settings/SettingsPage.qml
     ui/components/settings/SettingSwitch.qml
     ui/components/settings/ShortcutField.qml
-    ui/resources/js/pointer-lock-shim.js
-    ui/resources/js/devtools-bridge.js
     ui/icons/alert-triangle.svg
     ui/icons/arrow-right.svg
     ui/icons/chevron-left.svg
@@ -488,7 +475,6 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/Theme.qml
         ui/pages/BrowserWindow.qml
         ui/pages/MemoryPage.qml
-        ui/pages/ProfilePicker.qml
         ui/pages/SettingsWindow.qml
         ui/pages/SetupPage.qml
         ui/pages/settings/PrivacySettingsPage.qml
@@ -525,8 +511,8 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/components/overlays/WebContextMenu.qml
         ui/components/overlays/FindBar.qml
         ui/components/overlays/ZoomIndicator.qml
-        ui/components/profiles/ProfileEditor.qml
-        ui/components/profiles/ProfileTile.qml
+        ui/components/spaces/SpaceEditor.qml
+        ui/components/spaces/SpaceSwitcher.qml
         ui/components/settings/Footnote.qml
         ui/components/settings/NavItem.qml
         ui/components/settings/SectionHeader.qml
@@ -538,8 +524,6 @@ qt_add_qml_module(QT_Illuminatemodule
         ui/components/settings/SettingSwitch.qml
         ui/components/settings/ShortcutField.qml
     RESOURCES
-        ui/resources/js/pointer-lock-shim.js
-        ui/resources/js/devtools-bridge.js
         ui/icons/alert-triangle.svg
         ui/icons/arrow-right.svg
         ui/icons/chevron-left.svg

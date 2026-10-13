@@ -12,7 +12,7 @@ class TestTabModel : public QObject
     static int fill(TabModel &model, int count)
     {
         for (int i = 0; i < count; ++i)
-            model.addTab(url(i), nullptr, /*suspended=*/true);
+            model.addTab(url(i), /*suspended=*/true);
         return model.rowCount();
     }
 
@@ -129,7 +129,7 @@ private slots:
     void restoringAnUnsavedTabStaysSuspended()
     {
         TabModel model;
-        QVERIFY(model.addTab(url(0), nullptr, /*suspended=*/true));
+        QVERIFY(model.addTab(url(0), /*suspended=*/true));
         QVERIFY(model.tabAt(0)->suspended());
 
         // the ctor only wakes the tab that becomes active

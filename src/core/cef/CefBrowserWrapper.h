@@ -10,8 +10,6 @@
 #include <QtQml/qqmlregistration.h>
 
 #include <atomic>
-
-// Hide CEF includes from moc to avoid SFINAE incomplete-type warnings
 #if defined(Q_MOC_RUN)
 template <typename T> class CefRefPtr;
 class CefBrowser;
@@ -45,7 +43,7 @@ class CefBrowserWrapper : public QQuickItem
     Q_PROPERTY(qreal cornerRadius READ cornerRadius WRITE setCornerRadius NOTIFY cornerRadiusChanged)
     // while set, keyboard focus stays with the Qt UI (overlays) instead of the page
     Q_PROPERTY(bool inputSuppressed READ inputSuppressed WRITE setInputSuppressed NOTIFY inputSuppressedChanged)
-    Q_PROPERTY(CefProfile *profile READ profile WRITE setProfile NOTIFY profileChanged)
+
     Q_PROPERTY(bool fullScreen READ fullScreen NOTIFY fullScreenChanged)
     Q_PROPERTY(CefBrowserWrapper *devToolsView READ devToolsView WRITE setDevToolsView NOTIFY devToolsViewChanged)
     Q_PROPERTY(bool externalBrowser READ externalBrowser WRITE setExternalBrowser NOTIFY externalBrowserChanged)
@@ -103,8 +101,7 @@ public:
     void setCornerRadius(qreal radius);
     bool inputSuppressed() const { return m_inputSuppressed; }
     void setInputSuppressed(bool suppressed);
-    CefProfile *profile() const { return m_profile; }
-    void setProfile(CefProfile *profile);
+
     bool fullScreen() const { return m_fullScreen; }
     CefBrowserWrapper *devToolsView() const { return m_devToolsView; }
     void setDevToolsView(CefBrowserWrapper *devTools);
@@ -121,10 +118,10 @@ public:
     Q_INVOKABLE void triggerWebAction(int action, const QUrl &url = QUrl());
     Q_INVOKABLE void runJavaScript(const QString &script, int worldId = 0);
     Q_INVOKABLE void printToPdf(const QString &path);
-    // Chrome's print preview for Chrome style pages
     Q_INVOKABLE void print();
     Q_INVOKABLE void load(const QUrl &url) { setUrl(url); }
     Q_INVOKABLE void exitFullScreen();
+    Q_INVOKABLE void refreshNativeView(bool raiseAboveSiblings = true);
     Q_INVOKABLE void showDevTools(const QPoint &inspectAt = QPoint());
     Q_INVOKABLE void closeDevTools();
 
@@ -176,7 +173,7 @@ signals:
     void backgroundColorChanged();
     void cornerRadiusChanged();
     void inputSuppressedChanged();
-    void profileChanged();
+
     void devToolsViewChanged();
     void externalBrowserChanged();
     void fullScreenChanged();
@@ -207,7 +204,6 @@ private:
     qreal m_nativeCornerRadius = -1;
     std::atomic<bool> m_inputSuppressed = false;
     bool m_restoreFocus = false;
-    CefProfile *m_profile = nullptr;
     QPointer<CefBrowserWrapper> m_devToolsView;
     bool m_externalBrowser = false;
 
@@ -221,6 +217,7 @@ private:
     QRect m_nativeRect;
     bool m_nativeVisible = true;
     QMetaObject::Connection m_frameConnection;
+    QMetaObject::Connection m_windowActiveConnection;
     QUrl m_createdUrl;
     QString m_lastFindText;
 };

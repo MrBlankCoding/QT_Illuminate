@@ -134,6 +134,15 @@ void cefAttachChildWindow(void *parentView, void *childHandle)
     [parent addChildWindow:child ordered:NSWindowAbove];
 }
 
+void cefRaiseChildWindow(void *parentView, void *childHandle)
+{
+    NSWindow *parent = ((__bridge NSView *)parentView).window;
+    NSWindow *child = cefWindowFromHandle(childHandle);
+    if (!parent || !child || child.parentWindow != parent)
+        return;
+    [child orderWindow:NSWindowAbove relativeTo:parent.windowNumber];
+}
+
 void cefDetachChildWindow(void *childHandle)
 {
     NSWindow *child = cefWindowFromHandle(childHandle);

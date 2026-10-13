@@ -14,7 +14,7 @@ class TestSidebarModel : public QObject
     {
         QList<BrowserTab *> added;
         for (int i = 0; i < count; ++i)
-            added << tabs.addTab(url(i), nullptr, /*suspended=*/false);
+            added << tabs.addTab(url(i), /*suspended=*/false);
         tabs.setActiveIndex(0);
         return added;
     }
@@ -156,7 +156,7 @@ private slots:
         QCOMPARE(rows(model), (QStringList{"f:0:F", "t:1:0", "t:1:1", "t:1:2", "t:1:3", "h:0:"}));
 
         // and dropped onto a loose tab, it leaves the folder next to it
-        tabs.addTab(url(9), nullptr);
+        tabs.addTab(url(9));
         QVERIFY(model.drop(t[1]->id(), tabs.tabAt(tabs.rowCount() - 1)->id(), SidebarModel::Before));
         QCOMPARE(rows(model).mid(4), (QStringList{"h:0:", "t:0:1", "t:0:9"}));
     }
@@ -209,7 +209,7 @@ private slots:
         QCOMPARE(rows(model).first(5), (QStringList{"f:0:Outer", "t:1:0", "f:1:New Folder", "t:2:1", "t:1:2"}));
 
         // a loose tab gets a new folder of its own
-        tabs.addTab(url(9), nullptr);
+        tabs.addTab(url(9));
         model.moveToNewFolder(tabs.tabAt(tabs.rowCount() - 1)->id());
         QCOMPARE(rows(model).mid(5), (QStringList{"f:0:New Folder", "t:1:9", "h:0:"}));
     }
@@ -226,6 +226,92 @@ private slots:
         QCOMPARE(rows(model), (QStringList{"f:0:F", "h:0:", "t:0:0"}));
     }
 
+    void splittingGroupsTabsAndTracksTheirOrder()
+    {
+        TabModel tabs;
+        SidebarModel model(&tabs);
+        const auto t = fill(tabs, 3);
+
+        const QString group = model.createSplit(t[1]->id(), t[0]->id());
+
+        QVERIFY(!group.isEmpty());
+        QCOMPARE(model.rowCount(), 3); // one split row, header, and one loose tab
+        QCOMPARE(model.index(0).data(SidebarModel::KindRole).toString(), QStringLiteral("split"));
+        QCOMPARE(model.splitTabs(group), (QVariantList{t[1]->id(), t[0]->id()}));
+        QVERIFY(model.isInFolder(t[0]));
+        QVERIFY(model.isInFolder(t[1]));
+        QCOMPARE(model.visualTabOrder().size(), 3);
+    }
+
+    void droppingATabOnAnotherCreatesAFixedTwoPaneSplit()
+    {
+        TabModel tabs;
+        SidebarModel model(&tabs);
+        const auto t = fill(tabs, 3);
+
+        QVERIFY(model.canDrop(t[1]->id(), t[0]->id(), SidebarModel::Into));
+        QVERIFY(model.drop(t[1]->id(), t[0]->id(), SidebarModel::Into));
+
+        const QString group = model.index(0).data(SidebarModel::NodeIdRole).toString();
+        QCOMPARE(model.index(0).data(SidebarModel::KindRole).toString(), QStringLiteral("split"));
+        QCOMPARE(model.splitTabs(group), (QVariantList{t[0]->id(), t[1]->id()}));
+        QVERIFY(!model.canDrop(t[2]->id(), t[0]->id(), SidebarModel::Into));
+        QCOMPARE(model.splitTabs(group).size(), 2);
+    }
+
+    void aSplitPersistsItsTwoMembers()
+    {
+        QTemporaryDir dir;
+        const QString path = dir.filePath(QStringLiteral("sidebar.json"));
+        QString group;
+        {
+            TabModel tabs;
+            SidebarModel model(&tabs);
+            model.load(path);
+            const auto t = fill(tabs, 2);
+            group = model.createSplit(t[1]->id(), t[0]->id());
+            model.saveNow();
+        }
+
+        TabModel tabs;
+        SidebarModel model(&tabs);
+        model.load(path);
+        QCOMPARE(tabs.rowCount(), 2);
+        const QString restoredGroup = model.index(0).data(SidebarModel::NodeIdRole).toString();
+        QCOMPARE(model.index(0).data(SidebarModel::KindRole).toString(), QStringLiteral("split"));
+        QCOMPARE(model.splitTabs(restoredGroup).size(), 2);
+        QCOMPARE(restoredGroup, group);
+    }
+
+    void closingAMemberDissolvesTheRemainingPair()
+    {
+        TabModel tabs;
+        SidebarModel model(&tabs);
+        const auto t = fill(tabs, 3);
+        const QString group = model.createSplit(t[0]->id(), t[1]->id());
+
+        QVERIFY(tabs.removeTab(tabs.indexOf(t[1])));
+
+        QVERIFY(model.splitTabs(group).isEmpty());
+        QCOMPARE(rows(model), (QStringList{"h:0:", "t:0:0", "t:0:2"}));
+        QVERIFY(!model.isInFolder(t[0]));
+    }
+
+    void separatingKeepsAllMembersAsLooseTabs()
+    {
+        TabModel tabs;
+        SidebarModel model(&tabs);
+        const auto t = fill(tabs, 3);
+        const QString group = model.createSplit(t[0]->id(), t[1]->id());
+
+        model.separateSplit(group);
+
+        QCOMPARE(tabs.rowCount(), 3);
+        QCOMPARE(rows(model), (QStringList{"h:0:", "t:0:0", "t:0:1", "t:0:2"}));
+        QVERIFY(!model.isInFolder(t[0]));
+        QVERIFY(!model.isInFolder(t[1]));
+    }
+
     // a folder tab remembers where it got to, not where it started
     void theTreeSurvivesARestart()
     {
@@ -234,7 +320,7 @@ private slots:
         {
             TabModel tabs;
             SidebarModel model(&tabs);
-            model.load(path, nullptr);
+            model.load(path);
             const auto t = fill(tabs, 3);
             const QString work = model.createFolder({}, QStringLiteral("Work"));
             const QString inner = model.createFolder(work, QStringLiteral("Inner"));
@@ -249,7 +335,7 @@ private slots:
 
         TabModel tabs;
         SidebarModel model(&tabs);
-        model.load(path, nullptr);
+        model.load(path);
 
         QCOMPARE(tabs.rowCount(), 2);
         QVERIFY(tabs.tabAt(0)->suspended());

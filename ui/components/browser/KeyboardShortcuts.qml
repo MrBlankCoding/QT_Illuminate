@@ -4,7 +4,6 @@ Item {
     id: root
 
     required property var browser
-    required property var profileManager
     required property var logger
     required property var appMenu
     required property var shortcuts
@@ -21,8 +20,8 @@ Item {
     signal aboutRequested
     signal quitRequested
     signal closeWindowRequested
-    signal profilePickerRequested
-    signal profileSwitchRequested(var profile)
+    signal spaceSwitchRequested(string spaceId)
+    signal newSpaceRequested
     signal windowRequested(string action)
 
     function perform(id, payload) {
@@ -123,18 +122,17 @@ Item {
             root.browser.newTab(payload)
             return
 
-        case "profile.switch":
-            for (let i = 0; i < root.profileManager.profiles.length; ++i) {
-                const candidate = root.profileManager.profiles[i]
-                if (candidate && candidate.id === payload) {
-                    root.profileSwitchRequested(candidate)
-                    return
-                }
-            }
-            root.logger.warning("KeyboardShortcuts", "No profile with id " + payload)
+        case "space.switch":
+            root.spaceSwitchRequested(payload)
             return
-        case "profile.picker":
-            root.profilePickerRequested()
+        case "space.next":
+            Spaces.cycleSpace(1)
+            return
+        case "space.previous":
+            Spaces.cycleSpace(-1)
+            return
+        case "space.new":
+            root.newSpaceRequested()
             return
 
         case "app.settings":
@@ -386,6 +384,23 @@ Item {
         context: Qt.WindowShortcut
         sequences: root.shortcuts.bindings.toggleBookmark
         onActivated: root.perform("bookmark.toggle")
+    }
+
+    // spaces
+    Shortcut {
+        context: Qt.WindowShortcut
+        sequences: root.shortcuts.bindings.nextSpace
+        onActivated: root.perform("space.next")
+    }
+    Shortcut {
+        context: Qt.WindowShortcut
+        sequences: root.shortcuts.bindings.previousSpace
+        onActivated: root.perform("space.previous")
+    }
+    Shortcut {
+        context: Qt.WindowShortcut
+        sequences: root.shortcuts.bindings.newSpace
+        onActivated: root.perform("space.new")
     }
 
     // window and app

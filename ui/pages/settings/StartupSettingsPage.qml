@@ -22,10 +22,6 @@ SettingsPage {
                     {
                         name: "Homepage",
                         value: "homepage"
-                    },
-                    {
-                        name: "Restore last session",
-                        value: "session"
                     }
                 ]
                 textRole: "name"
@@ -59,6 +55,6 @@ SettingsPage {
 
     Footnote {
         Layout.topMargin: 4
-        text: "Tabs are written to the profile's session.json every time the app quits, and reopened only if Open is set to Restore last session."
+        text: "Saved tabs are restored whenever you open a space. This setting chooses the first page only when that space has no saved tabs."
     }
 }

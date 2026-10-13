@@ -14,10 +14,10 @@
 #include "core/cef/CefManager.h"
 #include "core/menus/AppMenu.h"
 #include "core/models/BookmarkModel.h"
-#include "core/models/HistoryManager.h"
 #include "core/browser/BrowserController.h"
+#include "core/spaces/SpaceManager.h"
 #include "core/system/PermissionHandler.h"
-#include "core/profiles/ProfileManager.h"
+
 #include "core/system/SystemInfo.h"
 #include "utils/BrowserLogger.h"
 #include <include/base/cef_compiler_specific.h>
@@ -185,41 +185,34 @@ NO_STACK_PROTECTOR int main(int argc, char *argv[])
         return 0;
     }
 
-    ProfileManager profileManager(nullptr);
+
     PermissionHandler permissionHandler(nullptr);
     ShortcutRegistry shortcutRegistry(nullptr);
+    SpaceManager spaces(nullptr);
     BookmarkModel bookmarks(nullptr);
-    HistoryManager historyManager(nullptr);
 
     // QML establishes befor eengine load
-    BrowserSettings browserSettings(profileManager.activeProfile(), nullptr);
+    BrowserSettings browserSettings(nullptr);
     BrowserSettings::setQmlInstance(&browserSettings);
 
     BrowserLogger::instance().info("Main", "QT_Illuminate starting up");
 
     BrowserLogger::instance().info("Main", QString("Qt %1").arg(qVersion()));
-    BrowserController controller(profileManager.activeProfile());
-    controller.setHistory(&historyManager);
-    QObject::connect(&profileManager, &ProfileManager::activeProfileChanged, &controller, [&]() {
-        controller.setProfile(profileManager.activeProfile());
-    });
+    BrowserController controller(spaces.activeSpace());
 
-    // follow per profile settings
-    QObject::connect(&profileManager, &ProfileManager::activeProfileChanged, &browserSettings, [&]() {
-        browserSettings.setProfile(profileManager.activeProfile());
-    });
-
-    QObject::connect(&profileManager, &ProfileManager::activeProfileChanged, &historyManager, [&]() {
-        if (Profile *p = profileManager.activeProfile())
-            historyManager.setProfile(p->id(), p->path());
+    // a space owns its folders, tabs and bookmarks; the rest is shared
+    bookmarks.setSpace(spaces.activeSpace());
+    QObject::connect(&spaces, &SpaceManager::activeSpaceChanged, &spaces, [&]() {
+        controller.setActiveSpace(spaces.activeSpace());
+        bookmarks.setSpace(spaces.activeSpace());
     });
 
     BrowserController::setQmlInstance(&controller);
-    ProfileManager::setQmlInstance(&profileManager);
+    SpaceManager::setQmlInstance(&spaces);
+
     PermissionHandler::setQmlInstance(&permissionHandler);
     ShortcutRegistry::setQmlInstance(&shortcutRegistry);
     BookmarkModel::setQmlInstance(&bookmarks);
-    HistoryManager::setQmlInstance(&historyManager);
     qmlRegisterSingletonType<PermissionHandler>("QT_Illuminate.ui", 1, 0, "DefaultBrowser", PermissionHandler::create);
 
     AppMenu appMenu(nullptr);
@@ -255,7 +248,7 @@ NO_STACK_PROTECTOR int main(int argc, char *argv[])
                 BrowserLogger::instance().warning("QML", w.toString());
         });
 
-    const QUrl root("qrc:/QT_Illuminate/ui/pages/ProfilePicker.qml");
+    const QUrl root("qrc:/QT_Illuminate/ui/pages/BrowserWindow.qml");
     QObject::connect(
         engine.get(), &QQmlApplicationEngine::objectCreated,
         &app, [&](QObject *obj, const QUrl &url)
@@ -269,7 +262,7 @@ NO_STACK_PROTECTOR int main(int argc, char *argv[])
         Qt::QueuedConnection);
 
     BrowserLogger::instance().info("Main", "Loading root QML: " + root.toString());
-    engine->setInitialProperties({{"autoOpenSingleProfile", true}});
+
     engine->load(root);
 
     const int exitCode = app.exec();

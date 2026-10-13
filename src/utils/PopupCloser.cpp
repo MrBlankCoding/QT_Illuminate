@@ -8,6 +8,8 @@
 #include <QQuickWindow>
 #include <QRectF>
 
+#include <algorithm>
+
 PopupCloser::PopupCloser(QObject *parent)
     : QObject(parent)
 {
@@ -20,8 +22,10 @@ void PopupCloser::watch(QObject *popup)
         return;
 
     m_popups.append(popup);
-    connect(popup, &QObject::destroyed, this, [this, popup]() {
-        m_popups.removeAll(popup);
+    connect(popup, &QObject::destroyed, this, [this]() {
+        m_popups.erase(std::remove_if(m_popups.begin(), m_popups.end(),
+                                      [](const QPointer<QObject> &entry) { return entry.isNull(); }),
+                       m_popups.end());
     });
 }
 
@@ -59,8 +63,16 @@ bool PopupCloser::tryCloseTopmost(QMouseEvent *me)
     for (int i = m_popups.size() - 1; i >= 0; --i)
     {
         QObject *candidate = m_popups[i];
-        QVariant visible = candidate->property("isVisible");
-        if (candidate && visible.toBool())
+        if (!candidate)
+        {
+            m_popups.removeAt(i);
+            continue;
+        }
+
+        QVariant visible = candidate->property("visible");
+        if (!visible.isValid())
+            visible = candidate->property("isVisible");
+        if (visible.isValid() && visible.toBool())
         {
             popup = candidate;
             break;
@@ -77,16 +89,21 @@ bool PopupCloser::tryCloseTopmost(QMouseEvent *me)
         return true;
     }
 
-    QQuickItem *item = qobject_cast<QQuickItem *>(popup);
-        if (item)
-        {
-            QQuickWindow *popupWindow = item->window();
-            if (popupWindow)
-            {
-            QPointF pos = popupWindow->mapFromGlobal(me->globalPosition());
-            if (QRectF(popupWindow->geometry()).contains(pos))
-                return false;
-        }
+    const QVariant parentValue = popup->property("parent");
+    QQuickItem *parentItem = parentValue.value<QQuickItem *>();
+    if (parentItem)
+    {
+        const QPointF topLeft = parentItem->mapToGlobal(QPointF(
+            popup->property("x").toReal(), popup->property("y").toReal()));
+        const QSizeF size(popup->property("width").toReal(), popup->property("height").toReal());
+        if (QRectF(topLeft, size).contains(me->globalPosition()))
+            return false;
+    }
+    else if (QQuickItem *item = qobject_cast<QQuickItem *>(popup))
+    {
+        if (QQuickWindow *popupWindow = item->window();
+            popupWindow && QRectF(popupWindow->geometry()).contains(me->globalPosition()))
+            return false;
     }
 
     QMetaObject::invokeMethod(popup, "close");

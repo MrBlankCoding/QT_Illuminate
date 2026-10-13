@@ -20,14 +20,11 @@ public:
     static bool isInitialized() { return instance().m_initialized; }
     static void shutdown();
     static void setChromiumFlags(const QStringList &flags);
-    // page browsers use Chrome style (extensions, print preview, Chrome
-    // commands); ILLUMINATE_ALLOY_STYLE=1 falls back to Alloy style
     static bool chromeStyle();
+    static class CefProfile *defaultProfile();
 
     void browserCreated(CefRefPtr<CefBrowser> browser);
     void browserClosed(CefRefPtr<CefBrowser> browser);
-    // closes and waits (briefly) for all open CEF browsers; call before tearing
-    // down Qt windows so wrappers release their native views first
     void closeAllBrowsers();
 
     CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override { return this; }
@@ -38,14 +35,11 @@ public:
     // CefBrowserProcessHandler overrides
     void OnContextInitialized() override;
     void OnScheduleMessagePumpWork(int64_t delay_ms) override;
-    // windows Chrome opens by itself; see CefStrayBrowserClient
     CefRefPtr<CefClient> GetDefaultClient() override;
 
 private:
     CefManager() = default;
     ~CefManager() override = default;
-
-    // external message pump (macOS): CEF work runs on the Qt main thread
     void scheduleMessagePumpWork(int64_t delayMs);
     void doMessageLoopWork();
 

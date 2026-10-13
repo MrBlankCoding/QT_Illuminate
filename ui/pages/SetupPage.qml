@@ -11,7 +11,8 @@ Item {
     readonly property var defaultBrowser: DefaultBrowser
     // qmllint enable unqualified
 
-    readonly property var profile: ProfileManager.activeProfile
+    // the first space is what the sidebar will show
+    readonly property var space: Spaces.activeSpace
     readonly property int stepCount: 5
     readonly property bool transitioning: stepTransition.running
     property int step: 0
@@ -20,7 +21,7 @@ Item {
         if (root.transitioning)
             return;
         if (root.step === 1)
-            root.commitProfile();
+            root.commitSpace();
         if (root.step < root.stepCount - 1)
             root.goToStep(root.step + 1);
         else
@@ -40,21 +41,21 @@ Item {
         stepTransition.start();
     }
 
-    function commitProfile() {
-        if (!root.profile)
+    function commitSpace() {
+        if (!root.space)
             return;
-        const name = profileEditor.trimmedName;
-        if (name.length > 0 && name !== root.profile.name)
-            root.profile.name = name;
-        if (profileEditor.selectedColor !== root.profile.color)
-            root.profile.color = profileEditor.selectedColor;
+        const name = spaceEditor.trimmedName;
+        if (name.length > 0 && name !== root.space.name)
+            root.space.name = name;
+        if (spaceEditor.selectedColor !== root.space.color)
+            root.space.color = spaceEditor.selectedColor;
     }
 
     Component.onCompleted: {
-        if (root.profile) {
-            profileEditor.name = root.profile.name !== "Default" ? root.profile.name : "";
-            if (root.profile.color.length > 0)
-                profileEditor.selectedColor = root.profile.color;
+        if (root.space) {
+            spaceEditor.name = root.space.name !== "Default" ? root.space.name : "";
+            if (root.space.color.length > 0)
+                spaceEditor.selectedColor = root.space.color;
         }
         Logger.info("SetupPage", "First-run setup shown");
     }
@@ -165,27 +166,27 @@ Item {
                     SetupHeading {
                         Layout.fillWidth: true
                         title: "Welcome to Illuminate"
-                        subtitle: "A few quick steps to set up your profile, default browser and look. Anything you skip can be changed later in Settings."
+                        subtitle: "A few quick steps to set up your first space, default browser and look. Anything you skip can be changed later in Settings."
                     }
 
                     Item { Layout.fillHeight: true }
                 }
 
-                // 1 — profile
+                // 1 — the first space
                 ColumnLayout {
                     spacing: 18
 
                     SetupHeading {
                         Layout.fillWidth: true
-                        title: "Set up your profile"
-                        subtitle: "Profiles keep history, cookies and logins separate. You can add more from the profile menu."
+                        title: qsTr("Name your first space")
+                        subtitle: qsTr("A space holds its own folders, tabs and bookmarks. Logins, cookies and history are shared by every space. You can add more from the space row at the foot of the sidebar.")
                     }
 
-                    ProfileEditor {
-                        id: profileEditor
+                    SpaceEditor {
+                        id: spaceEditor
                         Layout.fillWidth: true
                         Layout.topMargin: 6
-                        placeholderText: "Your name"
+                        placeholderText: qsTr("Space name")
                         onAccepted: root.next()
                     }
                     Item { Layout.fillHeight: true }
@@ -355,9 +356,9 @@ Item {
 
                     SetupHeading {
                         Layout.fillWidth: true
-                        title: root.profile && root.profile.name !== "Default"
-                               ? "You're all set, " + root.profile.name
-                               : "You're all set"
+                        title: root.space && root.space.name !== "Default"
+                               ? qsTr("You're all set, %1").arg(root.space.name)
+                               : qsTr("You're all set")
                         subtitle: "Everything here can be changed later in Settings."
                     }
                     Item { Layout.fillHeight: true }

@@ -24,16 +24,23 @@ Item {
     readonly property bool currentBookmarked: addressPill.isBookmarked
 
     signal openSettings
-    signal switchToProfile(var profile)
-    signal openProfileSelector
     signal commandBarRequested(string mode)   // "new" | "edit"
     signal toggleCollapsed
+
+    function openSpaceEditor(space) {
+        if (spaceEditorPopup)
+            spaceEditorPopup.openFor(space)
+    }
+
+    function confirmDeleteSpace(space) {
+        if (deleteSpacePopup && space)
+            deleteSpacePopup.openFor(space)
+    }
 
     readonly property bool isFullScreen: root.targetWindow ? root.targetWindow.visibility === Window.FullScreen : false
     readonly property bool customWindowControls: !Theme.isMac && !isFullScreen
     readonly property bool menuOpen: footer.popupsOpen || sideMenus.popupsOpen || renamingId !== ""
 
-    // live width while the edge is dragged; the preference is only written on release
     property real dragWidth: -1
     implicitWidth: dragWidth >= 0 ? dragWidth : Prefs.sidebarWidth
 
@@ -43,9 +50,7 @@ Item {
         Bookmarks.toggleBookmark(root.currentTitle, root.currentUrl, root.currentIconUrl);
     }
 
-    function avatarColorFor(profile) {
-        return profile && profile.color && profile.color.length > 0 ? profile.color : "#4A90E2";
-    }
+
 
     // the folder whose title is being edited in place
     property string renamingId: ""
@@ -127,17 +132,233 @@ Item {
             color: Theme.itemHover
         }
 
-        // folders, the "New Tab" header, then the tabs not in a folder
         SidebarTree {
             id: treeView
             sidebar: root
             onContextMenuRequested: sideMenus.sidebarMenu.popup()
         }
 
-        // footer: profile, downloads, overflow menu
+        // Downloads, space switcher, and creation menu stay docked at the bottom.
         SidebarFooter {
             id: footer
             sidebar: root
+        }
+    }
+
+    // creating or editing a space; "editing" carries the space being changed
+    Popup {
+        id: spaceEditorPopup
+        property var target: null
+        readonly property bool creating: target === null
+
+        parent: Overlay.overlay
+        modal: true
+        focus: true
+        Component.onCompleted: PopupCloser.watch(spaceEditorPopup)
+        padding: 24
+        width: Math.min(360, parent ? parent.width - 32 : 360)
+        x: parent ? Math.round((parent.width - width) / 2) : 0
+        y: parent ? Math.round((parent.height - height) / 2) : 0
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.35) }
+        background: Rectangle {
+            radius: 18
+            color: Theme.surfaceHigh
+            border.color: Theme.border
+            border.width: 1
+        }
+
+        onOpened: Qt.callLater(function() { spaceEditor.focusName() })
+
+        enter: Transition {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 160 }
+            NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: 200; easing.type: Easing.OutCubic }
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 18
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 4
+                Text {
+                    Layout.fillWidth: true
+                    text: spaceEditorPopup.creating ? qsTr("Create a space") : qsTr("Edit space")
+                    color: Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeXL
+                    font.weight: Font.DemiBold
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: spaceEditorPopup.creating
+                          ? qsTr("Give this space a name and a colour.")
+                          : qsTr("Make this space easy to recognize.")
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeS
+                    wrapMode: Text.WordWrap
+                }
+            }
+
+            SpaceEditor {
+                id: spaceEditor
+                Layout.fillWidth: true
+                onAccepted: spaceEditorPopup.commit()
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Item { Layout.fillWidth: true }
+
+                PillButton {
+                    text: qsTr("Cancel")
+                    textColor: Theme.textMuted
+                    fillColor: Theme.surfaceHigh
+                    hoverFillColor: Theme.surface
+                    onClicked: spaceEditorPopup.close()
+                }
+                PillButton {
+                    text: spaceEditorPopup.creating ? qsTr("Create") : qsTr("Save")
+                    textColor: Theme.onAccent
+                    fillColor: Theme.accent
+                    hoverFillColor: Qt.darker(Theme.accent, 1.1)
+                    enabled: spaceEditor.trimmedName.length > 0
+                    onClicked: spaceEditorPopup.commit()
+                }
+            }
+        }
+
+        function openFor(space) {
+            target = space || null;
+            spaceEditor.name = space ? space.name : "";
+            spaceEditor.selectedColor = space ? space.color : Spaces.nextSpaceColor();
+            open();
+        }
+
+        // an empty name would leave an unidentifiable space, so it is refused
+        function commit() {
+            const name = spaceEditor.trimmedName;
+            if (name.length === 0) {
+                spaceEditor.focusName();
+                return;
+            }
+            if (spaceEditorPopup.creating) {
+                const created = Spaces.createSpace(name, spaceEditor.selectedColor);
+                if (created)
+                    Spaces.activeSpace = created;
+            } else if (spaceEditorPopup.target) {
+                spaceEditorPopup.target.name = name;
+                spaceEditorPopup.target.color = spaceEditor.selectedColor;
+            }
+            close();
+        }
+    }
+
+    // a space takes its tabs with it when it goes
+    Popup {
+        id: deleteSpacePopup
+        property var target: null
+
+        function openFor(space) {
+            target = space
+            open()
+        }
+
+        parent: Overlay.overlay
+        modal: true
+        focus: true
+        Component.onCompleted: PopupCloser.watch(deleteSpacePopup)
+        padding: 24
+        width: Math.min(340, parent ? parent.width - 32 : 340)
+        x: parent ? Math.round((parent.width - width) / 2) : 0
+        y: parent ? Math.round((parent.height - height) / 2) : 0
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.35) }
+        background: Rectangle {
+            radius: 18
+            color: Theme.surfaceHigh
+            border.color: Theme.border
+            border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 18
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                Rectangle {
+                    Layout.preferredWidth: 42
+                    Layout.preferredHeight: 42
+                    radius: 13
+                    color: deleteSpacePopup.target ? deleteSpacePopup.target.color : Theme.danger
+                    Text {
+                        anchors.centerIn: parent
+                        text: deleteSpacePopup.target ? deleteSpacePopup.target.initial : "?"
+                        color: Theme.luma(parent.color) > 0.55 ? "#1e1e2e" : "white"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 17
+                        font.weight: Font.DemiBold
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 3
+                    Text {
+                        Layout.fillWidth: true
+                        text: qsTr("Delete space?")
+                        color: Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeXL
+                        font.weight: Font.DemiBold
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: deleteSpacePopup.target ? deleteSpacePopup.target.name : ""
+                        textFormat: Text.PlainText
+                        color: Theme.textMuted
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeS
+                        elide: Text.ElideRight
+                    }
+                }
+            }
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Its folders, tabs and bookmarks go with it. Logins, cookies and history stay.")
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeS
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Item { Layout.fillWidth: true }
+
+                PillButton {
+                    text: qsTr("Cancel")
+                    textColor: Theme.textMuted
+                    fillColor: Theme.surfaceHigh
+                    hoverFillColor: Theme.surface
+                    onClicked: deleteSpacePopup.close()
+                }
+                PillButton {
+                    text: qsTr("Delete Space")
+                    textColor: "white"
+                    fillColor: Theme.danger
+                    hoverFillColor: Qt.darker(Theme.danger, 1.1)
+                    onClicked: {
+                        Spaces.deleteSpace(deleteSpacePopup.target);
+                        deleteSpacePopup.close();
+                    }
+                }
+            }
         }
     }
 
@@ -147,8 +368,6 @@ Item {
         sidebar: root
     }
 
-    // drag the right edge to resize; it straddles the gap before the card,
-    // which is plain QML (the page's native view would swallow the events)
     MouseArea {
         id: resizeHandle
         enabled: !root.overlay

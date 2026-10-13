@@ -44,17 +44,17 @@ private:
     MenuItem viewMenu() const;
     MenuItem historyMenu() const;
     MenuItem bookmarksMenu() const;
-    MenuItem profilesMenu() const;
+    MenuItem spacesMenu() const;
     MenuItem windowMenu() const;
 
-    // The entries that follow their models: bookmarks and profiles.
+    // The entries that follow their models: bookmarks and spaces.
     QVector<MenuItem> bookmarkEntries() const;
-    QVector<MenuItem> profileEntries() const;
+    QVector<MenuItem> spaceEntries() const;
 
     void scheduleRebuild();
     void rebuild();
-    void watchProfiles();
-    void onProfileNameChanged();
+    void watchSpaces();
+    void onSpaceNameChanged();
 
     QVector<MenuItem> m_tree;
     QPointer<QQuickWindow> m_window;

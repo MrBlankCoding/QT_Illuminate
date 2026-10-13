@@ -10,11 +10,11 @@ Item {
     required property var model
     required property int index
 
-    readonly property string tabTitle: model ? model.title : "New Tab"
-    readonly property string tabIconUrl: model ? model.iconUrl : ""
+    readonly property string tabTitle: model && model.title !== undefined ? String(model.title) : qsTr("New Tab")
+    readonly property string tabIconUrl: model && model.iconUrl !== undefined ? String(model.iconUrl) : ""
     readonly property string tabUrl: model && model.url ? model.url.toString() : ""
-    readonly property bool tabLoading: model ? model.loading : false
-    readonly property bool tabSuspended: model ? model.suspended : false
+    readonly property bool tabLoading: model !== undefined && model !== null && model.loading === true
+    readonly property bool tabSuspended: model !== undefined && model !== null && model.suspended === true
     readonly property bool tabInFolder: model ? model.inFolder === true : false
     property bool isActive: false
     property bool dragging: false  // the sidebar moves rows; this only dims

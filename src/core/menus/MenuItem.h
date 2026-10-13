@@ -26,10 +26,9 @@ struct MenuItem
     Kind kind = Kind::Normal;
     bool enabled = true;
     bool checked = false;
-    // what the action is about: a bookmark url, a profile id, a tab index
+    // what the action is about: a bookmark url, a space id, a tab index
     QString payload;
     QAction::MenuRole menuRole = QAction::NoRole;
-    // Kind::SubMenu only
     QVector<MenuItem> children;
 
     bool isSeparator() const { return kind == Kind::Separator; }

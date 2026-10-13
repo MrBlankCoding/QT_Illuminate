@@ -21,7 +21,8 @@ class TabModel : public QAbstractListModel
 public:
     enum Roles
     {
-        TitleRole = Qt::UserRole + 1,
+        IdRole = Qt::UserRole + 1,
+        TitleRole,
         UrlRole,
         IconUrlRole,
         ProgressRole,
@@ -41,7 +42,7 @@ public:
 
     // tab CRUD
     // suspended: no web view until the tab is first activated (session restore)
-    BrowserTab *addTab(const QUrl &url, CefProfile *profile, bool suspended = false);
+    BrowserTab *addTab(const QUrl &url, bool suspended = false);
     bool removeTab(int index);
     void clear();
     BrowserTab *tabAt(int index) const;

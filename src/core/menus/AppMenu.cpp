@@ -4,9 +4,8 @@
 #include "BrowserController.h"
 #include "InternalPageManager.h"
 #include "NativeMenuBar.h"
-#include "Profile.h"
-#include "ProfileManager.h"
 #include "ShortcutRegistry.h"
+#include "../spaces/SpaceManager.h"
 #include "TabModel.h"
 
 #include <QAbstractItemModel>
@@ -65,7 +64,7 @@ AppMenu::AppMenu(QObject *parent)
     BrowserController *controller = BrowserController::instance();
     TabModel *tabs = controller ? controller->tabModel() : nullptr;
     BookmarkModel *bookmarks = BookmarkModel::instance();
-    ProfileManager *profiles = ProfileManager::instance();
+    SpaceManager *spaces = SpaceManager::instance();
     ShortcutRegistry *shortcuts = ShortcutRegistry::instance();
 
     if (controller)
@@ -85,14 +84,14 @@ AppMenu::AppMenu(QObject *parent)
         connect(bookmarks, &BookmarkModel::modelReset, this, [this]() { scheduleRebuild(); });
         connect(bookmarks, &BookmarkModel::dataChanged, this, [this]() { scheduleRebuild(); });
     }
-    if (profiles)
+    if (spaces)
     {
-        connect(profiles, &ProfileManager::profilesChanged, this, [this]() {
-            watchProfiles();
+        connect(spaces, &SpaceManager::spacesChanged, this, [this]() {
+            watchSpaces();
             scheduleRebuild();
         });
-        connect(profiles, &ProfileManager::activeProfileChanged, this, [this]() { scheduleRebuild(); });
-        watchProfiles();
+        connect(spaces, &SpaceManager::activeSpaceChanged, this, [this]() { scheduleRebuild(); });
+        watchSpaces();
     }
     if (shortcuts)
         connect(shortcuts, &ShortcutRegistry::shortcutsChanged, this, [this]() { scheduleRebuild(); });
@@ -155,23 +154,22 @@ void AppMenu::refresh()
     rebuild();
 }
 
-void AppMenu::watchProfiles()
+void AppMenu::watchSpaces()
 {
-    ProfileManager *profiles = ProfileManager::instance();
-    if (!profiles)
+    SpaceManager *spaces = SpaceManager::instance();
+    if (!spaces)
         return;
 
-    const QVariantList all = profiles->profiles();
-    for (const QVariant &entry : all)
+    for (const QVariant &entry : spaces->spaces())
     {
-        Profile *profile = entry.value<Profile *>();
-        if (!profile)
+        Space *space = entry.value<Space *>();
+        if (!space)
             continue;
-        connect(profile, &Profile::nameChanged, this, &AppMenu::onProfileNameChanged, Qt::UniqueConnection);
+        connect(space, &Space::nameChanged, this, &AppMenu::onSpaceNameChanged, Qt::UniqueConnection);
     }
 }
 
-void AppMenu::onProfileNameChanged()
+void AppMenu::onSpaceNameChanged()
 {
     scheduleRebuild();
 }
@@ -290,13 +288,14 @@ MenuItem AppMenu::bookmarksMenu() const
     return MenuItem::subMenu(QStringLiteral("Bookmarks"), entries);
 }
 
-MenuItem AppMenu::profilesMenu() const
+MenuItem AppMenu::spacesMenu() const
 {
-    QVector<MenuItem> entries = profileEntries();
+    QVector<MenuItem> entries = spaceEntries();
     entries.append(MenuItem::separator());
-    entries.append(MenuItem::action(QStringLiteral("profile.picker"), QStringLiteral("Manage Profiles…")));
+    entries.append(MenuItem::action(QStringLiteral("space.new"), QStringLiteral("New Space…"),
+                                    shortcut("newSpace")));
 
-    return MenuItem::subMenu(QStringLiteral("Profiles"), entries);
+    return MenuItem::subMenu(QStringLiteral("Spaces"), entries);
 }
 
 MenuItem AppMenu::windowMenu() const
@@ -338,30 +337,30 @@ QVector<MenuItem> AppMenu::bookmarkEntries() const
     return entries;
 }
 
-QVector<MenuItem> AppMenu::profileEntries() const
+QVector<MenuItem> AppMenu::spaceEntries() const
 {
-    ProfileManager *profiles = ProfileManager::instance();
+    SpaceManager *spaces = SpaceManager::instance();
     QVector<MenuItem> entries;
-    if (!profiles)
+    if (!spaces)
         return entries;
 
-    const QVariantList all = profiles->profiles();
+    const QVariantList all = spaces->spaces();
     if (all.isEmpty())
     {
-        entries.append(placeholderEntry(QStringLiteral("No Profiles")));
+        entries.append(placeholderEntry(QStringLiteral("No Spaces")));
         return entries;
     }
 
-    const Profile *active = profiles->activeProfile();
+    const Space *active = spaces->activeSpace();
     for (const QVariant &entry : all)
     {
-        Profile *profile = entry.value<Profile *>();
-        if (!profile)
+        Space *space = entry.value<Space *>();
+        if (!space)
             continue;
 
-        const bool isActive = profile == active;
-        MenuItem item = MenuItem::action(QStringLiteral("profile.switch"), profile->name());
-        item.payload = profile->id();
+        const bool isActive = space == active;
+        MenuItem item = MenuItem::action(QStringLiteral("space.switch"), space->name());
+        item.payload = space->id();
         item.checked = isActive;
         item.enabled = !isActive;
         entries.append(item);
@@ -386,7 +385,7 @@ void AppMenu::rebuild()
         viewMenu(),
         historyMenu(),
         bookmarksMenu(),
-        profilesMenu(),
+        spacesMenu(),
     };
 
     const MenuItem app = applicationMenu();

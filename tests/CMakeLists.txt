@@ -42,6 +42,10 @@ qt_add_executable(tst_tabmodel tst_TabModel.cpp)
 target_link_libraries(tst_tabmodel PRIVATE Qt6::Test QT_Illuminatemodule)
 add_test(NAME tst_tabmodel COMMAND tst_tabmodel)
 
+qt_add_executable(tst_spacemanager tst_SpaceManager.cpp)
+target_link_libraries(tst_spacemanager PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_spacemanager COMMAND tst_spacemanager)
+
 qt_add_executable(tst_sidebarmodel tst_SidebarModel.cpp)
 target_link_libraries(tst_sidebarmodel PRIVATE Qt6::Test QT_Illuminatemodule)
 add_test(NAME tst_sidebarmodel COMMAND tst_sidebarmodel)
@@ -62,7 +66,7 @@ if(WIN32)
 endif()
 
 if(APPLE AND CEF_FOUND)
-    foreach(_test_target tst_qmltests tst_browsersettings tst_browsercontroller tst_permissionhandler tst_shortcutbridge tst_shortcutregistry tst_tabmodel tst_sidebarmodel tst_chromecommands)
+    foreach(_test_target tst_qmltests tst_browsersettings tst_browsercontroller tst_permissionhandler tst_shortcutbridge tst_shortcutregistry tst_tabmodel tst_sidebarmodel tst_spacemanager tst_chromecommands)
         add_custom_command(TARGET ${_test_target} POST_BUILD
             COMMAND install_name_tool -change
                 "@executable_path/../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework"

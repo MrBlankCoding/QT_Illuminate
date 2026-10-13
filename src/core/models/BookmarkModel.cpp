@@ -1,20 +1,38 @@
 #include "BookmarkModel.h"
+#include "../spaces/Space.h"
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QSaveFile>
 #include <QDebug>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QStandardPaths>
 
 BookmarkModel::BookmarkModel(QObject *parent)
     : QAbstractListModel(parent)
 {
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
-    QDir().mkpath(dir);
-    m_storagePath = dir + QStringLiteral("/bookmarks.json");
+}
+
+void BookmarkModel::setSpace(Space *space)
+{
+    if (m_space == space)
+        return;
+
+    if (m_space)
+        save();
+
+    m_space = space;
+    m_storagePath = space ? space->bookmarksFilePath() : QString();
+    if (!m_storagePath.isEmpty())
+        QDir().mkpath(QFileInfo(m_storagePath).absolutePath());
+
+    beginResetModel();
+    m_bookmarks.clear();
+    endResetModel();
     load();
+    emit countChanged();
 }
 
 int BookmarkModel::rowCount(const QModelIndex &parent) const
@@ -155,6 +173,10 @@ void BookmarkModel::load()
 
 bool BookmarkModel::save() const
 {
+    // nowhere to write until a space is active
+    if (m_storagePath.isEmpty())
+        return false;
+
     QJsonArray arr;
     for (const Bookmark &b : m_bookmarks)
     {
@@ -165,16 +187,15 @@ bool BookmarkModel::save() const
         arr.append(o);
     }
 
-    QFile file(m_storagePath);
+    QSaveFile file(m_storagePath);
     if (!file.open(QIODevice::WriteOnly))
         return false;
 
-    const QByteArray payload = QJsonDocument(arr).toJson(QJsonDocument::Compact);
-    if (file.write(payload) != payload.size() || !file.flush())
+    file.write(QJsonDocument(arr).toJson(QJsonDocument::Compact));
+    if (!file.commit())
     {
-        const QString msg = QStringLiteral("Failed to write bookmarks to %1: %2")
-                                .arg(m_storagePath, file.errorString());
-        qWarning("%s", qPrintable(msg));
+        qWarning("%s", qPrintable(QStringLiteral("Failed to write bookmarks to %1: %2")
+                                      .arg(m_storagePath, file.errorString())));
         return false;
     }
     return true;

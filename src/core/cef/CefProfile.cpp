@@ -6,11 +6,11 @@
 #include <include/base/cef_atomic_ref_count.h>
 #include <include/internal/cef_types_content_settings.h>
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QList>
 #include <QStandardPaths>
-
-static QList<CefProfile *> s_profiles;
+#include <QtGlobal>
 
 namespace
 {
@@ -48,25 +48,42 @@ private:
     bool m_allow;
     mutable base::AtomicRefCount m_refCount;
 };
+
+}
+namespace
+{
+CefProfile *s_instance = nullptr;
 }
 
 CefProfile::CefProfile(const QString &storagePath, const QString &cachePath, QObject *parent)
     : QObject(parent), m_storagePath(storagePath), m_cachePath(cachePath)
 {
-    s_profiles.append(this);
     QDir().mkpath(m_storagePath);
     QDir().mkpath(m_cachePath);
 }
 
-CefProfile::~CefProfile()
+CefProfile::~CefProfile() = default;
+
+CefProfile *CefProfile::instance()
 {
-    s_profiles.removeOne(this);
+    if (!s_instance)
+        s_instance = new CefProfile(storageDir(), rootCachePath(), qApp);
+    return s_instance;
+}
+
+QString CefProfile::storageDir()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+         + QStringLiteral("/profile");
 }
 
 void CefProfile::releaseAllRequestContexts()
 {
-    for (CefProfile *profile : std::as_const(s_profiles))
-        profile->m_requestContext = nullptr;
+    if (!s_instance)
+        return;
+    s_instance->m_requestContext = nullptr;
+    s_instance->deleteLater();
+    s_instance = nullptr;
 }
 
 void CefProfile::setHttpUserAgent(const QString &ua)
@@ -85,11 +102,6 @@ QString CefProfile::rootCachePath()
         QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/cef"));
 }
 
-QString CefProfile::cachePathForProfile(const QString &profileId)
-{
-    return rootCachePath() + QDir::separator() + profileId;
-}
-
 CefRefPtr<CefRequestContext> CefProfile::requestContext()
 {
     if (!m_requestContext)
@@ -103,8 +115,6 @@ CefRefPtr<CefRequestContext> CefProfile::requestContext()
         BrowserLogger::instance().info("Profile",
             QString("CefRequestContext initialized for storage=%1").arg(m_storagePath));
 
-        // the context starts on Chromium's blocking default; the user's
-        // preference has to be re-applied to every context this profile makes
         applyThirdPartyCookiePolicy();
     }
     return m_requestContext;

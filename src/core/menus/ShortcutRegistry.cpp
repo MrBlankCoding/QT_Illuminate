@@ -66,6 +66,10 @@ QList<ShortcutRegistry::Command> ShortcutRegistry::buildTable()
     add("View", "toggleSidebar", "Toggle sidebar", {QStringLiteral("Ctrl+S")});
     add("View", "toggleFullScreen", "Toggle full screen", {QStringLiteral("Ctrl+Shift+F")});
 
+    add("Spaces", "nextSpace", "Next space", {QStringLiteral("Ctrl+Alt+Right")});
+    add("Spaces", "previousSpace", "Previous space", {QStringLiteral("Ctrl+Alt+Left")});
+    add("Spaces", "newSpace", "New space", {QStringLiteral("Ctrl+Alt+N")});
+
     add("Developer",
         "toggleDevTools",
         "Toggle developer tools",

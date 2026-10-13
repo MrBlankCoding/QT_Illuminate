@@ -9,12 +9,13 @@
 #include <QtQml/qqmlregistration.h>
 #include "TabModel.h"
 #include "SidebarModel.h"
-#include "Profile.h"
+
 #include "CefProfile.h"
+#include "../spaces/Space.h"
 #include "../utils/ExternalQmlSingleton.h"
-#include "../models/HistoryManager.h"
 
 class QSettings;
+class BrowserTab;
 
 class BrowserController : public QObject, public ExternalQmlSingleton<BrowserController>
 {
@@ -38,17 +39,17 @@ class BrowserController : public QObject, public ExternalQmlSingleton<BrowserCon
     Q_PROPERTY(QString activeCustomThemeId READ activeCustomThemeId NOTIFY activeCustomThemeChanged)
     Q_PROPERTY(QVariantMap activeThemeColors READ activeThemeColors NOTIFY activeCustomThemeChanged)
     Q_PROPERTY(bool transparentChrome READ transparentChrome WRITE setTransparentChrome NOTIFY transparentChromeChanged)
-    // true until page has been dismissed
     Q_PROPERTY(bool firstRun READ isFirstRun NOTIFY firstRunChanged)
-    Q_PROPERTY(CefProfile *webProfile READ webProfile NOTIFY webProfileChanged)
-    // pages run in Chrome style: extensions and Chrome's own pages work
+    Q_PROPERTY(CefProfile *webProfile READ webProfile CONSTANT)
+    Q_PROPERTY(Space *space READ space NOTIFY spaceChanged)
     Q_PROPERTY(bool chromeStyle READ chromeStyle CONSTANT)
 
 public:
-    explicit BrowserController(Profile *profile, QObject *parent = nullptr);
+    explicit BrowserController(Space *space, QObject *parent = nullptr);
 
-    void setProfile(Profile *profile);
-    void setHistory(HistoryManager *history);
+    void setActiveSpace(Space *space);
+    Space *space() const { return m_space; }
+
 
     TabModel *tabModel() const;
     SidebarModel *sidebar() const;
@@ -95,6 +96,9 @@ public:
     Q_INVOKABLE bool updateCustomTheme(const QString &id, const QString &name, const QVariantMap &colors);
     Q_INVOKABLE void deleteCustomTheme(const QString &id);
     Q_INVOKABLE void activateCustomTheme(const QString &id);
+    Q_INVOKABLE void setSpaceThemeColors(const QVariantMap &colors);
+    Q_INVOKABLE void previewSpaceThemeColors(const QVariantMap &colors);
+    Q_INVOKABLE void resetSpaceTheme();
     // true when closing the window should ask first (preference + tab count)
     Q_INVOKABLE bool confirmCloseRequired() const;
     Q_INVOKABLE void onTitleChanged(int tabIndex, const QString &title);
@@ -104,11 +108,19 @@ public:
     Q_INVOKABLE void onIconUrlChanged(int tabIndex, const QString &iconUrl);
     Q_INVOKABLE void onRenderProcessPidChanged(int tabIndex, qint64 pid);
     Q_INVOKABLE void onNewWindowRequested(int tabIndex, const QString &url);
+    Q_INVOKABLE void updateTabTitle(const QString &tabId, const QString &title);
+    Q_INVOKABLE void updateTabUrl(const QString &tabId, const QString &url);
+    Q_INVOKABLE void updateTabLoading(const QString &tabId, bool loading);
+    Q_INVOKABLE void updateTabProgress(const QString &tabId, int progress);
+    Q_INVOKABLE void updateTabIcon(const QString &tabId, const QString &iconUrl);
+    Q_INVOKABLE void updateTabRenderProcessPid(const QString &tabId, qint64 pid);
+    Q_INVOKABLE void openTabFrom(const QString &sourceTabId, const QString &url);
     Q_INVOKABLE void adoptWindow(QObject *window);
     Q_INVOKABLE void releaseWindow(QObject *window);
     void destroyAdoptedWindows();
 
 signals:
+    void spaceChanged();
     void activeIndexChanged();
     void activeUrlChanged();
     void activeTitleChanged();
@@ -121,14 +133,14 @@ signals:
     void customThemesChanged();
     void activeCustomThemeChanged();
     void transparentChromeChanged();
-    void webProfileChanged();
     void newTabOpened(); // UI opens the command bar for a requested new tab
-    void loadRequested(int tabIndex, const QUrl &url);
-    void navigationRequested(const QString &action); // "back"|"forward"|"reload"|"devtools"
+    void loadRequested(const QString &tabId, const QUrl &url);
+    void navigationRequested(const QString &tabId, const QString &action); // "back"|"forward"|"reload"|"devtools"
     void closeWindowRequested();
 
 private:
     void rewireActiveTab();
+    BrowserTab *tabForId(const QString &tabId) const;
     void emitActiveStateChanged();
     void restoreSession();
     void openInitialTab();
@@ -137,14 +149,15 @@ private:
 
     TabModel *m_model;
     SidebarModel *m_sidebar;
-    Profile *m_profile;
+    Space *m_space = nullptr;
+
     QObject *m_activeTabCtx = nullptr;
     QList<QPointer<QObject>> m_adoptedWindows;
     QSettings *m_settings;
     QSettings *m_appSettings = nullptr;
     bool m_isFirstRun = true;
+    bool m_sessionRestoredForSpace = false;
     bool m_closeInProgress = false;
-    HistoryManager *m_history = nullptr;
 
     static const int MIN_TABS_FOR_CYCLE = 2;
     static const int NO_TAB_CYCLE_DELTA = 0;

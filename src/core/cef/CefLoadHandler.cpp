@@ -8,19 +8,9 @@
 
 namespace {
 
-
-QString pageInitScript()
+CefString pageInitScript()
 {
-    static const QString script = [] {
-        QString js = QStringLiteral("delete Navigator.prototype.gpu;");
-        QFile shim(QStringLiteral(":/QT_Illuminate/ui/resources/js/pointer-lock-shim.js"));
-        if (shim.open(QIODevice::ReadOnly | QIODevice::Text))
-            js += QLatin1Char('\n') + QString::fromUtf8(shim.readAll());
-        else
-            BrowserLogger::instance().warning("CEF", "pointer-lock-shim.js not found in resources");
-        return js;
-    }();
-    return script;
+    return qStringToCef(QStringLiteral("delete Navigator.prototype.gpu;"));
 }
 
 } // namespace
@@ -53,7 +43,7 @@ void CefLoadHandlerImpl::OnLoadStart(CefRefPtr<CefBrowser> browser,
         return;
 
     const QString url = cefStringToQString(frame->GetURL());
-    frame->ExecuteJavaScript(qStringToCef(pageInitScript()), frame->GetURL(), 0);
+    frame->ExecuteJavaScript(pageInitScript(), frame->GetURL(), 0);
 
     QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, url]() {
         if (wrapper)

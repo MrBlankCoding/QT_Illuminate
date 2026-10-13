@@ -15,7 +15,7 @@ class BrowserTab : public QObject
     Q_PROPERTY(QString id READ id CONSTANT)
 
 public:
-    explicit BrowserTab(CefProfile *profile, QObject *parent = nullptr);
+    explicit BrowserTab(QObject *parent = nullptr);
 
     // stable for the tab's lifetime; the sidebar tree refers to tabs by it
     QString id() const;

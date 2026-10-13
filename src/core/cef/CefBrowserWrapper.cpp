@@ -35,6 +35,7 @@ bool cefResignNativeFocus(void *view);                                      // C
 void cefAttachChildWindow(void *parentView, void *childHandle);             // CefBrowserWrapper_mac.mm
 void cefDetachChildWindow(void *childHandle);                               // CefBrowserWrapper_mac.mm
 void cefSetChildWindowCornerRadius(void *childHandle, qreal radius);        // CefBrowserWrapper_mac.mm
+void cefRaiseChildWindow(void *parentView, void *childHandle);              // CefBrowserWrapper_mac.mm
 void cefFocusParentWindow(void *parentView);                                // CefBrowserWrapper_mac.mm
 #elif defined(_WIN32)
 #include <windows.h>
@@ -60,6 +61,7 @@ static bool cefResignNativeFocus(cef_window_handle_t) { return false; }
 static void cefAttachChildWindow(void *, void *) {}
 static void cefDetachChildWindow(void *) {}
 static void cefSetChildWindowCornerRadius(void *, qreal) {}
+static void cefRaiseChildWindow(void *, void *) {}
 static void cefFocusParentWindow(void *) {}
 #endif
 
@@ -190,14 +192,7 @@ void CefBrowserWrapper::setUrl(const QUrl &url)
         frame->LoadURL(qUrlToCefString(url));
 }
 
-void CefBrowserWrapper::setProfile(CefProfile *profile)
-{
-    if (m_profile != profile)
-    {
-        m_profile = profile;
-        emit profileChanged();
-    }
-}
+
 
 void CefBrowserWrapper::setDevToolsView(CefBrowserWrapper *devTools)
 {
@@ -242,6 +237,19 @@ void CefBrowserWrapper::setLifecycleState(int state)
 
         notifyWindowRenderingHidden(state != Active);
     }
+}
+
+void CefBrowserWrapper::refreshNativeView(bool raiseAboveSiblings)
+{
+    if (!window() || !isVisible())
+        return;
+
+    // Native CEF children can retain stale frames or ordering after being
+    // covered by another tab. Reapply the current Qt geometry on activation.
+    m_nativeRect = QRect();
+    updateNativeGeometry();
+    if (raiseAboveSiblings && m_hostWindowReady && window()->isActive() && m_nativeVisible)
+        cefRaiseChildWindow(nativeHandleOf(window()), m_hostWindow->nativeHandle());
 }
 
 void CefBrowserWrapper::setBackgroundColor(const QColor &color)
@@ -539,12 +547,9 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
     if (m_backgroundColor.isValid())
         settings.background_color = m_backgroundColor.rgba();
 
-    CefRefPtr<CefRequestContext> requestContext;
-    if (m_profile)
-        requestContext = m_profile->requestContext();
+    CefRefPtr<CefRequestContext> requestContext = CefManager::defaultProfile()->requestContext();
 
 #ifdef __APPLE__
-    // CEF only allows Chrome style here in a window of the page's own
     if (CefManager::chromeStyle())
     {
         createHostWindow(settings, requestContext);
@@ -755,10 +760,20 @@ void CefBrowserWrapper::itemChange(ItemChange change, const ItemChangeData &data
     if (change == ItemSceneChange)
     {
         QObject::disconnect(m_frameConnection);
+        QObject::disconnect(m_windowActiveConnection);
         if (data.window)
         {
             m_frameConnection = connect(data.window, &QQuickWindow::afterAnimating,
                                         this, &CefBrowserWrapper::updateNativeGeometry);
+            m_windowActiveConnection = connect(data.window, &QQuickWindow::activeChanged, this, [this, window = data.window]() {
+                if (!window->isActive())
+                    return;
+
+                m_nativeRect = QRect();
+                updateNativeGeometry();
+                if (m_hostWindowReady && m_nativeVisible)
+                    cefRaiseChildWindow(nativeHandleOf(window), m_hostWindow->nativeHandle());
+            });
             if (m_hostWindowReady)
                 onHostWindowReady();
             initializeBrowserHost();

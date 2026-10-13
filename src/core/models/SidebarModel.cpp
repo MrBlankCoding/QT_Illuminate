@@ -11,6 +11,7 @@
 #include <QQueue>
 #include <QSaveFile>
 #include <QSet>
+#include <QStringList>
 #include <QUuid>
 
 #include <algorithm>
@@ -52,8 +53,20 @@ SidebarModel::SidebarModel(TabModel *tabs, QObject *parent)
             Node *node = tab ? m_nodes.value(tab->id()) : nullptr;
             if (node && !node->folder)
             {
+                Node *split = node->parent && node->parent->split ? node->parent : nullptr;
                 forget(node);
                 detach(node);
+                if (split && split->children.size() <= 1)
+                {
+                    if (!split->children.empty())
+                    {
+                        Node *survivor = split->children.front().get();
+                        forget(survivor);
+                        detach(survivor);
+                    }
+                    forget(split);
+                    detach(split);
+                }
                 scheduleSave();
             }
         }
@@ -94,18 +107,34 @@ SidebarModel::SidebarModel(TabModel *tabs, QObject *parent)
                 break;
             }
         }
+        bool urlChanged = false;
         for (int i = topLeft.row(); i <= bottomRight.row(); ++i)
         {
             BrowserTab *tab = m_tabs->tabAt(i);
             if (!tab)
                 continue;
             syncFromTab(tab);
+            urlChanged = urlChanged || roles.contains(TabModel::UrlRole);
             if (mapped.isEmpty())
                 continue;
             const int row = m_rowIndex.value(tab->id(), -1);
             if (row >= 0)
                 emit dataChanged(index(row), index(row), mapped);
+            else if (Node *member = m_nodes.value(tab->id()); member && member->parent && member->parent->split)
+            {
+                const int groupRow = m_rowIndex.value(member->parent->id, -1);
+                if (groupRow >= 0)
+                {
+                    QList<int> groupRoles = mapped;
+                    groupRoles << SplitTitleRole << SplitMembersRole << TitleRole;
+                    emit dataChanged(index(groupRow), index(groupRow), groupRoles);
+                }
+            }
         }
+        // Loose tabs stay hidden while they are on the internal blank page.
+        // When the command bar navigates one, add its sidebar row immediately.
+        if (urlChanged)
+            rebuild();
     });
 
     rebuild();
@@ -141,6 +170,7 @@ QVariant SidebarModel::data(const QModelIndex &index, int role) const
         return row.key;
     case KindRole:
         return row.kind == Kind::Folder ? QStringLiteral("folder")
+             : row.kind == Kind::Split  ? QStringLiteral("split")
              : row.kind == Kind::Tab    ? QStringLiteral("tab")
                                         : QStringLiteral("header");
     case DepthRole:
@@ -151,15 +181,63 @@ QVariant SidebarModel::data(const QModelIndex &index, int role) const
         return node && node->parent ? node->parent->id : QString();
     case InFolderRole:
         return row.kind == Kind::Tab && node != nullptr;
+    case SplitTabsRole:
+        if (node && node->split)
+        {
+            QVariantList ids;
+            for (const auto &child : node->children)
+                if (child->tab)
+                    ids.append(child->id);
+            return ids;
+        }
+        return {};
+    case SplitTitleRole:
+        if (node && node->split)
+        {
+            QStringList titles;
+            for (const auto &child : node->children)
+                if (child->tab)
+                    titles << (child->tab->title().isEmpty() ? QStringLiteral("New Tab") : child->tab->title());
+            return titles.join(QStringLiteral("  ·  "));
+        }
+        return QString();
+    case SplitMembersRole:
+        if (node && node->split)
+        {
+            QVariantList members;
+            for (const auto &child : node->children)
+            {
+                if (!child->tab)
+                    continue;
+                members.append(QVariantMap{
+                    {QStringLiteral("id"), child->id},
+                    {QStringLiteral("title"), child->tab->title().isEmpty()
+                        ? QStringLiteral("New Tab") : child->tab->title()},
+                    {QStringLiteral("iconUrl"), child->tab->iconUrl().isEmpty()
+                        ? child->iconUrl : child->tab->iconUrl()},
+                    {QStringLiteral("active"), child->tab == activeTab()},
+                });
+            }
+            return members;
+        }
+        return {};
+    case ActiveRole:
+        if (node && node->split)
+            return std::any_of(node->children.begin(), node->children.end(), [this](const auto &child) {
+                return child->tab && child->tab == activeTab();
+            });
+        break;
     }
 
-    if (row.kind == Kind::Folder)
+    if (row.kind == Kind::Folder || row.kind == Kind::Split)
     {
         if (!node)
             return {};
         switch (role)
         {
         case TitleRole:
+            if (node->split && !node->children.empty())
+                return node->children.front()->tab ? node->children.front()->tab->title() : QStringLiteral("Split View");
             return node->title;
         case IconRole:
             return node->icon;
@@ -218,6 +296,9 @@ QHash<int, QByteArray> SidebarModel::roleNames() const
         {InFolderRole, "inFolder"},
         {PeekRole, "peek"},
         {TabCountRole, "tabCount"},
+        {SplitTabsRole, "splitTabs"},
+        {SplitTitleRole, "splitTitle"},
+        {SplitMembersRole, "splitMembers"},
     };
     return roles;
 }
@@ -227,11 +308,10 @@ QHash<int, QByteArray> SidebarModel::roleNames() const
 // {"version": 1, "nodes": [{id, type, parentId, order, ...}]}, depth-first.
 // tabs get fresh ids on load; only folder ids are stable across runs.
 
-void SidebarModel::load(const QString &filePath, CefProfile *profile)
+void SidebarModel::load(const QString &filePath, bool restoreTabs)
 {
     unload();
     m_path = filePath;
-    m_profile = profile;
 
     QFile file(filePath);
     if (filePath.isEmpty() || !file.open(QFile::ReadOnly | QFile::Text))
@@ -255,8 +335,26 @@ void SidebarModel::load(const QString &filePath, CefProfile *profile)
     {
         const QJsonObject obj = value.toObject();
         auto node = std::make_unique<Node>();
-        node->folder = obj.value(QStringLiteral("type")).toString() == QLatin1String("folder");
+        const QString type = obj.value(QStringLiteral("type")).toString();
+        const QString parentId = obj.value(QStringLiteral("parentId")).toString();
+        node->folder = type == QLatin1String("folder");
+        node->split = type == QLatin1String("split");
         node->title = obj.value(QStringLiteral("title")).toString();
+
+        // Loose tabs belong to session.json. Sidebar persistence only restores
+        // tabs that belong to a folder or split group.
+        if ((!restoreTabs && !node->folder) ||
+            (!node->folder && !node->split && parentId.isEmpty()))
+            continue;
+
+        if (node->split)
+        {
+            node->id = obj.value(QStringLiteral("id")).toString();
+            if (node->id.isEmpty() || m_nodes.contains(node->id))
+                node->id = newId();
+
+            m_nodes.insert(node->id, node.get());
+        }
 
         if (node->folder)
         {
@@ -266,12 +364,12 @@ void SidebarModel::load(const QString &filePath, CefProfile *profile)
             node->icon = obj.value(QStringLiteral("icon")).toString();
             node->expanded = obj.value(QStringLiteral("expanded")).toBool(true);
         }
-        else
+        else if (!node->split)
         {
             const QUrl url(obj.value(QStringLiteral("url")).toString());
             if (!isPage(url))
                 continue;
-            BrowserTab *tab = m_tabs->addTab(url, profile, /*suspended=*/true);
+            BrowserTab *tab = m_tabs->addTab(url, /*suspended=*/true);
             if (!tab)
                 continue;
             node->iconUrl = obj.value(QStringLiteral("iconUrl")).toString();
@@ -287,7 +385,7 @@ void SidebarModel::load(const QString &filePath, CefProfile *profile)
         pending.fileId = obj.value(QStringLiteral("id")).toString();
         pending.order = obj.value(QStringLiteral("order")).toInt();
         pending.node = std::move(node);
-        byParent[obj.value(QStringLiteral("parentId")).toString()].push_back(std::move(pending));
+        byParent[parentId].push_back(std::move(pending));
     }
 
     // attach breadth-first from the top, so a corrupt parent chain can't loop
@@ -303,22 +401,29 @@ void SidebarModel::load(const QString &filePath, CefProfile *profile)
         byParent.erase(it);
         std::stable_sort(children.begin(), children.end(),
                          [](const Pending &a, const Pending &b) { return a.order < b.order; });
+        int splitMembers = 0;
         for (Pending &child : children)
         {
             Node *node = child.node.get();
+            if (parent->split && splitMembers >= 2)
+            {
+                insert(std::move(child.node), &m_root, INT_MAX);
+                continue;
+            }
             // a tab outside any folder is just an open tab
-            if (!node->folder && parent == &m_root)
+            if (!node->folder && !node->split && parent == &m_root)
             {
                 forget(node);
                 continue;
             }
             insert(std::move(child.node), parent, INT_MAX);
-            if (node->folder && !child.fileId.isEmpty())
+            if (parent->split && !node->folder && !node->split)
+                ++splitMembers;
+            if ((node->folder || node->split) && !child.fileId.isEmpty())
                 queue.enqueue({child.fileId, node});
         }
     }
 
-    // anything left had a missing or cyclic parent; its tabs stay open, loose
     for (auto &[parentId, orphans] : byParent)
     {
         for (Pending &orphan : orphans)
@@ -354,12 +459,12 @@ void SidebarModel::saveNow()
         {
             const Node *node = child.get();
             // still on the new tab page: nothing to come back to
-            if (!node->folder && node->url.isEmpty())
+            if (!node->folder && !node->split && node->url.isEmpty())
                 continue;
 
             QJsonObject obj;
             obj[QStringLiteral("id")] = node->id;
-            obj[QStringLiteral("type")] = node->folder ? QStringLiteral("folder") : QStringLiteral("tab");
+            obj[QStringLiteral("type")] = node->folder ? QStringLiteral("folder") : node->split ? QStringLiteral("split") : QStringLiteral("tab");
             obj[QStringLiteral("parentId")] = parent->id;
             obj[QStringLiteral("order")] = order++;
             obj[QStringLiteral("title")] = node->title;
@@ -368,13 +473,13 @@ void SidebarModel::saveNow()
                 obj[QStringLiteral("icon")] = node->icon;
                 obj[QStringLiteral("expanded")] = node->expanded;
             }
-            else
+            else if (!node->split)
             {
                 obj[QStringLiteral("url")] = node->url.toString();
                 obj[QStringLiteral("iconUrl")] = node->iconUrl;
             }
             entries.append(obj);
-            if (node->folder)
+            if (node->folder || node->split)
                 self(self, node);
         }
     };
@@ -416,15 +521,133 @@ QList<int> SidebarModel::visualTabOrder() const
     {
         if (row.kind == Kind::Tab && row.tab)
             order << m_tabs->indexOf(row.tab);
+        else if (row.kind == Kind::Split)
+        {
+            const Node *group = m_nodes.value(row.key);
+            if (group)
+                for (const auto &child : group->children)
+                    if (child->tab)
+                        order << m_tabs->indexOf(child->tab);
+        }
     }
     return order;
+}
+
+QString SidebarModel::createSplit(const QString &firstTabId, const QString &secondTabId)
+{
+    BrowserTab *first = findTab(firstTabId);
+    BrowserTab *second = findTab(secondTabId);
+    if (!first || !second || first == second)
+        return {};
+    if (isSplitTab(firstTabId) || isSplitTab(secondTabId))
+        return {};
+    auto group = std::make_unique<Node>();
+    group->id = newId();
+    group->split = true;
+    Node *raw = group.get();
+    m_nodes.insert(raw->id, raw);
+
+    // Members are lifted out of folders and placed in the requested order.
+    for (BrowserTab *tab : {first, second})
+    {
+        Node *old = m_nodes.value(tab->id());
+        if (old)
+        {
+            auto owned = detach(old);
+            forget(owned.get());
+        }
+        auto child = std::make_unique<Node>();
+        child->id = tab->id();
+        child->tab = tab;
+        child->title = tab->title();
+        child->url = tab->url();
+        child->iconUrl = tab->iconUrl();
+        m_nodes.insert(child->id, child.get());
+        insert(std::move(child), raw, INT_MAX);
+    }
+    insert(std::move(group), &m_root, INT_MAX);
+    commit();
+    first->setSuspended(false);
+    second->setSuspended(false);
+    m_tabs->setActiveIndex(m_tabs->indexOf(first));
+    return raw->id;
+}
+
+QVariantList SidebarModel::splitTabs(const QString &id) const
+{
+    const Node *node = m_nodes.value(id);
+    if (node && !node->split && node->parent && node->parent->split)
+        node = node->parent;
+    QVariantList result;
+    if (!node || !node->split)
+        return result;
+    for (const auto &child : node->children)
+        if (child->tab)
+            result.append(child->id);
+    return result;
+}
+
+bool SidebarModel::isSplitTab(const QString &id) const
+{
+    const Node *node = m_nodes.value(id);
+    return node && !node->split && node->parent && node->parent->split;
+}
+
+void SidebarModel::prepareSplit(const QString &id)
+{
+    const Node *group = m_nodes.value(id);
+    if (group && !group->split && group->parent && group->parent->split)
+        group = group->parent;
+    if (!group || !group->split)
+        return;
+    for (const auto &child : group->children)
+        if (child->tab)
+            child->tab->setSuspended(false);
+}
+
+void SidebarModel::separateSplit(const QString &id)
+{
+    Node *group = m_nodes.value(id);
+    if (!group || !group->split || !group->parent)
+        return;
+    forget(group);
+    detach(group);
+    commit();
+}
+
+bool SidebarModel::separateSplitTab(const QString &tabId)
+{
+    Node *member = m_nodes.value(tabId);
+    Node *group = member && member->parent && member->parent->split ? member->parent : nullptr;
+    if (!member || !group || !member->tab || group->children.size() != 2)
+        return false;
+
+    // Splits have exactly two tabs. Pulling either one out dissolves the
+    // group, leaving both tabs as ordinary sidebar entries in tab order.
+    while (!group->children.empty())
+    {
+        Node *child = group->children.front().get();
+        forget(child);
+        detach(child);
+    }
+    forget(group);
+    detach(group);
+    commit();
+    return true;
 }
 
 int SidebarModel::folderCount() const { return m_folderCount; }
 
 QString SidebarModel::headerId() const { return kHeaderId; }
 
-int SidebarModel::rowOf(const QString &id) const { return m_rowIndex.value(id, -1); }
+int SidebarModel::rowOf(const QString &id) const
+{
+    const int row = m_rowIndex.value(id, -1);
+    if (row >= 0)
+        return row;
+    const Node *node = m_nodes.value(id);
+    return node && node->parent && node->parent->split ? m_rowIndex.value(node->parent->id, -1) : -1;
+}
 
 QVariantList SidebarModel::folders() const
 {
@@ -568,6 +791,18 @@ bool SidebarModel::canDrop(const QString &id, const QString &targetId, int posit
         return false;
     const Node *node = m_nodes.value(id);
     const bool folder = node && node->folder;
+    const Node *target = m_nodes.value(targetId);
+    if (position == Into && targetId != kHeaderId)
+    {
+        if (!target || !target->folder)
+        {
+            if (folder || (node && node->split) || isSplitTab(id) || isSplitTab(targetId))
+                return false;
+            BrowserTab *draggedTab = findTab(id);
+            BrowserTab *targetTab = findTab(targetId);
+            return draggedTab && targetTab && draggedTab != targetTab;
+        }
+    }
     if (!node && !findTab(id))
         return false;
 
@@ -575,7 +810,6 @@ bool SidebarModel::canDrop(const QString &id, const QString &targetId, int posit
     if (targetId == kHeaderId)
         return folder ? position == Before : position != Before;
 
-    const Node *target = m_nodes.value(targetId);
     if (!target)
         return !folder && findTab(targetId) != nullptr;
     if (position == Into && !target->folder)
@@ -590,6 +824,14 @@ bool SidebarModel::drop(const QString &id, const QString &targetId, int position
 {
     if (!canDrop(id, targetId, position))
         return false;
+
+    const Node *targetNode = m_nodes.value(targetId);
+    if (position == Into)
+    {
+        if (targetNode && targetNode->folder)
+            return moveNode(id, targetId, INT_MAX);
+        return !createSplit(targetId, id).isEmpty();
+    }
 
     if (targetId == kHeaderId)
     {
@@ -703,7 +945,7 @@ void SidebarModel::newTabInFolder(const QString &folderId)
     Node *folder = m_nodes.value(folderId);
     if (!folder || !folder->folder)
         return;
-    BrowserTab *tab = m_tabs->addTab(kNewTabUrl, m_profile);
+    BrowserTab *tab = m_tabs->addTab(kNewTabUrl);
     if (!tab)
         return;
     file(tab, folder, INT_MAX);
@@ -765,7 +1007,7 @@ void SidebarModel::syncFromTab(BrowserTab *tab)
 void SidebarModel::leaveTab(BrowserTab *tab)
 {
     const Node *node = m_nodes.value(tab->id());
-    if (!node || node->folder || tab->url() != kNewTabUrl)
+    if (!node || node->folder || (node->parent && node->parent->split) || tab->url() != kNewTabUrl)
         return;
     // not from inside the TabModel's own signal
     QMetaObject::invokeMethod(this, [this, tab = QPointer<BrowserTab>(tab)]() {
@@ -841,13 +1083,13 @@ int SidebarModel::countTabs(const Node *node)
 {
     int count = 0;
     for (const auto &child : node->children)
-        count += child->folder ? countTabs(child.get()) : (child->tab ? 1 : 0);
+        count += (child->folder || child->split) ? countTabs(child.get()) : (child->tab ? 1 : 0);
     return count;
 }
 
 void SidebarModel::collectTabs(const Node *node, QList<BrowserTab *> &out)
 {
-    if (!node->folder)
+    if (!node->folder && !node->split)
     {
         if (node->tab)
             out << node->tab;
@@ -916,6 +1158,8 @@ void SidebarModel::collectRows(QVector<Row> &out, const Node *node, int depth, c
 {
     for (const auto &child : node->children)
     {
+        if (child->split)
+            continue;
         if (!child->folder)
         {
             if (child->tab)
@@ -941,10 +1185,22 @@ void SidebarModel::rebuild()
     QVector<Row> next;
     collectRows(next, &m_root, 0, activeTab());
     next.append(Row{kHeaderId, Kind::Header, 0, nullptr, false});
+    QSet<QString> emittedSplits;
     for (int i = 0; i < m_tabs->rowCount(); ++i)
     {
         BrowserTab *tab = m_tabs->tabAt(i);
-        // a blank new tab page has no row until it goes somewhere
+        Node *tabNode = m_nodes.value(tab->id());
+        if (tabNode && tabNode->parent && tabNode->parent->split)
+        {
+            const QString splitId = tabNode->parent->id;
+            if (!emittedSplits.contains(splitId))
+            {
+                next.append(Row{splitId, Kind::Split, 0, nullptr, false});
+                emittedSplits.insert(splitId);
+            }
+            continue;
+        }
+        // Blank command-bar tabs stay hidden until they navigate somewhere.
         if (!isInFolder(tab) && tab->url() != kNewTabUrl)
             next.append(Row{tab->id(), Kind::Tab, 0, tab, false});
     }
@@ -1001,12 +1257,15 @@ void SidebarModel::rebuild()
     if (!m_rows.isEmpty())
         emit dataChanged(index(0), index(m_rows.size() - 1));
 
-    const int folders = static_cast<int>(m_root.children.size());
+    const int folders = static_cast<int>(std::count_if(m_root.children.begin(), m_root.children.end(),
+        [](const auto &child) { return child->folder; }));
     if (folders != m_folderCount)
     {
         m_folderCount = folders;
         emit folderCountChanged();
     }
+    ++m_structureRevision;
+    emit structureChanged();
 }
 
 void SidebarModel::commit()

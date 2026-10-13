@@ -7,7 +7,6 @@
 #include "../utils/ExternalQmlSingleton.h"
 
 class CefProfile;
-class Profile;
 class QSettings;
 
 class BrowserSettings : public QObject, public ExternalQmlSingleton<BrowserSettings>
@@ -44,16 +43,12 @@ public:
     // startupBehavior values
     static constexpr char kStartupNewTab[] = "newtab";
     static constexpr char kStartupHomepage[] = "homepage";
-    static constexpr char kStartupSession[] = "session";
 
     // "Custom" pseudo-engine: its template comes from customSearchUrl
     static constexpr char kEngineCustom[] = "custom";
 
     // no default: QML would build its own copy instead of calling create()
-    explicit BrowserSettings(Profile *profile, QObject *parent = nullptr);
-
-    // swaps the per-profile store; the active profile changed
-    void setProfile(Profile *profile);
+    explicit BrowserSettings(QObject *parent);
 
     QString startupBehavior() const;
     void setStartupBehavior(const QString &behavior);
@@ -109,13 +104,12 @@ signals:
     void browserLanguageChanged();
 
 private:
-    void reloadProfileSettings();
+    void reloadSettings();
     void applyThirdPartyCookies();
 
-    // profile-scoped store, null when no profile is active
-    QSettings *m_profileSettings = nullptr;
+    // preferences are browser-wide: spaces never get their own copy
+    QSettings *m_settings = nullptr;
     QSettings *m_appSettings = nullptr;
-    Profile *m_profile = nullptr;
     CefProfile *m_webProfile = nullptr;
 
     QString m_startupBehavior;

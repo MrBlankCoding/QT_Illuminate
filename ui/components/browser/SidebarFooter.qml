@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtCore
+import Qt.labs.folderlistmodel
 import QT_Illuminate.ui
 
 pragma ComponentBehavior: Bound
@@ -9,184 +11,101 @@ RowLayout {
     id: root
     property var sidebar
 
-    readonly property bool popupsOpen: profileMenu.visible || overflowMenu.visible
+    readonly property bool popupsOpen: addMenu.visible
 
+    implicitHeight: Theme.iconButton
     Layout.fillWidth: true
     Layout.preferredHeight: Theme.iconButton
-    spacing: 2
+    Layout.minimumHeight: Theme.iconButton
+    Layout.maximumHeight: Theme.iconButton
+    Layout.alignment: Qt.AlignBottom
+    spacing: 0
+
+    FolderListModel {
+        id: downloadsModel
+        folder: StandardPaths.writableLocation(StandardPaths.DownloadLocation)
+        showFiles: true
+        showDirs: false
+        showDotAndDotDot: false
+        showHidden: false
+        nameFilters: ["*"]
+    }
 
     Item {
-        Layout.preferredWidth: Theme.iconButton
-        Layout.preferredHeight: Theme.iconButton
-        scale: profileTap.pressed ? Theme.pressScale : 1
-        Behavior on scale { NumberAnimation { duration: Theme.durationFast } }
-
-        Rectangle {
+        Layout.preferredWidth: 26
+        Layout.fillHeight: true
+        SidebarButton {
             anchors.centerIn: parent
             width: 26
-            height: 26
-            radius: width / 2
-            color: sidebar.avatarColorFor(ProfileManager.activeProfile)
-            border.color: Theme.text
-            border.width: profileHover.hovered ? 1 : 0
-        }
-        Text {
-            anchors.centerIn: parent
-            text: (ProfileManager.activeProfile && ProfileManager.activeProfile.name) ? ProfileManager.activeProfile.name.charAt(0).toUpperCase() : "⊕"
-            font.pixelSize: 12
-            font.weight: Font.Medium
-            font.family: Theme.fontFamily
-            color: "white"
-        }
-
-        HoverHandler {
-            id: profileHover
-            cursorShape: Qt.PointingHandCursor
-        }
-        TapHandler {
-            id: profileTap
-            onTapped: profileMenu.popup()
-        }
-
-        Menu {
-            id: profileMenu
-            popupType: Popup.Native
-
-            Repeater {
-                model: ProfileManager.profiles
-
-                MenuItem {
-                    required property var modelData
-                    text: {
-                        const nm = modelData.name || "Unnamed";
-                        return modelData === ProfileManager.activeProfile ? nm + "  ✓" : nm;
-                    }
-                    enabled: modelData !== ProfileManager.activeProfile
-                    onTriggered: sidebar.switchToProfile(modelData)
-                }
-            }
-
-            MenuSeparator {}
-
-            MenuItem {
-                text: "Select Profile…"
-                onTriggered: sidebar.openProfileSelector()
-            }
+            height: 28
+            visible: downloadsModel.count > 0
+            icon: "qrc:/QT_Illuminate/ui/icons/download.svg"
+            iconSize: 18
+            Accessible.name: qsTr("Downloads")
+            onClicked: Browser.newTab("chrome://downloads/")
         }
     }
 
     Item {
+        id: centerRail
         Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.minimumHeight: Theme.iconButton
+        Layout.maximumHeight: Theme.iconButton
+
+        SpaceSwitcher {
+            anchors.centerIn: parent
+            width: Math.min(160, Math.max(0, parent.width - 54))
+            sidebar: root.sidebar
+            onEditRequested: space => root.sidebar.openSpaceEditor(space)
+            onDeleteRequested: space => root.sidebar.confirmDeleteSpace(space)
+        }
     }
 
     SidebarButton {
-        icon: "qrc:/QT_Illuminate/ui/icons/download.svg"
-        iconSize: 18
-        onClicked: Browser.newTab("chrome://downloads/")
-    }
-
-    SidebarButton {
-        icon: "qrc:/QT_Illuminate/ui/icons/more-vertical.svg"
-        iconSize: 18
-        active: overflowMenu.visible
-        onClicked: overflowMenu.popup()
+        Layout.preferredWidth: 26
+        Layout.preferredHeight: 28
+        icon: "qrc:/QT_Illuminate/ui/icons/plus.svg"
+        iconSize: 17
+        active: addMenu.visible
+        Accessible.name: qsTr("Create")
+        onClicked: addMenu.popup()
 
         Menu {
-            id: overflowMenu
+            id: addMenu
             popupType: Popup.Native
-
-            // the application menu, for platforms without a global menu bar
-            Instantiator {
-                model: AppMenu.native ? [] : AppMenu.tree
-                delegate: AppSubMenu {
-                    required property var modelData
-                    node: modelData
-                }
-                onObjectAdded: (index, object) => overflowMenu.insertMenu(index, object)
-                onObjectRemoved: (index, object) => overflowMenu.removeMenu(object)
-            }
-            MenuSeparator {
-                visible: !AppMenu.native
-            }
+            Component.onCompleted: PopupCloser.watch(addMenu)
 
             MenuItem {
-                text: "New Tab"
-                onTriggered: sidebar.commandBarRequested("new")
+                text: qsTr("New Tab")
+                onTriggered: Browser.newTab()
             }
-
             MenuItem {
-                text: qsTr("New Folder")
-                onTriggered: sidebar.newFolder()
+                text: qsTr("New Space…")
+                onTriggered: root.sidebar.openSpaceEditor(null)
             }
-
             MenuSeparator {}
-
             MenuItem {
-                text: "Zoom In"
-                onTriggered: sidebar.zoomIndicator && sidebar.zoomIndicator.zoomBy(0.1)
-            }
-            MenuItem {
-                text: "Zoom Out"
-                onTriggered: sidebar.zoomIndicator && sidebar.zoomIndicator.zoomBy(-0.1)
-            }
-            MenuItem {
-                text: "Reset Zoom" + (sidebar.zoomIndicator ? " (" + sidebar.zoomIndicator.zoomPercent + "%)" : "")
-                onTriggered: sidebar.zoomIndicator && sidebar.zoomIndicator.zoomReset()
-            }
-
-            MenuSeparator {}
-
-            MenuItem {
-                text: "Find in Page…"
-                onTriggered: sidebar.findBar && sidebar.findBar.open()
-            }
-
-            MenuItem {
-                text: sidebar.currentBookmarked ? "Remove Bookmark" : "Bookmark This Page"
-                enabled: sidebar.currentUrl !== ""
-                onTriggered: sidebar.toggleBookmark()
-            }
-
-            MenuItem {
-                text: "Downloads"
-                onTriggered: Browser.newTab("chrome://downloads/")
-            }
-
-            MenuSeparator {}
-
-            MenuItem {
-                text: "Developer Tools"
-                onTriggered: Browser.toggleDevTools()
-            }
-
-            MenuItem {
-                text: "Memory Usage"
-                onTriggered: Browser.newTab("illuminate://memory")
-            }
-
-            MenuItem {
-                text: "History"
-                onTriggered: Browser.newTab("chrome://history/")
-            }
-
-            MenuItem {
-                text: qsTr("Extensions")
-                visible: Browser.chromeStyle
-                onTriggered: Browser.newTab("chrome://extensions")
-            }
-
-            MenuItem {
-                text: qsTr("Browser Settings…")
-                visible: Browser.chromeStyle
-                onTriggered: Browser.newTab("chrome://settings/")
-            }
-
-            MenuSeparator {}
-
-            MenuItem {
-                text: "Settings…"
-                onTriggered: sidebar.openSettings()
+                text: qsTr("New Split")
+                enabled: Browser.tabModel.activeIndex >= 0
+                    && !Browser.sidebar.isSplitTab(Browser.tabModel.tabAt(Browser.tabModel.activeIndex).id)
+                onTriggered: root.createSplit()
             }
         }
+    }
+
+    function createSplit() {
+        const first = Browser.tabModel.tabAt(Browser.tabModel.activeIndex);
+        if (!first || Browser.sidebar.isSplitTab(first.id))
+            return;
+
+        const count = Browser.tabModel.count;
+        Browser.newTab("", true);
+        if (Browser.tabModel.count !== count + 1)
+            return;
+
+        const second = Browser.tabModel.tabAt(Browser.tabModel.count - 1);
+        if (second)
+            Browser.sidebar.createSplit(first.id, second.id);
     }
 }

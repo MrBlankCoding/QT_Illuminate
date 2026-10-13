@@ -10,7 +10,7 @@ class CefProfile : public QObject
 {
     Q_OBJECT
     QML_NAMED_ELEMENT(CefProfile)
-    QML_UNCREATABLE("CefProfile instances are managed by Profile")
+    QML_UNCREATABLE("Use Browser.webProfile")
 
     Q_PROPERTY(QString storagePath READ storagePath CONSTANT)
     Q_PROPERTY(QString cachePath READ cachePath CONSTANT)
@@ -30,17 +30,12 @@ public:
 
     CefRefPtr<CefRequestContext> requestContext();
 
-    // Chromium's default for an embedder is to block third-party cookies. The
-    // setting is stored as the profile-wide COOKIES content setting, so it
-    // applies to every browser in this profile and survives restarts.
     bool thirdPartyCookiesAllowed() const;
     void setThirdPartyCookiesAllowed(bool allowed);
 
-    // CefRequestContext.root_cache_path. Chromium profiles must be direct children of it.
     static QString rootCachePath();
-    static QString cachePathForProfile(const QString &profileId);
-
-    // drops every profile's CEF request context; required before CefShutdown
+    static CefProfile *instance();
+    static QString storageDir();
     static void releaseAllRequestContexts();
 
 signals:
@@ -48,13 +43,11 @@ signals:
     void thirdPartyCookiesAllowedChanged();
 
 private:
-    // re-applies the policy; must run on the CEF UI thread
     void applyThirdPartyCookiePolicy();
 
     QString m_storagePath;
     QString m_cachePath;
     QString m_userAgent;
     CefRefPtr<CefRequestContext> m_requestContext;
-    // remembered so a request context created later still gets the policy
     bool m_thirdPartyCookiesAllowed = true;
 };

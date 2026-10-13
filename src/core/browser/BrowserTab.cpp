@@ -1,10 +1,10 @@
 #include "BrowserTab.h"
-#include "CefProfile.h"
+
 #include "CefBrowserWrapper.h"
 
 #include <QUuid>
 
-BrowserTab::BrowserTab(CefProfile *profile, QObject *parent)
+BrowserTab::BrowserTab(QObject *parent)
     : QObject(parent), m_id(QUuid::createUuid().toString(QUuid::WithoutBraces))
 {
 }
@@ -108,3 +108,4 @@ void BrowserTab::setCefBrowserWrapper(CefBrowserWrapper *wrapper)
 {
     m_cefBrowserWrapper = wrapper;
 }
+

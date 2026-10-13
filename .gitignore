@@ -9,7 +9,6 @@
 __cmake_systeminformation/
 
 # local dev state
-.profiles
 .vscode
 .cache/
 

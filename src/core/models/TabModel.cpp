@@ -28,6 +28,8 @@ QVariant TabModel::data(const QModelIndex &index, int role) const
     const BrowserTab *tab = m_tabs.at(index.row());
     switch (role)
     {
+    case IdRole:
+        return tab->id();
     case TitleRole:
         return tab->title().isEmpty() ? QStringLiteral("New Tab") : tab->title();
     case UrlRole:
@@ -49,6 +51,7 @@ QVariant TabModel::data(const QModelIndex &index, int role) const
 QHash<int, QByteArray> TabModel::roleNames() const
 {
     static const QHash<int, QByteArray> roles = {
+        {IdRole, "id"},
         {TitleRole, "title"},
         {UrlRole, "url"},
         {IconUrlRole, "iconUrl"},
@@ -60,7 +63,7 @@ QHash<int, QByteArray> TabModel::roleNames() const
     return roles;
 }
 
-BrowserTab *TabModel::addTab(const QUrl &url, CefProfile *profile, bool suspended)
+BrowserTab *TabModel::addTab(const QUrl &url, bool suspended)
 {
     if (m_tabs.size() >= kMaxTabs)
         return nullptr;
@@ -68,7 +71,7 @@ BrowserTab *TabModel::addTab(const QUrl &url, CefProfile *profile, bool suspende
     const int row = m_tabs.size();
     beginInsertRows({}, row, row);
 
-    auto *tab = new BrowserTab(profile, this);
+    auto *tab = new BrowserTab(this);
 
     connect(tab, &BrowserTab::titleChanged, this, [this, tab]() { refreshTab(tab, TitleRole); });
     connect(tab, &BrowserTab::urlChanged, this, [this, tab]() { refreshTab(tab, UrlRole); });
@@ -78,12 +81,9 @@ BrowserTab *TabModel::addTab(const QUrl &url, CefProfile *profile, bool suspende
     connect(tab, &BrowserTab::renderProcessPidChanged, this, [this, tab]() { refreshTab(tab, RenderPidRole); });
     connect(tab, &BrowserTab::suspendedChanged, this, [this, tab]() { refreshTab(tab, SuspendedRole); });
 
-    // this has to happen before endInsertRows()
-    // setting it after would cause the read to see an empty url
-    // causing a blank webview
     if (url.isValid() && !url.isEmpty())
         tab->setUrl(url);
-    // same reason: the delegate decides whether to create a web view on insert
+
     tab->setSuspended(suspended);
 
     m_tabs.append(tab);

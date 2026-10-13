@@ -72,6 +72,8 @@ void CefStrayBrowserClient::adopt(CefRefPtr<CefBrowser> browser, const QString &
             menu->trigger(QStringLiteral("tab.open"), url);
     }, Qt::QueuedConnection);
 
-    if (auto host = browser->GetHost())
-        host->CloseBrowser(true);
+    QMetaObject::invokeMethod(QCoreApplication::instance(), [browser]() {
+        if (auto host = browser->GetHost())
+            host->CloseBrowser(true);
+    }, Qt::QueuedConnection);
 }

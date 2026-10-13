@@ -14,7 +14,14 @@ QtObject {
         { id: "violet", name: qsTr("Violet"), dark: "#cba6f7", light: "#7c3aed" },
         { id: "green", name: qsTr("Green"), dark: "#a6e3a1", light: "#15803d" },
         { id: "rose", name: qsTr("Rose"), dark: "#f38ba8", light: "#be123c" },
-        { id: "orange", name: qsTr("Orange"), dark: "#fab387", light: "#c2410c" }
+        { id: "orange", name: qsTr("Orange"), dark: "#fab387", light: "#c2410c" },
+        { id: "teal", name: qsTr("Teal"), dark: "#80d4d2", light: "#168c91" },
+        { id: "amber", name: qsTr("Amber"), dark: "#efd074", light: "#a97805" },
+        { id: "indigo", name: qsTr("Indigo"), dark: "#aab4ff", light: "#4d5cce" },
+        { id: "coral", name: qsTr("Coral"), dark: "#ffab98", light: "#d85646" },
+        { id: "mint", name: qsTr("Mint"), dark: "#a1dec6", light: "#348e73" },
+        { id: "plum", name: qsTr("Plum"), dark: "#e2a6dc", light: "#a3439a" },
+        { id: "slate", name: qsTr("Slate"), dark: "#b5c3d5", light: "#62758c" }
     ]
     readonly property var selectedPalette: {
         const selectedId = UI.Browser ? UI.Browser.themePalette : "blue";
@@ -70,7 +77,7 @@ QtObject {
         { key: "shadow", label: qsTr("Shadow") }
     ]
 
-    // profile avatar choices
+    // space avatar choices
     readonly property var avatarColors: [
         "#4A90E2", "#2DA7A1", "#F3A43B", "#E86F67",
         "#8A6CFF", "#69B578", "#D96ACF"

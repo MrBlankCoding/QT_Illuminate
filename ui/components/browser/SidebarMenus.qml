@@ -32,6 +32,17 @@ Item {
         MenuSeparator {}
 
         MenuItem {
+            text: qsTr("New Space…")
+            onTriggered: sidebar.openSpaceEditor(null)
+        }
+        MenuItem {
+            text: qsTr("Rename Space…")
+            onTriggered: sidebar.openSpaceEditor(Spaces.activeSpace)
+        }
+
+        MenuSeparator {}
+
+        MenuItem {
             text: qsTr("Theme…")
             onTriggered: sidebar.themePicker && sidebar.themePicker.open()
         }

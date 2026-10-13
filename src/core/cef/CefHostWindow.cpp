@@ -1,6 +1,8 @@
 #include "CefHostWindow.h"
 
 #include <QtGlobal>
+#include <QCoreApplication>
+#include <QMetaObject>
 
 #include <utility>
 
@@ -23,7 +25,17 @@ void CefHostWindow::OnWindowCreated(CefRefPtr<CefWindow> window)
     m_window = window;
     window->AddChildView(m_browserView);
     if (m_ready)
-        std::exchange(m_ready, nullptr)();
+    {
+        auto callback = std::exchange(m_ready, nullptr);
+        if (QCoreApplication::instance())
+        {
+            QMetaObject::invokeMethod(QCoreApplication::instance(), [callback]() { callback(); }, Qt::QueuedConnection);
+        }
+        else
+        {
+            callback();
+        }
+    }
 }
 
 void CefHostWindow::OnWindowDestroyed(CefRefPtr<CefWindow> window)

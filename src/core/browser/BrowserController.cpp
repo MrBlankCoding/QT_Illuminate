@@ -16,6 +16,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QVector>
 #include <QStringList>
 #include <QUuid>
 #include <algorithm>
@@ -29,7 +30,14 @@ const QStringList kThemePalettes = {
     QStringLiteral("violet"),
     QStringLiteral("green"),
     QStringLiteral("rose"),
-    QStringLiteral("orange")
+    QStringLiteral("orange"),
+    QStringLiteral("teal"),
+    QStringLiteral("amber"),
+    QStringLiteral("indigo"),
+    QStringLiteral("coral"),
+    QStringLiteral("mint"),
+    QStringLiteral("plum"),
+    QStringLiteral("slate")
 };
 
 const QStringList kThemeColorRoles = {
@@ -63,48 +71,13 @@ bool isValidThemeColors(const QVariantMap &colors)
 }
 }
 
-void BrowserController::setHistory(HistoryManager *history)
-{
-    m_history = history;
-    if (m_history && m_profile)
-        m_history->setProfile(m_profile->id(), m_profile->path());
-}
-
-void BrowserController::setProfile(Profile *profile)
-{
-    if (m_profile == profile)
-        return;
-
-    if (m_profile)
-        saveSession();
-
-    m_profile = profile;
-
-    delete m_settings;
-    m_settings = profile
-                     ? new QSettings(profile->path() + QDir::separator() + "settings.ini",
-                                     QSettings::IniFormat, this)
-                     : nullptr;
-
-    // the tree is saved and let go before its tabs are
-    m_sidebar->unload();
-    m_model->clear();
-    emit webProfileChanged();
-    emit themeModeChanged();
-    emit themePaletteChanged();
-    emit customThemesChanged();
-    emit activeCustomThemeChanged();
-
-    if (m_history && profile)
-        m_history->setProfile(profile->id(), profile->path());
-
-    if (profile)
-        m_sidebar->load(sidebarFilePath(), profile->webProfile());
-    restoreSession();
-}
-
-BrowserController::BrowserController(Profile *profile, QObject *parent)
-    : QObject(parent), m_profile(profile), m_settings(new QSettings(profile->path() + QDir::separator() + "settings.ini", QSettings::IniFormat, this)), m_model(new TabModel(this)), m_sidebar(new SidebarModel(m_model, this)), m_appSettings(new QSettings(this))
+BrowserController::BrowserController(Space *space, QObject *parent)
+    : QObject(parent)
+    , m_space(space)
+    , m_settings(new QSettings(QDir::homePath() + QDir::separator() + ".illuminate" + QDir::separator() + "settings.ini", QSettings::IniFormat, this))
+    , m_model(new TabModel(this))
+    , m_sidebar(new SidebarModel(m_model, this))
+    , m_appSettings(new QSettings(this))
 {
     m_isFirstRun = !m_appSettings->value("setup/completed", false).toBool();
 
@@ -117,8 +90,36 @@ BrowserController::BrowserController(Profile *profile, QObject *parent)
         emitActiveStateChanged();
         rewireActiveTab(); });
 
-    m_sidebar->load(sidebarFilePath(), profile->webProfile());
+    if (m_space)
+    {
+        m_sidebar->load(sidebarFilePath(), true);
+        restoreSession();
+    }
+}
+
+void BrowserController::setActiveSpace(Space *space)
+{
+    if (!space || m_space == space)
+        return;
+
+    // the outgoing space keeps its tabs in its own session file; the tree is
+    // let go before the tabs, so a folder is still around when its tab is
+    saveSession();
+    m_sidebar->unload();
+    m_model->clear();
+
+    m_space = space;
+    m_sessionRestoredForSpace = false;
+    emit spaceChanged();
+    emit themePaletteChanged();
+    emit activeCustomThemeChanged();
+
+    m_sidebar->load(sidebarFilePath(), true);
     restoreSession();
+
+    // a space with nothing in it still needs a tab, but never the setup page
+    if (m_model->rowCount() == 0 && !m_isFirstRun)
+        openInitialTab();
 }
 
 void BrowserController::rewireActiveTab()
@@ -144,6 +145,19 @@ void BrowserController::rewireActiveTab()
             { emit activeProgressChanged(); });
 }
 
+BrowserTab *BrowserController::tabForId(const QString &tabId) const
+{
+    if (tabId.isEmpty())
+        return nullptr;
+    for (int i = 0; i < m_model->rowCount(); ++i)
+    {
+        BrowserTab *tab = m_model->tabAt(i);
+        if (tab && tab->id() == tabId)
+            return tab;
+    }
+    return nullptr;
+}
+
 void BrowserController::emitActiveStateChanged()
 {
     emit activeUrlChanged();
@@ -159,9 +173,10 @@ TabModel *BrowserController::tabModel() const { return m_model; }
 SidebarModel *BrowserController::sidebar() const { return m_sidebar; }
 CefProfile *BrowserController::webProfile() const
 {
-    return m_profile ? m_profile->webProfile() : nullptr;
+    return CefManager::defaultProfile();
 }
 bool BrowserController::chromeStyle() const { return CefManager::chromeStyle(); }
+
 int BrowserController::activeIndex() const { return m_model->activeIndex(); }
 
 QString BrowserController::activeUrl() const
@@ -248,9 +263,7 @@ void BrowserController::setThemeMode(const QString &mode)
 
 QString BrowserController::themePalette() const
 {
-    if (!m_settings)
-        return QStringLiteral("blue");
-    const QString palette = m_settings->value(QStringLiteral("themePalette"), QStringLiteral("blue")).toString();
+    const QString palette = m_space ? m_space->themePalette() : QStringLiteral("blue");
     return kThemePalettes.contains(palette) ? palette : QStringLiteral("blue");
 }
 
@@ -275,14 +288,7 @@ QString BrowserController::activeCustomThemeId() const
 
 QVariantMap BrowserController::activeThemeColors() const
 {
-    const QString activeId = activeCustomThemeId();
-    for (const QVariant &theme : customThemes())
-    {
-        const QVariantMap entry = theme.toMap();
-        if (entry.value(QStringLiteral("id")).toString() == activeId)
-            return entry.value(QStringLiteral("colors")).toMap();
-    }
-    return {};
+    return m_space ? m_space->themeColors() : QVariantMap{};
 }
 
 bool BrowserController::transparentChrome() const
@@ -300,19 +306,53 @@ void BrowserController::setTransparentChrome(bool enabled)
 
 void BrowserController::setThemePalette(const QString &palette)
 {
-    if (!m_settings || !kThemePalettes.contains(palette))
+    if (!m_space || !kThemePalettes.contains(palette))
         return;
-    const bool paletteChanged = m_settings->value(QStringLiteral("themePalette"), QStringLiteral("blue")).toString() != palette;
-    const bool customThemeWasActive = !activeCustomThemeId().isEmpty();
-    if (paletteChanged)
-        m_settings->setValue(QStringLiteral("themePalette"), palette);
-    if (customThemeWasActive)
-    {
+    const bool changed = m_space->themePalette() != palette || !m_space->themeColors().isEmpty();
+    m_space->setThemePalette(palette);
+    m_space->setThemeColors({});
+    const bool hadLegacyCustomTheme = !activeCustomThemeId().isEmpty();
+    if (m_settings)
         m_settings->remove(QStringLiteral("activeCustomThemeId"));
+    if (changed) {
+        emit themePaletteChanged();
         emit activeCustomThemeChanged();
     }
-    if (paletteChanged)
+    else if (hadLegacyCustomTheme)
+        emit activeCustomThemeChanged();
+}
+
+void BrowserController::setSpaceThemeColors(const QVariantMap &colors)
+{
+    if (!m_space || !isValidThemeColors(colors))
+        return;
+    m_space->setThemeColors(colors);
+    if (m_settings)
+        m_settings->remove(QStringLiteral("activeCustomThemeId"));
+    emit activeCustomThemeChanged();
+}
+
+void BrowserController::previewSpaceThemeColors(const QVariantMap &colors)
+{
+    if (!m_space || !isValidThemeColors(colors))
+        return;
+    m_space->setThemeColors(colors, false);
+    emit activeCustomThemeChanged();
+}
+
+void BrowserController::resetSpaceTheme()
+{
+    if (!m_space)
+        return;
+    const bool changed = m_space->themePalette() != QLatin1String("blue") || !m_space->themeColors().isEmpty();
+    m_space->setThemePalette(QStringLiteral("blue"));
+    m_space->setThemeColors({});
+    if (m_settings)
+        m_settings->remove(QStringLiteral("activeCustomThemeId"));
+    if (changed) {
         emit themePaletteChanged();
+        emit activeCustomThemeChanged();
+    }
 }
 
 QString BrowserController::createCustomTheme(const QString &name, const QVariantMap &colors)
@@ -411,16 +451,12 @@ void BrowserController::activateCustomTheme(const QString &id)
 
 QString BrowserController::sessionFilePath() const
 {
-    if (!m_profile)
-        return {};
-    return m_profile->path() + QDir::separator() + QStringLiteral("session.json");
+    return m_space ? m_space->sessionFilePath() : QString();
 }
 
 QString BrowserController::sidebarFilePath() const
 {
-    if (!m_profile)
-        return {};
-    return m_profile->path() + QDir::separator() + QStringLiteral("sidebar.json");
+    return m_space ? m_space->sidebarFilePath() : QString();
 }
 
 bool BrowserController::confirmCloseRequired() const
@@ -440,6 +476,9 @@ void BrowserController::saveSession() const
 
     QJsonArray tabsArray;
     int savedActiveIndex = 0;
+    BrowserTab *activeTab = m_model->tabAt(m_model->activeIndex());
+    const QUrl activeUrl = activeTab ? activeTab->url() : QUrl();
+    const QString activeTitle = activeTab ? activeTab->title() : QString();
     for (int i = 0; i < m_model->rowCount(); ++i)
     {
         BrowserTab *tab = m_model->tabAt(i);
@@ -462,6 +501,10 @@ void BrowserController::saveSession() const
     QJsonObject root;
     root[QStringLiteral("activeIndex")] = savedActiveIndex;
     root[QStringLiteral("tabs")] = tabsArray;
+    if (activeUrl.isValid() && !activeUrl.isEmpty())
+        root[QStringLiteral("activeUrl")] = activeUrl.toString();
+    if (!activeTitle.isEmpty())
+        root[QStringLiteral("activeTitle")] = activeTitle;
 
     QFile file(path);
     if (!file.open(QFile::WriteOnly | QFile::Text | QFile::Truncate))
@@ -474,13 +517,9 @@ void BrowserController::saveSession() const
 
 void BrowserController::restoreSession()
 {
-    // the preference decides whether there is a session to restore at all
-    const BrowserSettings *prefs = BrowserSettings::instance();
-    if (!prefs || prefs->startupBehavior() != QLatin1String(BrowserSettings::kStartupSession))
-    {
-        openInitialTab();
+    if (m_sessionRestoredForSpace)
         return;
-    }
+    m_sessionRestoredForSpace = true;
 
     const QString path = sessionFilePath();
     QFile file(path);
@@ -495,6 +534,7 @@ void BrowserController::restoreSession()
 
     const QJsonArray tabsArray = doc.isObject() ? doc.object()[QStringLiteral("tabs")].toArray() : QJsonArray();
     const int base = m_model->rowCount();
+    QVector<int> restoredSessionIndexes;
     for (const QJsonValue &value : tabsArray)
     {
         if (!value.isObject())
@@ -505,19 +545,68 @@ void BrowserController::restoreSession()
         if (urlText.isEmpty() || !url.isValid() || m_model->rowCount() >= TabModel::kMaxTabs)
             continue;
 
-        if (BrowserTab *tab = m_model->addTab(url, m_profile->webProfile(), /*suspended=*/true))
+        // Older builds could write split members to both persistence files.
+        // The sidebar copy is authoritative because it retains the grouping.
+        bool alreadyInSidebar = false;
+        for (int i = 0; i < base; ++i)
+        {
+            BrowserTab *sidebarTab = m_model->tabAt(i);
+            if (sidebarTab && m_sidebar->isInFolder(sidebarTab) && sidebarTab->url() == url &&
+                sidebarTab->title() == obj[QStringLiteral("title")].toString())
+            {
+                alreadyInSidebar = true;
+                break;
+            }
+        }
+        if (alreadyInSidebar)
+            continue;
+
+        if (BrowserTab *tab = m_model->addTab(url, /*suspended=*/true))
+        {
             tab->setTitle(obj[QStringLiteral("title")].toString());
+            restoredSessionIndexes.append(m_model->rowCount() - 1);
+        }
     }
 
-    if (m_model->rowCount() == base)
+    if (m_model->rowCount() == 0)
     {
         openInitialTab();
         return;
     }
 
-    int activeIndex = base + doc.object()[QStringLiteral("activeIndex")].toInt(0);
-    if (activeIndex < base || activeIndex >= m_model->rowCount())
-        activeIndex = base;
+    const QJsonObject session = doc.object();
+    const QUrl savedActiveUrl(session.value(QStringLiteral("activeUrl")).toString());
+    const QString savedActiveTitle = session.value(QStringLiteral("activeTitle")).toString();
+    int activeIndex = -1;
+    if (savedActiveUrl.isValid() && !savedActiveUrl.isEmpty())
+    {
+        if (!savedActiveTitle.isEmpty())
+        {
+            for (int i = 0; i < m_model->rowCount(); ++i)
+            {
+                BrowserTab *tab = m_model->tabAt(i);
+                if (tab && tab->url() == savedActiveUrl && tab->title() == savedActiveTitle)
+                {
+                    activeIndex = i;
+                    break;
+                }
+            }
+        }
+        if (activeIndex < 0)
+            for (int i = 0; i < m_model->rowCount(); ++i)
+                if (BrowserTab *tab = m_model->tabAt(i); tab && tab->url() == savedActiveUrl)
+                {
+                    activeIndex = i;
+                    break;
+                }
+    }
+    if (activeIndex < 0 && !restoredSessionIndexes.isEmpty())
+    {
+        const int savedIndex = session.value(QStringLiteral("activeIndex")).toInt(0);
+        activeIndex = restoredSessionIndexes.at(qBound(0, savedIndex, restoredSessionIndexes.size() - 1));
+    }
+    if (activeIndex < 0)
+        activeIndex = 0;
     m_model->setActiveIndex(activeIndex);
 }
 
@@ -594,7 +683,7 @@ void BrowserController::newTab(const QString &urlStr, bool background)
                          : UrlResolver::resolve(urlStr, prefs ? prefs->searchUrlTemplate() : QString());
 
     // a background tab loads when first shown, like a restored one
-    BrowserTab *tab = m_model->addTab(url, m_profile->webProfile(), /*suspended=*/background);
+    BrowserTab *tab = m_model->addTab(url, /*suspended=*/background);
     if (!tab)
         return;
     if (background)
@@ -642,8 +731,11 @@ void BrowserController::closeTab(int index)
 
 void BrowserController::activateTab(int index)
 {
-    if (index >= 0 && index < m_model->rowCount())
-        m_model->setActiveIndex(index);
+    if (index < 0 || index >= m_model->rowCount())
+        return;
+    if (index == m_model->activeIndex())
+        return;
+    m_model->setActiveIndex(index);
 }
 
 void BrowserController::activateTabAt(int position)
@@ -687,15 +779,31 @@ void BrowserController::navigate(const QString &input)
         // update URL imediatly before page is loaded
         tab->setUrl(url);
         tab->requestLoad(url);
-        emit loadRequested(idx, url);
+        emit loadRequested(tab->id(), url);
     }
 }
 
-void BrowserController::reload() { emit navigationRequested(QStringLiteral("reload")); }
-void BrowserController::goBack() { emit navigationRequested(QStringLiteral("back")); }
-void BrowserController::goForward() { emit navigationRequested(QStringLiteral("forward")); }
+void BrowserController::reload()
+{
+    if (BrowserTab *tab = m_model->tabAt(m_model->activeIndex()))
+        emit navigationRequested(tab->id(), QStringLiteral("reload"));
+}
+void BrowserController::goBack()
+{
+    if (BrowserTab *tab = m_model->tabAt(m_model->activeIndex()))
+        emit navigationRequested(tab->id(), QStringLiteral("back"));
+}
+void BrowserController::goForward()
+{
+    if (BrowserTab *tab = m_model->tabAt(m_model->activeIndex()))
+        emit navigationRequested(tab->id(), QStringLiteral("forward"));
+}
 
-void BrowserController::toggleDevTools() { emit navigationRequested(QStringLiteral("devtools")); }
+void BrowserController::toggleDevTools()
+{
+    if (BrowserTab *tab = m_model->tabAt(m_model->activeIndex()))
+        emit navigationRequested(tab->id(), QStringLiteral("devtools"));
+}
 
 // qml to cpp
 // rust later?
@@ -705,8 +813,6 @@ void BrowserController::onTitleChanged(int i, const QString &v)
     if (auto *t = m_model->tabAt(i))
     {
         t->setTitle(v);
-        if (m_history)
-            m_history->updateTitle(t->url().toString(), v);
     }
 }
 
@@ -715,8 +821,6 @@ void BrowserController::onUrlChanged(int i, const QString &v)
     if (auto *t = m_model->tabAt(i))
     {
         t->setUrl(QUrl(v));
-        if (m_history)
-            m_history->recordVisit(v, t->title());
     }
 }
 
@@ -749,6 +853,52 @@ void BrowserController::onNewWindowRequested(int i, const QString &url)
     Q_UNUSED(i);
         newTab(url);
     }
+
+void BrowserController::updateTabTitle(const QString &tabId, const QString &title)
+{
+    BrowserTab *tab = tabForId(tabId);
+    if (!tab)
+        return;
+    tab->setTitle(title);
+}
+
+void BrowserController::updateTabUrl(const QString &tabId, const QString &url)
+{
+    BrowserTab *tab = tabForId(tabId);
+    if (!tab)
+        return;
+    tab->setUrl(QUrl(url));
+}
+
+void BrowserController::updateTabLoading(const QString &tabId, bool loading)
+{
+    if (BrowserTab *tab = tabForId(tabId))
+        tab->setLoading(loading);
+}
+
+void BrowserController::updateTabProgress(const QString &tabId, int progress)
+{
+    if (BrowserTab *tab = tabForId(tabId))
+        tab->setProgress(progress);
+}
+
+void BrowserController::updateTabIcon(const QString &tabId, const QString &iconUrl)
+{
+    if (BrowserTab *tab = tabForId(tabId))
+        tab->setIconUrl(iconUrl);
+}
+
+void BrowserController::updateTabRenderProcessPid(const QString &tabId, qint64 pid)
+{
+    if (BrowserTab *tab = tabForId(tabId))
+        tab->setRenderProcessPid(pid);
+}
+
+void BrowserController::openTabFrom(const QString &sourceTabId, const QString &url)
+{
+    if (tabForId(sourceTabId))
+        newTab(url);
+}
 
 
 // top-level windows

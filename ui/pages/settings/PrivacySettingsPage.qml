@@ -22,6 +22,6 @@ SettingsPage {
 
     Footnote {
         Layout.topMargin: 4
-        text: "Applies to the active profile only and takes effect immediately, no restart needed."
+        text: "Applies to every space and takes effect immediately, no restart needed."
     }
 }

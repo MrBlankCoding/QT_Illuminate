@@ -13,42 +13,58 @@ Item {
     required property var model
     required property var browserWindow
     required property var viewStack
-    anchors.fill: parent
-    visible: index === (browserContext ? browserContext.tabModel.activeIndex : -1)
+    readonly property var splitMemberIds: {
+        if (!browserContext)
+            return [];
+        const revision = browserContext.sidebar.structureRevision;
+        return revision >= 0 ? browserContext.sidebar.splitTabs(model.id) : [];
+    }
+    readonly property int splitMemberIndex: splitMemberIds ? splitMemberIds.indexOf(model.id) : -1
+    readonly property real splitGap: splitMemberIndex >= 0 ? 8 : 0
+    x: splitMemberIndex === 1 ? parent.width / 2 + splitGap / 2 : 0
+    width: splitMemberIndex < 0 ? parent.width
+        : parent.width / 2 - splitGap / 2
+    height: parent.height
+    visible: index === (browserContext ? browserContext.tabModel.activeIndex : -1) || splitMemberIndex >= 0
+
+    function refreshNativeView() {
+        if (!tabSlot.webView || !tabSlot.visible || !tabSlot.browserContext)
+            return;
+        const shouldRaise = tabSlot.index === tabSlot.browserContext.tabModel.activeIndex;
+        tabSlot.webView.refreshNativeView(shouldRaise);
+    }
+
+    onSplitMemberIndexChanged: {
+        Qt.callLater(tabSlot.refreshNativeView);
+    }
+
+    TapHandler {
+        enabled: tabSlot.splitMemberIndex >= 0
+        onTapped: if (tabSlot.browserContext)
+            tabSlot.browserContext.activateTab(tabSlot.index)
+    }
+
+    Connections {
+        target: tabSlot.browserContext ? tabSlot.browserContext.tabModel : null
+        function onActiveIndexChanged() {
+            if (tabSlot.splitMemberIndex >= 0 || tabSlot.index === tabSlot.browserContext.tabModel.activeIndex)
+                Qt.callLater(tabSlot.refreshNativeView);
+        }
+    }
 
     readonly property bool isInternalPage: InternalPages.isInternal(model.url.toString())
-    onIsInternalPageChanged: if (isInternalPage && browserContext) browserContext.onRenderProcessPidChanged(index, 0)
+    onIsInternalPageChanged: if (isInternalPage && browserContext) browserContext.updateTabRenderProcessPid(model.id, 0)
     function syncRenderPid() {
         if (browserContext)
-            browserContext.onRenderProcessPidChanged(tabSlot.index, tabSlot.webView ? tabSlot.webView.renderProcessPid : 0)
+            browserContext.updateTabRenderProcessPid(tabSlot.webView ? tabSlot.webView.ownerTabId : tabSlot.model.id,
+                                                     tabSlot.webView ? tabSlot.webView.renderProcessPid : 0)
     }
 
     readonly property int discardAfterMs: Prefs.autoUnloadEnabled
         ? Math.max(1, Prefs.autoUnloadMinutes) * 60 * 1000
         : 0
     property bool discardable: false
-    onVisibleChanged: {
-        if (visible) {
-            discardable = false
-            browserWindow.pointerLockActive = tabSlot.pointerLocked
-        } else if (tabSlot.pointerLocked) {
-            tabSlot.releaseLock()
-        }
-    }
-    Component.onDestruction: {
-        if (tabSlot.pointerLocked && tabSlot.browserWindow) {
-            tabSlot.browserWindow.pointerLockEmu.end()
-            if (tabSlot.visible)
-                tabSlot.browserWindow.pointerLockActive = false
-        }
-    }
-
-    function releaseLock() {
-        tabSlot.pointerLocked = false
-        const wv = tabSlot.webView
-        if (wv)
-            wv.runJavaScript("window.__illuminate__forceExit && window.__illuminate__forceExit()")
-    }
+    onVisibleChanged: if (visible) discardable = false
     Timer {
         interval: Math.max(1, tabSlot.discardAfterMs)
         running: tabSlot.discardAfterMs > 0 && !tabSlot.visible && tabSlot.webView !== null
@@ -94,28 +110,12 @@ Item {
     readonly property string devToolsDockMarker: "__illuminate_devtools_dock__ "
     onDevToolsDockChanged: devToolsSize = devToolsVertical ? height * 0.35 : Math.min(480, width * 0.4)
 
-    readonly property string plockReqMarker: "__illuminate_plock_req__"
-    readonly property string plockExitMarker: "__illuminate_plock_exit__"
-    property bool pointerLocked: false
-    onPointerLockedChanged: {
-        if (pointerLocked)
-            browserWindow.pointerLockEmu.begin()
-        else
-            browserWindow.pointerLockEmu.end()
-        if (tabSlot.visible)
-            browserWindow.pointerLockActive = tabSlot.pointerLocked
-        if (pointerLocked)
-            pointerLockHint.flash()
-        else
-            pointerLockHint.close()
-    }
-
     Loader {
         anchors.fill: parent
         active: tabSlot.isInternalPage
         visible: tabSlot.isInternalPage
         source: tabSlot.isInternalPage ? InternalPages.qmlSource(tabSlot.model.url.toString()) : ""
-        onLoaded: if (tabSlot.browserContext) tabSlot.browserContext.onTitleChanged(tabSlot.index, InternalPages.title(tabSlot.model.url.toString()))
+        onLoaded: if (tabSlot.browserContext) tabSlot.browserContext.updateTabTitle(tabSlot.model.id, InternalPages.title(tabSlot.model.url.toString()))
     }
 
     Loader {
@@ -130,15 +130,21 @@ Item {
         onLoaded: {
             const u = tabSlot.model.url;
             if (u && u.toString() !== "" && !tabSlot.isInternalPage)
-                item.url = u;
+            {
+                const currentTab = tabSlot.browserContext ? tabSlot.browserContext.tabModel.tabAt(tabSlot.index) : null;
+                if (currentTab && currentTab.id === tabSlot.model.id) {
+                    item.ownerTabId = currentTab.id;
+                    item.url = u;
+                }
+            }
         }
 
         sourceComponent: Component {
             CefBrowser {
                 id: webView
+                property string ownerTabId: ""
                 anchors.fill: parent
-                profile: tabSlot.browserContext ? tabSlot.browserContext.webProfile : null
-                visible: tabSlot.index === (tabSlot.browserContext ? tabSlot.browserContext.tabModel.activeIndex : -1)
+                visible: tabSlot.visible
                 inputSuppressed: tabSlot.browserWindow.inputOverlayOpen
                     && tabSlot.index === (tabSlot.browserContext ? tabSlot.browserContext.tabModel.activeIndex : -1)
                 lifecycleState: webView.visible
@@ -148,16 +154,17 @@ Item {
                 backgroundColor: Theme.bg
                 cornerRadius: tabSlot.viewStack.cornerRadius
                 Component.onCompleted: {
+                    ownerTabId = tabSlot.model.id;
                     Logger.debug("WebView", "Tab " + tabSlot.index + " created");
                     const browserTab = tabSlot.browserContext ? tabSlot.browserContext.tabModel.tabAt(tabSlot.index) : null;
-                    if (browserTab) {
+                    if (browserTab && browserTab.id === ownerTabId) {
                         browserTab.setCefBrowserWrapper(webView);
                     }
                 }
 
                 onLoadingChanged: function () {
                     if (tabSlot.browserContext)
-                        tabSlot.browserContext.onLoadingChanged(tabSlot.index, webView.loading);
+                        tabSlot.browserContext.updateTabLoading(webView.ownerTabId, webView.loading);
                     tabSlot.syncRenderPid();
                     if (webView.loading)
                         Logger.debug("WebView", "Tab " + tabSlot.index + " loading");
@@ -165,14 +172,6 @@ Item {
 
                 onJavaScriptConsoleMessage: function (level, message, lineNumber, sourceId) {
                     const msg = String(message)
-                    if (msg.startsWith(tabSlot.plockReqMarker)) {
-                        tabSlot.pointerLocked = true
-                        return
-                    }
-                    if (msg.startsWith(tabSlot.plockExitMarker)) {
-                        tabSlot.pointerLocked = false
-                        return
-                    }
                     if (level === 0)
                         return
                     const text = level + "/" + sourceId + ":" + lineNumber + " " + msg
@@ -184,17 +183,17 @@ Item {
 
                 onUrlChanged: function () {
                     if (tabSlot.browserContext)
-                        tabSlot.browserContext.onUrlChanged(tabSlot.index, webView.url.toString());
+                        tabSlot.browserContext.updateTabUrl(webView.ownerTabId, webView.url.toString());
                 }
 
-                onLoadProgressChanged: function (p) { if (tabSlot.browserContext) tabSlot.browserContext.onLoadProgressChanged(tabSlot.index, p) }
+                onLoadProgressChanged: function (p) { if (tabSlot.browserContext) tabSlot.browserContext.updateTabProgress(webView.ownerTabId, p) }
                 onRenderProcessPidChanged: tabSlot.syncRenderPid()
-                onTitleChanged: if (tabSlot.browserContext) tabSlot.browserContext.onTitleChanged(tabSlot.index, webView.title)
-                onIconChanged: if (tabSlot.browserContext) tabSlot.browserContext.onIconUrlChanged(tabSlot.index, webView.icon.toString())
+                onTitleChanged: if (tabSlot.browserContext) tabSlot.browserContext.updateTabTitle(webView.ownerTabId, webView.title)
+                onIconChanged: if (tabSlot.browserContext) tabSlot.browserContext.updateTabIcon(webView.ownerTabId, webView.icon.toString())
 
                 onNewWindowRequested: function (url) {
                     if (tabSlot.browserContext)
-                        tabSlot.browserContext.onNewWindowRequested(tabSlot.index, url.toString());
+                        tabSlot.browserContext.openTabFrom(webView.ownerTabId, url.toString());
                 }
 
                 // pages calling window.print() open the system print dialog
@@ -224,14 +223,14 @@ Item {
 
                 Connections {
                     target: tabSlot.browserContext
-                    function onLoadRequested(tabIndex, url) {
-                        if (tabIndex !== tabSlot.index)
+                    function onLoadRequested(tabId, url) {
+                        if (tabId !== webView.ownerTabId)
                             return;
                         if (webLoader.item)
                             webLoader.item.url = url;
                     }
-                    function onNavigationRequested(action) {
-                        if (!tabSlot.browserContext || tabSlot.index !== tabSlot.browserContext.tabModel.activeIndex)
+                    function onNavigationRequested(tabId, action) {
+                        if (tabId !== webView.ownerTabId)
                             return;
                         if (action === "back")
                             webView.goBack();
@@ -302,54 +301,6 @@ Item {
             width: tabSlot.devToolsVertical ? parent.width : 1
             height: tabSlot.devToolsVertical ? 1 : parent.height
             color: splitterArea.pressed || splitterArea.containsMouse ? Theme.accent : Theme.border
-        }
-    }
-
-    Popup {
-        id: pointerLockHint
-        popupType: Popup.Window
-        modal: false
-        focus: false
-        closePolicy: Popup.NoAutoClose
-        x: Math.round((tabSlot.width - width) / 2)
-        y: 24
-        width: hintText.implicitWidth + 32
-        height: 36
-        padding: 0
-
-        function flash() {
-            open()
-            hintTimer.restart()
-        }
-
-        enter: Transition {
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.durationFast }
-        }
-        exit: Transition {
-            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.durationFast }
-        }
-
-        Timer {
-            id: hintTimer
-            interval: 3000
-            onTriggered: pointerLockHint.close()
-        }
-
-        background: Rectangle {
-            radius: height / 2
-            color: Theme.surface
-            border.color: Theme.border
-            border.width: 1
-        }
-
-        contentItem: Text {
-            id: hintText
-            text: "Press Esc to show your cursor"
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            color: Theme.text
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeS
         }
     }
 

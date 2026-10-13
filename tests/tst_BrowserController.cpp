@@ -3,13 +3,21 @@
 #include <QTemporaryDir>
 
 #include "BrowserController.h"
-#include "Profile.h"
+#include "Space.h"
 
 class TestBrowserController : public QObject
 {
     Q_OBJECT
 
     QTemporaryDir m_dir;
+
+    // a space backed by a scratch directory, so nothing touches ~/.illuminate
+    Space *makeSpace(const QString &id, const QString &name)
+    {
+        auto *space = new Space(id, name, QColor(QStringLiteral("#4A90E2")));
+        space->setStorageDir(m_dir.filePath(id));
+        return space;
+    }
 
 private:
     static QVariantMap colors(const QString &bg)
@@ -45,11 +53,10 @@ private slots:
 
     void customThemesPersistAndCanBeEditedAndRemoved()
     {
-        const QString profilePath = m_dir.filePath(QStringLiteral("profile"));
         QString themeId;
         {
-            Profile profile(QStringLiteral("theme-test"), QStringLiteral("Theme Test"), profilePath);
-            BrowserController browser(&profile);
+            QScopedPointer<Space> space(makeSpace(QStringLiteral("theme-test"), QStringLiteral("Theme Test")));
+            BrowserController browser(space.data());
             themeId = browser.createCustomTheme(QStringLiteral("  Evening  "), colors(QStringLiteral("#101820")));
             QVERIFY(!themeId.isEmpty());
             QCOMPARE(browser.activeCustomThemeId(), themeId);
@@ -60,8 +67,8 @@ private slots:
         }
 
         {
-            Profile profile(QStringLiteral("theme-test"), QStringLiteral("Theme Test"), profilePath);
-            BrowserController browser(&profile);
+            QScopedPointer<Space> space(makeSpace(QStringLiteral("theme-test"), QStringLiteral("Theme Test")));
+            BrowserController browser(space.data());
             QCOMPARE(browser.activeCustomThemeId(), themeId);
             QCOMPARE(browser.customThemes().size(), 1);
             QVERIFY(browser.updateCustomTheme(themeId, QStringLiteral("Night"), colors(QStringLiteral("#202830"))));
@@ -80,9 +87,8 @@ private slots:
     }
     void closingTheActiveTabDoesNotRequestAWindowClose()
     {
-        Profile profile(QStringLiteral("close-test"), QStringLiteral("Close Test"),
-                        m_dir.filePath(QStringLiteral("close-profile")));
-        BrowserController browser(&profile);
+        QScopedPointer<Space> space(makeSpace(QStringLiteral("close-test"), QStringLiteral("Close Test")));
+        BrowserController browser(space.data());
         browser.newTab(QStringLiteral("https://example.com/a"));
         browser.newTab(QStringLiteral("https://example.com/b"));
         QCOMPARE(browser.tabModel()->rowCount(), 3);
@@ -99,9 +105,8 @@ private slots:
 
     void invalidCustomThemeIsRejected()
     {
-        Profile profile(QStringLiteral("invalid-theme-test"), QStringLiteral("Invalid Theme"),
-                        m_dir.filePath(QStringLiteral("invalid-profile")));
-        BrowserController browser(&profile);
+        QScopedPointer<Space> space(makeSpace(QStringLiteral("invalid-theme-test"), QStringLiteral("Invalid Theme")));
+        BrowserController browser(space.data());
         QCOMPARE(browser.createCustomTheme(QStringLiteral("Invalid"), {}), QString());
         QCOMPARE(browser.createCustomTheme(QStringLiteral(""), colors(QStringLiteral("#101820"))), QString());
         QVERIFY(browser.customThemes().isEmpty());

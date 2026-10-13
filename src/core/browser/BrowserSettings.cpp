@@ -1,6 +1,6 @@
 #include "BrowserSettings.h"
+#include "CefManager.h"
 #include "CefProfile.h"
-#include "Profile.h"
 
 #include <QDir>
 #include <QSettings>
@@ -10,7 +10,6 @@
 
 namespace
 {
-    // keys are grouped by the store they live in
     constexpr char kStartupBehaviorKey[] = "startup/behavior";
     constexpr char kStartupHomepageKey[] = "startup/homepage";
     constexpr char kSearchEngineKey[] = "search/engine";
@@ -79,8 +78,11 @@ namespace
     constexpr char kBrowserLanguageKey[] = "general/language";
 }
 
-BrowserSettings::BrowserSettings(Profile *profile, QObject *parent)
-    : QObject(parent), m_appSettings(new QSettings(this))
+BrowserSettings::BrowserSettings(QObject *parent)
+    : QObject(parent)
+    , m_settings(new QSettings(QDir::homePath() + QDir::separator() + ".illuminate"
+                               + QDir::separator() + "settings.ini", QSettings::IniFormat, this))
+    , m_appSettings(new QSettings(this))
 {
     m_confirmCloseMultipleTabs =
         m_appSettings->value(QLatin1String(kConfirmCloseKey), true).toBool();
@@ -89,45 +91,32 @@ BrowserSettings::BrowserSettings(Profile *profile, QObject *parent)
                             kSidebarMaxWidth);
     m_sidebarCollapsed = m_appSettings->value(QLatin1String(kSidebarCollapsedKey), false).toBool();
     m_browserLanguage = readValue(m_appSettings, kBrowserLanguageKey, QString()).toString();
-    setProfile(profile);
+    m_webProfile = CefManager::defaultProfile();
+    reloadSettings();
+    applyThirdPartyCookies();
     emit browserLanguageChanged();
 }
 
-void BrowserSettings::setProfile(Profile *profile)
-{
-    m_profile = profile;
-    m_webProfile = profile ? profile->webProfile() : nullptr;
-
-    delete m_profileSettings;
-    m_profileSettings = profile ? new QSettings(profile->path() + QDir::separator() + QStringLiteral("settings.ini"),
-                                                QSettings::IniFormat, this)
-                                : nullptr;
-
-    reloadProfileSettings();
-    applyThirdPartyCookies();
-}
-
-void BrowserSettings::reloadProfileSettings()
+void BrowserSettings::reloadSettings()
 {
     const QString behavior =
-        readValue(m_profileSettings, kStartupBehaviorKey, QLatin1String(kStartupNewTab)).toString();
-    m_startupBehavior = (behavior == QLatin1String(kStartupSession) || behavior == QLatin1String(kStartupHomepage))
+        readValue(m_settings, kStartupBehaviorKey, QLatin1String(kStartupNewTab)).toString();
+    m_startupBehavior = behavior == QLatin1String(kStartupHomepage)
                             ? behavior
                             : QLatin1String(kStartupNewTab);
-    m_homepageUrl = readValue(m_profileSettings, kStartupHomepageKey, QString()).toString();
+    m_homepageUrl = readValue(m_settings, kStartupHomepageKey, QString()).toString();
 
     const QString engineId =
-        readValue(m_profileSettings, kSearchEngineKey, QStringLiteral("duckduckgo")).toString();
-    // an engine dropped from the table must not leave the address bar unusable
+        readValue(m_settings, kSearchEngineKey, QStringLiteral("duckduckgo")).toString();
     m_searchEngineId = engineName(engineId).isEmpty() ? QStringLiteral("duckduckgo") : engineId;
-    m_customSearchUrl = readValue(m_profileSettings, kSearchCustomUrlKey, QString()).toString();
-    m_searchSuggestions = readValue(m_profileSettings, kSearchSuggestionsKey, true).toBool();
+    m_customSearchUrl = readValue(m_settings, kSearchCustomUrlKey, QString()).toString();
+    m_searchSuggestions = readValue(m_settings, kSearchSuggestionsKey, true).toBool();
 
-    m_thirdPartyCookies = readValue(m_profileSettings, kThirdPartyCookiesKey, true).toBool();
+    m_thirdPartyCookies = readValue(m_settings, kThirdPartyCookiesKey, true).toBool();
 
-    m_autoUnload = readValue(m_profileSettings, kAutoUnloadKey, true).toBool();
+    m_autoUnload = readValue(m_settings, kAutoUnloadKey, true).toBool();
     m_autoUnloadMinutes = qBound(kMinAutoUnloadMinutes,
-                                 readValue(m_profileSettings, kAutoUnloadMinutesKey, 5).toInt(),
+                                 readValue(m_settings, kAutoUnloadMinutesKey, 5).toInt(),
                                  kMaxAutoUnloadMinutes);
 
     emit startupBehaviorChanged();
@@ -147,10 +136,13 @@ QString BrowserSettings::startupBehavior() const
 
 void BrowserSettings::setStartupBehavior(const QString &behavior)
 {
-    if (m_startupBehavior == behavior)
+    const QString normalized = behavior == QLatin1String(kStartupHomepage)
+                                   ? QString::fromLatin1(kStartupHomepage)
+                                   : QString::fromLatin1(kStartupNewTab);
+    if (m_startupBehavior == normalized)
         return;
-    m_startupBehavior = behavior;
-    writeValue(m_profileSettings, kStartupBehaviorKey, behavior);
+    m_startupBehavior = normalized;
+    writeValue(m_settings, kStartupBehaviorKey, normalized);
     emit startupBehaviorChanged();
 }
 
@@ -165,7 +157,7 @@ void BrowserSettings::setHomepageUrl(const QString &url)
     if (m_homepageUrl == trimmed)
         return;
     m_homepageUrl = trimmed;
-    writeValue(m_profileSettings, kStartupHomepageKey, trimmed);
+    writeValue(m_settings, kStartupHomepageKey, trimmed);
     emit homepageUrlChanged();
 }
 
@@ -181,7 +173,7 @@ void BrowserSettings::setSearchEngineId(const QString &id)
     if (m_searchEngineId == id)
         return;
     m_searchEngineId = id;
-    writeValue(m_profileSettings, kSearchEngineKey, id);
+    writeValue(m_settings, kSearchEngineKey, id);
     emit searchEngineChanged();
 }
 
@@ -201,7 +193,7 @@ void BrowserSettings::setCustomSearchUrl(const QString &url)
     if (m_customSearchUrl == trimmed)
         return;
     m_customSearchUrl = trimmed;
-    writeValue(m_profileSettings, kSearchCustomUrlKey, trimmed);
+    writeValue(m_settings, kSearchCustomUrlKey, trimmed);
     emit searchEngineChanged();
 }
 
@@ -237,7 +229,7 @@ void BrowserSettings::setSearchSuggestionsEnabled(bool enabled)
     if (m_searchSuggestions == enabled)
         return;
     m_searchSuggestions = enabled;
-    writeValue(m_profileSettings, kSearchSuggestionsKey, enabled);
+    writeValue(m_settings, kSearchSuggestionsKey, enabled);
     emit searchSuggestionsEnabledChanged();
 }
 
@@ -253,7 +245,7 @@ void BrowserSettings::setThirdPartyCookiesEnabled(bool enabled)
     if (m_thirdPartyCookies == enabled)
         return;
     m_thirdPartyCookies = enabled;
-    writeValue(m_profileSettings, kThirdPartyCookiesKey, enabled);
+    writeValue(m_settings, kThirdPartyCookiesKey, enabled);
     applyThirdPartyCookies();
     emit thirdPartyCookiesEnabledChanged();
 }
@@ -276,7 +268,7 @@ void BrowserSettings::setAutoUnloadEnabled(bool enabled)
     if (m_autoUnload == enabled)
         return;
     m_autoUnload = enabled;
-    writeValue(m_profileSettings, kAutoUnloadKey, enabled);
+    writeValue(m_settings, kAutoUnloadKey, enabled);
     emit autoUnloadChanged();
 }
 
@@ -291,7 +283,7 @@ void BrowserSettings::setAutoUnloadMinutes(int minutes)
     if (m_autoUnloadMinutes == clamped)
         return;
     m_autoUnloadMinutes = clamped;
-    writeValue(m_profileSettings, kAutoUnloadMinutesKey, clamped);
+    writeValue(m_settings, kAutoUnloadMinutesKey, clamped);
     emit autoUnloadChanged();
 }
 
