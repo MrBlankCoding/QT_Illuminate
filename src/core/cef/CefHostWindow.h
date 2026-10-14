@@ -44,6 +44,7 @@ private:
     CefRefPtr<CefBrowserView> m_browserView;
     CefRefPtr<CefWindow> m_window;
     bool m_visible = false;
+    bool m_closing = false;
 
     IMPLEMENT_REFCOUNTING(CefHostWindow);
 };

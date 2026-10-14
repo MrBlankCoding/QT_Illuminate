@@ -3,6 +3,7 @@
 #include <QtGlobal>
 #include <QCoreApplication>
 #include <QMetaObject>
+#include <QTimer>
 
 #include <utility>
 
@@ -58,13 +59,22 @@ void CefHostWindow::setVisible(bool visible)
         return;
     m_visible = visible;
     if (visible)
+    {
         m_window->Show();
+    }
     else
-        m_window->Hide();
+    {
+        CefRefPtr<CefHostWindow> self(this);
+        QTimer::singleShot(50, QCoreApplication::instance(), [self]() {
+            if (!self->m_closing && !self->m_visible && self->m_window)
+                self->m_window->Hide();
+        });
+    }
 }
 
 void CefHostWindow::close()
 {
+    m_closing = true;
     m_ready = nullptr;
     if (m_window)
         m_window->Close();

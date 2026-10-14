@@ -368,6 +368,62 @@ Item {
         sidebar: root
     }
 
+    Connections {
+        target: sideMenus.tabMenu
+        function onOpened() {
+            if (root.targetWindow && root.targetWindow.raiseActiveWebView)
+                Qt.callLater(() => root.targetWindow.raiseActiveWebView());
+        }
+        function onClosed() {
+            if (root.targetWindow && root.targetWindow.raiseActiveWebView)
+                Qt.callLater(() => root.targetWindow.raiseActiveWebView());
+        }
+    }
+
+    // a two-finger swipe sideways anywhere in the sidebar moves one space over;
+    // sits on top but lets every wheel event through to the list below
+    Item {
+        anchors.fill: parent
+        z: 5
+
+        WheelHandler {
+            target: null
+            blocking: false
+            enabled: !root.menuOpen && Spaces.spaces.length > 1
+
+            property real travelX: 0
+            property real travelY: 0
+            property bool spent: false
+
+            onWheel: event => {
+                // mouse wheels have no phase: only trackpad gestures count
+                if (event.phase === Qt.NoScrollPhase || event.phase === Qt.ScrollMomentum)
+                    return;
+                if (event.phase === Qt.ScrollBegin) {
+                    travelX = 0;
+                    travelY = 0;
+                    spent = false;
+                    return;
+                }
+                if (spent)
+                    return;
+
+                // deltas follow the content; flip them back to the fingers
+                const sign = event.inverted ? 1 : -1;
+                travelX += sign * event.pixelDelta.x;
+                travelY += Math.abs(event.pixelDelta.y);
+                if (Math.abs(travelX) < 60 || Math.abs(travelX) < travelY * 2)
+                    return;
+
+                spent = true;
+                const spaces = Spaces.spaces;
+                const next = spaces.indexOf(Spaces.activeSpace) + (travelX < 0 ? 1 : -1);
+                if (next >= 0 && next < spaces.length)
+                    Spaces.activeSpace = spaces[next];
+            }
+        }
+    }
+
     MouseArea {
         id: resizeHandle
         enabled: !root.overlay

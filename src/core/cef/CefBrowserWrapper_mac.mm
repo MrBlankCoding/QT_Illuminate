@@ -1,5 +1,6 @@
 #include <QRect>
 
+#include <unordered_map>
 #include <unordered_set>
 
 #import <Cocoa/Cocoa.h>
@@ -79,9 +80,6 @@ bool cefResignNativeFocus(void *view)
     return true;
 }
 
-// Chrome style pages live in a CEF window of their own (see CefHostWindow);
-// these pin that window to ours as a borderless child.
-
 static NSWindow *cefWindowFromHandle(void *handle)
 {
     id object = (__bridge id)handle;
@@ -97,21 +95,49 @@ static BOOL cefCannotBecomeMain(id, SEL)
     return NO;
 }
 
-// clicking the page makes its window key; ours has to stay the main window so
-// the traffic lights and the rest of our UI don't read as inactive. AppKit's
-// key-value observing already swaps the window's class at runtime, so the
-// override goes on Chrome's own window class, once, rather than on this
-// object. Every Chrome window in this app is a hosted page or a hidden stray.
+static char kRefuseKeyTag;
+static std::unordered_map<void *, IMP> originalCanBecomeKey;
+
+static BOOL cefCanBecomeKey(id self, SEL cmd)
+{
+    if (objc_getAssociatedObject(self, &kRefuseKeyTag))
+        return NO;
+    for (Class cls = object_getClass(self); cls; cls = class_getSuperclass(cls))
+    {
+        const auto it = originalCanBecomeKey.find((__bridge void *)cls);
+        if (it != originalCanBecomeKey.end())
+            return ((BOOL (*)(id, SEL))it->second)(self, cmd);
+    }
+    return YES;
+}
+
 static void keepParentMain(NSWindow *child)
 {
     Class cls = object_getClass(child);
     while (cls && [NSStringFromClass(cls) hasPrefix:@"NSKVONotifying_"])
         cls = class_getSuperclass(cls);
-    // plain C++: this file isn't ARC, so an autoreleased set would not last
+
     static std::unordered_set<void *> patched;
     if (!cls || !patched.insert((__bridge void *)cls).second)
         return;
     class_replaceMethod(cls, @selector(canBecomeMainWindow), (IMP)cefCannotBecomeMain, "B@:");
+    originalCanBecomeKey[(__bridge void *)cls] = class_getMethodImplementation(cls, @selector(canBecomeKeyWindow));
+    class_replaceMethod(cls, @selector(canBecomeKeyWindow), (IMP)cefCanBecomeKey, "B@:");
+}
+
+// true while one of the page windows hung off |parentView|'s window has key
+bool cefChildWindowIsKey(void *parentView)
+{
+    NSWindow *parent = ((__bridge NSView *)parentView).window;
+    NSWindow *key = NSApp.keyWindow;
+    return parent && key && key.parentWindow == parent;
+}
+
+void cefSetChildWindowCanTakeKey(void *childHandle, bool allowed)
+{
+    NSWindow *child = cefWindowFromHandle(childHandle);
+    if (child)
+        objc_setAssociatedObject(child, &kRefuseKeyTag, allowed ? nil : @YES, OBJC_ASSOCIATION_RETAIN);
 }
 
 // |parentView| is our Qt window's NSView, |childHandle| the CEF window's handle

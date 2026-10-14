@@ -128,6 +128,11 @@ Window {
         Prefs.sidebarCollapsed = !Prefs.sidebarCollapsed;
     }
 
+    function raiseActiveWebView() {
+        if (viewStack.activeWebView)
+            viewStack.activeWebView.refreshNativeView(true);
+    }
+
     // the sidebar exists twice when it is collapsed: in the dock and in the
     // peek overlay; a shortcut should reach whichever one is on screen
     function forEachSidebar(action) {

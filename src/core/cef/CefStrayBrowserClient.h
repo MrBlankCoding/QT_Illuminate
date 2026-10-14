@@ -7,11 +7,6 @@
 #include <QSet>
 #include <QMutex>
 
-// Chrome opens a window of its own whenever it wants a new tab and the page
-// asking has no tab strip: extension welcome pages, chrome.tabs.create, links
-// from chrome:// pages. Every such browser gets this client. Its window is
-// hidden straight away and its page reopened as one of our tabs, so there is
-// only ever our window.
 class CefStrayBrowserClient : public CefClient,
                               public CefLifeSpanHandler,
                               public CefDisplayHandler

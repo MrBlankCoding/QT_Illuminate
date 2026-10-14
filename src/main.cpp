@@ -230,8 +230,7 @@ NO_STACK_PROTECTOR int main(int argc, char *argv[])
         if (std::exchange(shuttingDown, true))
             return;
         controller.saveSession();
-        // close CEF browsers first so their native views are released before the
-        // Qt windows that own them are destroyed (avoids dangling-view crashes)
+
         CefManager::instance().closeAllBrowsers();
         controller.destroyAdoptedWindows();
         engine.reset();

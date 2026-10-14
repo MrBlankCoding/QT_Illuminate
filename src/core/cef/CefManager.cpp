@@ -182,6 +182,10 @@ bool CefManager::initialize(int argc, char **argv)
     if (!QDir().mkpath(rootCache))
         BrowserLogger::instance().warning("CEF", "Could not create cache directory: " + rootCache);
     CefString(&settings.root_cache_path) = qStringToCef(rootCache);
+    
+    const QStringList profileDirs = QDir(rootCache).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &profileDir : profileDirs)
+        QDir(rootCache + QStringLiteral("/") + profileDir + QStringLiteral("/Sessions")).removeRecursively();
 
     const bool success = CefInitialize(mainArgs, settings, app, nullptr);
     self.m_initialized = success;

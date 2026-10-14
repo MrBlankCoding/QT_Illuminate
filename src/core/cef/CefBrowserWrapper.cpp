@@ -37,6 +37,8 @@ void cefDetachChildWindow(void *childHandle);                               // C
 void cefSetChildWindowCornerRadius(void *childHandle, qreal radius);        // CefBrowserWrapper_mac.mm
 void cefRaiseChildWindow(void *parentView, void *childHandle);              // CefBrowserWrapper_mac.mm
 void cefFocusParentWindow(void *parentView);                                // CefBrowserWrapper_mac.mm
+bool cefChildWindowIsKey(void *parentView);                                 // CefBrowserWrapper_mac.mm
+void cefSetChildWindowCanTakeKey(void *childHandle, bool allowed);          // CefBrowserWrapper_mac.mm
 #elif defined(_WIN32)
 #include <windows.h>
 static void cefSetNativeViewGeometry(cef_window_handle_t hwnd, const QRect &rect, bool visible)
@@ -63,6 +65,8 @@ static void cefDetachChildWindow(void *) {}
 static void cefSetChildWindowCornerRadius(void *, qreal) {}
 static void cefRaiseChildWindow(void *, void *) {}
 static void cefFocusParentWindow(void *) {}
+static bool cefChildWindowIsKey(void *) { return false; }
+static void cefSetChildWindowCanTakeKey(void *, bool) {}
 #endif
 
 namespace
@@ -244,9 +248,7 @@ void CefBrowserWrapper::refreshNativeView(bool raiseAboveSiblings)
     if (!window() || !isVisible())
         return;
 
-    // Native CEF children can retain stale frames or ordering after being
-    // covered by another tab. Reapply the current Qt geometry on activation.
-    m_nativeRect = QRect();
+    // Reposition if needed, then restore this tab above sibling CEF windows.
     updateNativeGeometry();
     if (raiseAboveSiblings && m_hostWindowReady && window()->isActive() && m_nativeVisible)
         cefRaiseChildWindow(nativeHandleOf(window()), m_hostWindow->nativeHandle());
@@ -604,11 +606,24 @@ void CefBrowserWrapper::updateHostWindow()
     const bool visible = isVisible() && window()->isVisible();
     if (screen == m_nativeRect && visible == m_nativeVisible)
         return;
+    const bool showing = visible && !m_nativeVisible;
     m_nativeRect = screen;
     m_nativeVisible = visible;
 
     m_hostWindow->setBounds(CefRect(screen.x(), screen.y(), screen.width(), screen.height()));
-    m_hostWindow->setVisible(visible);
+    if (showing)
+    {
+        // Keep key where it is: the page coming up only takes it over from
+        // the page going away, never from our window.
+        void *handle = m_hostWindow->nativeHandle();
+        cefSetChildWindowCanTakeKey(handle, cefChildWindowIsKey(nativeHandleOf(window())));
+        m_hostWindow->setVisible(true);
+        cefSetChildWindowCanTakeKey(handle, true);
+    }
+    else
+    {
+        m_hostWindow->setVisible(visible);
+    }
     if (m_nativeCornerRadius != m_cornerRadius)
     {
         m_nativeCornerRadius = m_cornerRadius;
@@ -765,8 +780,10 @@ void CefBrowserWrapper::itemChange(ItemChange change, const ItemChangeData &data
         {
             m_frameConnection = connect(data.window, &QQuickWindow::afterAnimating,
                                         this, &CefBrowserWrapper::updateNativeGeometry);
-            m_windowActiveConnection = connect(data.window, &QQuickWindow::activeChanged, this, [this, window = data.window]() {
-                if (!window->isActive())
+
+            m_windowActiveConnection = connect(qGuiApp, &QGuiApplication::applicationStateChanged, this,
+                                               [this, window = data.window](Qt::ApplicationState state) {
+                if (state != Qt::ApplicationActive || window != this->window() || !isVisible())
                     return;
 
                 m_nativeRect = QRect();

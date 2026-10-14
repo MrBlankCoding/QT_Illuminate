@@ -140,6 +140,9 @@ void SystemInfo::detectHardware()
                      << "InterestGroupBidding";
 
     disabledFeatures << "GlicActorUi";
+#if defined(Q_OS_MACOS)
+    disabledFeatures << "MacWebContentsOcclusion";
+#endif
     flags << "--process-per-site";
 
     if (m_gpuRasterization)
