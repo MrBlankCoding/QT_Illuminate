@@ -63,8 +63,8 @@ Item {
         tree.updateTarget();
     }
 
-    // Drop a tab in another tab's center to create a split. Folder centers
-    // continue to accept tabs; other row edges keep their reorder behavior.
+    // itemAt() returns QQuickItem, while row delegates provide these fields.
+    // qmllint disable missing-property
     function updateTarget() {
         const cy = tree.dragY + tabList.contentY;
         let item = tabList.itemAt(tabList.width / 2, cy);
@@ -75,38 +75,43 @@ Item {
             if (last && cy > last.y + last.height)
                 item = last;
         }
-        if (!item || !item.nodeId) {
+        if (!item || !item["nodeId"]) {
             tree.clearTarget();
             return;
         }
 
+        const nodeId = item["nodeId"];
+        const kind = item["kind"];
+        const expanded = item["expanded"];
+        const indent = item["indent"];
         const frac = Math.max(0, Math.min(1, (cy - item.y) / item.height));
         let pos;
-        if (item.kind === "folder")
+        if (kind === "folder")
             pos = frac < 0.25 ? SidebarModel.Before
-                : frac > 0.75 && !item.expanded ? SidebarModel.After
+                : frac > 0.75 && !expanded ? SidebarModel.After
                 : SidebarModel.Into;
-        else if (tree.dragKind === "tab" && item.kind === "tab" && frac >= 0.25 && frac <= 0.75)
+        else if (tree.dragKind === "tab" && kind === "tab" && frac >= 0.25 && frac <= 0.75)
             pos = SidebarModel.Into;
         else
             pos = frac < 0.5 ? SidebarModel.Before : SidebarModel.After;
 
-        if (!Browser.sidebar.canDrop(tree.dragId, item.nodeId, pos)) {
+        if (!Browser.sidebar.canDrop(tree.dragId, nodeId, pos)) {
             tree.clearTarget();
             return;
         }
-        if (item.nodeId !== tree.dropTargetId || pos !== tree.dropPosition) {
-            tree.dropTargetId = item.nodeId;
+        if (nodeId !== tree.dropTargetId || pos !== tree.dropPosition) {
+            tree.dropTargetId = nodeId;
             tree.dropPosition = pos;
-            if (pos === SidebarModel.Into && item.kind === "folder" && !item.expanded)
+            if (pos === SidebarModel.Into && kind === "folder" && !expanded)
                 expandTimer.restart();
             else
                 expandTimer.stop();
         }
         const gap = tabList.spacing / 2;
-        tree.indicatorX = item.indent;
+        tree.indicatorX = indent;
         tree.indicatorY = pos === SidebarModel.Before ? item.y - gap : item.y + item.height + gap;
     }
+    // qmllint enable missing-property
 
     Timer {
         id: expandTimer
@@ -221,8 +226,8 @@ Item {
                     anchors.centerIn: parent
                     spacing: 7
                     Rectangle {
-                        width: 27
-                        height: 18
+                        Layout.preferredWidth: 27
+                        Layout.preferredHeight: 18
                         radius: 4
                         color: "transparent"
                         border.color: Theme.accent
@@ -257,7 +262,7 @@ Item {
                             Browser.activateTab(row.model.tabIndex);
                     }
                     onCloseClicked: Browser.closeTab(row.model.tabIndex)
-                    onContextMenuRequested: sidebar.openTabMenu(row.model)
+                    onContextMenuRequested: tree.sidebar.openTabMenu(row.model)
                 }
             }
 
@@ -267,17 +272,23 @@ Item {
                     title: row.model.title ?? ""
                     icon: row.model.icon ?? ""
                     expanded: row.expanded
-                    editing: sidebar.renamingId !== "" && sidebar.renamingId === row.nodeId
+                    editing: tree.sidebar.renamingId !== "" && tree.sidebar.renamingId === row.nodeId
                     dragging: tree.dragId === row.nodeId
                     dropTarget: tree.dropTargetId === row.nodeId && tree.dropPosition === SidebarModel.Into
                     onToggled: Browser.sidebar.toggleFolder(row.nodeId)
-                    onRenameRequested: sidebar.renamingId = row.nodeId
+                    onRenameRequested: tree.sidebar.startRename(row.nodeId)
                     onRenamed: title => {
                         Browser.sidebar.renameFolder(row.nodeId, title);
-                        sidebar.renamingId = "";
+                        tree.sidebar.renamingId = "";
+                        if (tree.sidebar.targetWindow && tree.sidebar.targetWindow.releaseUiFocus)
+                            tree.sidebar.targetWindow.releaseUiFocus("sidebarRename");
                     }
-                    onEditingCanceled: sidebar.renamingId = ""
-                    onMenuRequested: sidebar.openFolderMenu(row.model)
+                    onEditingCanceled: {
+                        tree.sidebar.renamingId = "";
+                        if (tree.sidebar.targetWindow && tree.sidebar.targetWindow.releaseUiFocus)
+                            tree.sidebar.targetWindow.releaseUiFocus("sidebarRename");
+                    }
+                    onMenuRequested: tree.sidebar.openFolderMenu(row.model)
                 }
             }
 
@@ -326,7 +337,7 @@ Item {
                                     onTapped: {
                                         for (let i = 0; i < Browser.tabModel.count; ++i) {
                                             const tab = Browser.tabModel.tabAt(i);
-                                            if (tab && tab.id === modelData.id && !tree.isBlankPlaceholder(tab.url)) {
+                                            if (tab && tab.id === splitMember.modelData.id && !tree.isBlankPlaceholder(tab.url)) {
                                                 Browser.activateTab(i);
                                                 break;
                                             }
@@ -338,17 +349,17 @@ Item {
                                     target: null
                                     onActiveChanged: {
                                         if (active) {
-                                            tree.dragSplitMemberId = modelData.id;
-                                            tree.dragSplitMemberTitle = modelData.title;
-                                            tree.dragSplitMemberIcon = modelData.iconUrl;
+                                            tree.dragSplitMemberId = splitMember.modelData.id;
+                                            tree.dragSplitMemberTitle = splitMember.modelData.title;
+                                            tree.dragSplitMemberIcon = splitMember.modelData.iconUrl;
                                             const p = tree.mapFromItem(null, centroid.scenePosition.x, centroid.scenePosition.y);
                                             tree.dragSplitPosition = Qt.point(p.x + 14, p.y + 14);
-                                        } else if (tree.dragSplitMemberId === modelData.id) {
+                                        } else if (tree.dragSplitMemberId === splitMember.modelData.id) {
                                             const p = row.mapFromItem(null, centroid.scenePosition.x, centroid.scenePosition.y);
                                             const droppedOutside = p.x < 0 || p.y < 0 || p.x > row.width || p.y > row.height;
                                             tree.dragSplitMemberId = "";
                                             if (droppedOutside)
-                                                Browser.sidebar.separateSplitTab(modelData.id);
+                                                Browser.sidebar.separateSplitTab(splitMember.modelData.id);
                                         }
                                     }
                                     onCentroidChanged: if (active) {
@@ -363,7 +374,7 @@ Item {
                                     anchors.rightMargin: Theme.space1
                                     spacing: Theme.space1
                                     Rectangle {
-                                        visible: index > 0
+                                        visible: row.index > 0
                                         Layout.preferredWidth: 1
                                         Layout.preferredHeight: 14
                                         color: Theme.itemActiveBorder
@@ -392,7 +403,7 @@ Item {
                                     Text {
                                         Layout.fillWidth: true
                                         Layout.minimumWidth: 0
-                                        text: modelData.title
+                                        text: splitMember.modelData.title
                                         color: Theme.text
                                         font.family: Theme.fontFamily
                                         font.pixelSize: Theme.fontSizeS
@@ -432,7 +443,7 @@ Item {
             DragHandler {
                 id: dragHandler
                 target: null
-                enabled: (row.kind === "tab" || row.kind === "folder") && sidebar.renamingId !== row.nodeId
+                enabled: (row.kind === "tab" || row.kind === "folder") && tree.sidebar.renamingId !== row.nodeId
                 onActiveChanged: active ? tree.beginDrag(row) : tree.endDrag()
                 onCentroidChanged: if (active) tree.dragMove(centroid.scenePosition)
             }
@@ -451,10 +462,22 @@ Item {
         }
 
         TapHandler {
+            onTapped: eventPoint => {
+                if (!tree.sidebar.renamingId)
+                    return;
+                const p = eventPoint.position;
+                const row = tabList.itemAt(p.x + tabList.contentX, p.y + tabList.contentY);
+                if (row && row.nodeId === tree.sidebar.renamingId)
+                    return;
+                tree.forceActiveFocus();
+            }
+        }
+
+        TapHandler {
             onDoubleTapped: eventPoint => {
                 const p = eventPoint.position;
                 if (!tabList.itemAt(p.x + tabList.contentX, p.y + tabList.contentY))
-                    sidebar.commandBarRequested("new");
+                    tree.sidebar.commandBarRequested("new");
             }
         }
 
@@ -489,16 +512,20 @@ Item {
                 Layout.preferredWidth: 18
                 Layout.preferredHeight: 18
                 Image {
+                    id: splitPreviewIcon
                     anchors.fill: parent
                     visible: tree.dragSplitMemberIcon !== ""
                     source: visible ? tree.dragSplitMemberIcon : ""
                     sourceSize.width: 36
                     sourceSize.height: 36
                     asynchronous: true
+                    property bool failed: false
+                    onSourceChanged: failed = false
+                    onStatusChanged: if (status === Image.Error) failed = true
                 }
                 LucideIcon {
                     anchors.centerIn: parent
-                    visible: tree.dragSplitMemberIcon === ""
+                    visible: tree.dragSplitMemberIcon === "" || splitPreviewIcon.failed
                     source: "qrc:/QT_Illuminate/ui/icons/globe.svg"
                     size: 15
                     color: Theme.textMuted
@@ -550,6 +577,7 @@ Item {
                 Layout.preferredHeight: Theme.faviconSize
 
                 Image {
+                    id: dragPreviewIcon
                     anchors.fill: parent
                     visible: tree.dragKind === "tab" && tree.dragIconUrl !== ""
                     source: visible ? tree.dragIconUrl : ""
@@ -557,12 +585,18 @@ Item {
                     sourceSize.height: Theme.faviconSize * 2
                     fillMode: Image.PreserveAspectFit
                     asynchronous: true
+                    property bool failed: false
+                    onSourceChanged: failed = false
+                    onStatusChanged: if (status === Image.Error) failed = true
                 }
                 LucideIcon {
                     anchors.centerIn: parent
                     visible: tree.dragKind === "folder"
+                             || (tree.dragKind === "tab" && (tree.dragIconUrl === "" || dragPreviewIcon.failed))
                     size: 16
-                    source: "qrc:/QT_Illuminate/ui/icons/folder.svg"
+                    source: tree.dragKind === "folder"
+                            ? "qrc:/QT_Illuminate/ui/icons/folder.svg"
+                            : "qrc:/QT_Illuminate/ui/icons/globe.svg"
                     color: Theme.text
                 }
             }

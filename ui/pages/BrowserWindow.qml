@@ -24,17 +24,72 @@ Window {
     property bool contentFullScreenShown: false
     property int visibilityBeforeContentFullScreen: Window.Windowed
     property int visibilityBeforeWindowFullScreen: Window.Windowed
+    property rect geometryBeforeFullScreen: Qt.rect(0, 0, 1280, 840)
+    property bool restoreGeometryAfterFullScreen: false
     property bool findBarOpen: false
-    readonly property bool inputOverlayOpen: commandBar.visible || root.findBarOpen
+    property var uiFocusClaims: []
+    readonly property bool inputOverlayOpen: commandBar.visible || root.findBarOpen || root.uiFocusClaims.length > 0
+
+    function claimUiFocus(owner) {
+        if (!owner || root.uiFocusClaims.includes(owner))
+            return;
+        root.uiFocusClaims = root.uiFocusClaims.concat([owner]);
+    }
+
+    function releaseUiFocus(owner) {
+        if (!owner)
+            return;
+        root.uiFocusClaims = root.uiFocusClaims.filter(claim => claim !== owner);
+    }
+
+    function returnFocusToWeb() {
+        root.uiFocusClaims = [];
+        if (findBar.visible)
+            findBar.dismiss();
+        if (commandBar.visible)
+            commandBar.close();
+        if (viewStack.activeWebView)
+            viewStack.activeWebView.forceActiveFocus();
+    }
+    function rememberWindowGeometry() {
+        if (root.visibility === Window.FullScreen || root.restoreGeometryAfterFullScreen)
+            return;
+        root.geometryBeforeFullScreen = Qt.rect(root.x, root.y, root.width, root.height);
+        root.visibilityBeforeWindowFullScreen = root.visibility;
+    }
+
+    onXChanged: root.rememberWindowGeometry()
+    onYChanged: root.rememberWindowGeometry()
+    onWidthChanged: root.rememberWindowGeometry()
+    onHeightChanged: root.rememberWindowGeometry()
+
+    function restoreWindowAfterFullScreen() {
+        // AppKit preserves/restores the exact NSWindow frame around its native
+        // fullscreen transition. The QML fallback is for frameless platforms.
+        root.restoreGeometryAfterFullScreen = !Theme.isMac
+            && root.visibilityBeforeWindowFullScreen !== Window.Maximized;
+        if (root.visibilityBeforeWindowFullScreen === Window.Maximized) {
+            root.showMaximized();
+        } else {
+            root.showNormal();
+        }
+    }
+
     function toggleFullScreen() {
         if (root.visibility === Window.FullScreen) {
-            if (root.visibilityBeforeWindowFullScreen === Window.Maximized)
-                root.showMaximized();
-            else
-                root.showNormal();
+            root.restoreWindowAfterFullScreen();
             return;
         }
+        root.rememberWindowGeometry();
         root.showFullScreen();
+    }
+
+    function syncMacWindowButtons() {
+        if (Theme.isMac) {
+            const fullscreen = root.visibility === Window.FullScreen;
+            const buttonsVisible = fullscreen || !root.sidebarCollapsed || root.sidebarPeeked;
+            WindowHelper.setWindowButtonsVisible(root, buttonsVisible);
+        }
     }
 
     onContentFullScreenChanged: {
@@ -43,22 +98,25 @@ Window {
         if (contentFullScreen) {
             if (root.visibility !== Window.FullScreen) {
                 root.visibilityBeforeContentFullScreen = root.visibility;
+                root.rememberWindowGeometry();
                 root.fullScreenForContent = true;
                 root.showFullScreen();
             }
         } else if (root.fullScreenForContent) {
             root.fullScreenForContent = false;
             root.contentFullScreenShown = false;
-            if (root.visibilityBeforeContentFullScreen === Window.Maximized)
-                root.showMaximized();
-            else
-                root.showNormal();
+            root.restoreWindowAfterFullScreen();
         }
     }
 
     onVisibilityChanged: {
-        if (root.visibility !== Window.FullScreen)
+        root.syncMacWindowButtons();
+        if (root.visibility !== Window.FullScreen) {
             root.visibilityBeforeWindowFullScreen = root.visibility;
+            if (root.restoreGeometryAfterFullScreen) {
+                fullScreenGeometryRestoreTimer.restart();
+            }
+        }
 
         if (!root.contentFullScreen)
             return;
@@ -66,6 +124,24 @@ Window {
             root.contentFullScreenShown = true;
         else if (root.contentFullScreenShown && viewStack.activeWebView)
             viewStack.activeWebView.exitFullScreen();
+    }
+
+    // Native fullscreen transitions can report Windowed before AppKit has
+    // finished animating back to the saved frame. Restore after that transition.
+    Timer {
+        id: fullScreenGeometryRestoreTimer
+        interval: 700
+        repeat: false
+        onTriggered: {
+            if (!root.restoreGeometryAfterFullScreen || root.visibility === Window.FullScreen)
+                return;
+            const previous = root.geometryBeforeFullScreen;
+            root.x = previous.x;
+            root.y = previous.y;
+            root.width = previous.width;
+            root.height = previous.height;
+            root.restoreGeometryAfterFullScreen = false;
+        }
     }
 
 
@@ -107,25 +183,33 @@ Window {
     readonly property bool sidebarCollapsed: Prefs.sidebarCollapsed
     property bool sidebarPeeked: false
     property bool sidebarPeekSuppressed: false
+    property bool sidebarDockCollapsed: Prefs.sidebarCollapsed
     onSidebarPeekedChanged: {
-        if (Theme.isMac)
-            WindowHelper.setWindowButtonsVisible(root, !root.sidebarCollapsed || root.sidebarPeeked);
+        root.syncMacWindowButtons();
     }
     onSidebarCollapsedChanged: {
-        if (Theme.isMac)
-            WindowHelper.setWindowButtonsVisible(root, !root.sidebarCollapsed || root.sidebarPeeked);
+        root.syncMacWindowButtons();
         if (!root.sidebarCollapsed) {
+            dockSlideOut.stop();
+            sidebarOverlay.close();
             root.sidebarPeeked = false;
             root.sidebarPeekSuppressed = false;
-            sidebarOverlay.close();
+            root.sidebarDockCollapsed = false;
+            dockLoader.x = -dockLoader.width;
+            dockLoader.opacity = 0;
+            Qt.callLater(dockSlideIn.start);
         } else {
-            root.sidebarPeeked = false;
-            root.sidebarPeekSuppressed = true;
+            if (!root.sidebarDockCollapsed) {
+                dockSlideOut.start();
+            } else {
+                root.sidebarPeeked = false;
+                root.sidebarPeekSuppressed = true;
+            }
         }
     }
 
     function toggleSidebar() {
-        Prefs.sidebarCollapsed = !Prefs.sidebarCollapsed;
+        Prefs.sidebarCollapsed = !root.sidebarCollapsed;
     }
 
     function raiseActiveWebView() {
@@ -323,7 +407,7 @@ Window {
     Component.onCompleted: {
         Logger.info("BrowserWindow", "Window ready, platform=" + Qt.platform.os);
         WindowHelper.applyTitleBarStyle(root, Theme.titleBarHeight);
-        WindowHelper.setWindowButtonsVisible(root, !root.sidebarCollapsed || root.sidebarPeeked);
+        root.syncMacWindowButtons();
         WindowHelper.setWindowTransparent(root, Theme.transparentChrome, Theme.isDark);
         AppMenu.attach(root);
     }
@@ -346,30 +430,65 @@ Window {
         Item {
             id: dock
             Layout.fillHeight: true
-            readonly property real fullWidth: dockLoader.item ? dockLoader.item.implicitWidth : 0
-            Layout.preferredWidth: (root.sidebarCollapsed && !root.sidebarPeeked) || root.contentFullScreen
+            readonly property real fullWidth: dockLoader.item ? dockLoader.item["implicitWidth"] : 0 // qmllint disable missing-property
+            property real targetWidth: root.sidebarDockCollapsed || root.contentFullScreen
                 ? 0 : fullWidth
+            Layout.preferredWidth: targetWidth
             clip: true
-            visible: Layout.preferredWidth > 0 || width > 0
+            visible: targetWidth > 0 || width > 0
 
-            HoverHandler {
-                id: dockHover
-                enabled: Theme.isMac && root.sidebarCollapsed
-                onHoveredChanged: {
-                    if (hovered)
-                        peekHideDelay.stop();
-                    else if (root.sidebarPeeked)
-                        peekHideDelay.restart();
+            ParallelAnimation {
+                id: dockSlideIn
+                NumberAnimation {
+                    target: dockLoader
+                    property: "x"
+                    to: 0
+                    duration: 220
+                    easing.type: Easing.OutCubic
+                }
+                NumberAnimation {
+                    target: dockLoader
+                    property: "opacity"
+                    to: 1
+                    duration: 180
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            ParallelAnimation {
+                id: dockSlideOut
+                NumberAnimation {
+                    target: dockLoader
+                    property: "x"
+                    to: -dockLoader.width
+                    duration: 190
+                    easing.type: Easing.InCubic
+                }
+                NumberAnimation {
+                    target: dockLoader
+                    property: "opacity"
+                    to: 0
+                    duration: 150
+                    easing.type: Easing.InCubic
+                }
+                onFinished: {
+                    root.sidebarDockCollapsed = true;
+                    root.sidebarPeeked = false;
+                    root.sidebarPeekSuppressed = true;
                 }
             }
 
             Loader {
                 id: dockLoader
-                x: dock.width - width
                 width: dock.fullWidth
                 height: parent.height
-                opacity: dock.fullWidth > 0 ? Math.min(1, 1.5 * dock.width / dock.fullWidth) : 1
                 sourceComponent: sidebarComponent
+                Component.onCompleted: {
+                    x = root.sidebarDockCollapsed ? -width : 0;
+                    opacity = root.sidebarDockCollapsed ? 0 : 1;
+                }
+                onWidthChanged: if (root.sidebarDockCollapsed && !dockSlideOut.running)
+                    x = -width;
             }
         }
 
@@ -411,6 +530,7 @@ Window {
                     FindBar {
                         id: findBar
                         webView: viewStack.activeWebView
+                        focusRouter: root
                         onVisibleChanged: root.findBarOpen = visible
                     }
 
@@ -443,6 +563,20 @@ Window {
                         }
                     }
 
+                    Connections {
+                        // On macOS the CEF page is a child NSWindow. Restore it
+                        // after Qt moves keyboard focus into sidebar controls.
+                        // Sync its frame without reordering native windows on
+                        // every focus change (which flashes the macOS menu bar).
+                        target: root
+                        function onActiveFocusItemChanged() {
+                            Qt.callLater(() => {
+                                if (viewStack.activeWebView)
+                                    viewStack.activeWebView.refreshNativeView(false);
+                            });
+                        }
+                    }
+
                     Repeater {
                         id: viewRepeater
                         model: root.retiring ? null : Browser.tabModel
@@ -456,12 +590,27 @@ Window {
                         onItemRemoved: viewStack.refreshActiveWebView()
                     }
 
+                    Connections {
+                        target: Browser.tabModel
+                        function onRowsMoved() {
+                            // Reordering can change delegate stacking without
+                            // changing the active index. Restore the selected
+                            // native CEF view after the delegates settle.
+                            Qt.callLater(() => {
+                                viewStack.refreshActiveWebView();
+                                if (viewStack.activeWebView)
+                                    viewStack.activeWebView.refreshNativeView(true);
+                            });
+                        }
+                    }
+
                     readonly property var activeSplitIds: {
                         const tab = Browser.tabModel.tabAt(Browser.tabModel.activeIndex);
                         const revision = Browser.sidebar.structureRevision;
                         return tab && revision >= 0 ? Browser.sidebar.splitTabs(tab.id) : [];
                     }
-                    onActiveSplitIdsChanged: if (activeSplitIds.length === 2)
+                    readonly property string activeSplitKey: activeSplitIds.join("|")
+                    onActiveSplitKeyChanged: if (activeSplitIds.length === 2)
                         Browser.sidebar.prepareSplit(activeSplitIds[0]);
                 }
             }
@@ -494,7 +643,9 @@ Window {
         id: revealEdge
         x: 0
         y: 0
-        width: Theme.cardMargin + 2
+        // Give the pointer a forgiving target; the old 10px strip was easy to
+        // skim past, especially while moving along the window edge.
+        width: Theme.cardMargin + 8
         height: parent.height
         visible: root.sidebarCollapsed && !root.contentFullScreen && (!Theme.isMac || !root.sidebarPeeked)
 
@@ -512,21 +663,15 @@ Window {
         }
         Timer {
             id: revealDelay
-            // long enough to ignore the pointer skimming past the edge
-            interval: 60
+            // Filter accidental edge passes while still feeling immediate.
+            interval: 95
             onTriggered: {
-                if (Theme.isMac && !root.sidebarPeekSuppressed)
+                if (Theme.isMac && !root.sidebarPeekSuppressed) {
                     root.sidebarPeeked = true;
-                else if (!Theme.isMac)
                     sidebarOverlay.open();
-            }
-        }
-        Timer {
-            id: peekHideDelay
-            interval: 350
-            onTriggered: {
-                if (!dockHover.hovered && root.sidebarCollapsed)
-                    root.sidebarPeeked = false;
+                } else if (!Theme.isMac) {
+                    sidebarOverlay.open();
+                }
             }
         }
     }
@@ -555,12 +700,12 @@ Window {
         height: root.height - 2 * Theme.space1 + 2 * shadowPad
 
         enter: Transition {
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 220; easing.type: Easing.OutCubic }
-            NumberAnimation { property: "x"; from: -sidebarOverlay.width * 0.25; to: -sidebarOverlay.shadowPad; duration: 320; easing.type: Easing.OutQuint }
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 170; easing.type: Easing.OutCubic }
+            NumberAnimation { property: "x"; from: -sidebarOverlay.width * 0.16; to: -sidebarOverlay.shadowPad; duration: 240; easing.type: Easing.OutCubic }
         }
         exit: Transition {
-            NumberAnimation { property: "opacity"; to: 0; duration: 180; easing.type: Easing.InCubic }
-            NumberAnimation { property: "x"; to: -sidebarOverlay.width * 0.25; duration: 220; easing.type: Easing.InCubic }
+            NumberAnimation { property: "opacity"; to: 0; duration: 130; easing.type: Easing.InCubic }
+            NumberAnimation { property: "x"; to: -sidebarOverlay.width * 0.16; duration: 170; easing.type: Easing.InCubic }
         }
 
         background: Item {
@@ -599,16 +744,17 @@ Window {
 
         Timer {
             id: hideDelay
-            interval: 350
+            interval: 500
             onTriggered: {
                 // a native menu opened from the overlay takes the pointer with it
-                if (overlayHover.hovered || (overlayLoader.item && overlayLoader.item.menuOpen))
+                if (overlayHover.hovered || (overlayLoader.item && overlayLoader.item["menuOpen"])) // qmllint disable missing-property
                     hideDelay.restart();
                 else
                     sidebarOverlay.close();
             }
         }
         onOpened: hideDelay.restart()
+        onClosed: root.sidebarPeeked = false
     }
 
     CommandBar {
@@ -627,6 +773,7 @@ Window {
 
     ThemePicker {
         id: themePicker
+        focusRouter: root
         popupType: Popup.Window
         x: dock.fullWidth + Theme.cardMargin - 6
         y: Math.max(8, Math.round((root.height - implicitHeight) / 2))

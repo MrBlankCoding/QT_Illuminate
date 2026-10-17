@@ -4,6 +4,8 @@
 
 #include <QDir>
 #include <QSettings>
+
+#include <algorithm>
 #include <QUrl>
 
 #include "../utils/UrlResolver.h"
@@ -86,9 +88,9 @@ BrowserSettings::BrowserSettings(QObject *parent)
 {
     m_confirmCloseMultipleTabs =
         m_appSettings->value(QLatin1String(kConfirmCloseKey), true).toBool();
-    m_sidebarWidth = qBound(kSidebarMinWidth,
-                            m_appSettings->value(QLatin1String(kSidebarWidthKey), kSidebarDefaultWidth).toInt(),
-                            kSidebarMaxWidth);
+    m_sidebarWidth = std::clamp(
+        m_appSettings->value(QLatin1String(kSidebarWidthKey), kSidebarDefaultWidth).toInt(),
+        kSidebarMinWidth, kSidebarMaxWidth);
     m_sidebarCollapsed = m_appSettings->value(QLatin1String(kSidebarCollapsedKey), false).toBool();
     m_browserLanguage = readValue(m_appSettings, kBrowserLanguageKey, QString()).toString();
     m_webProfile = CefManager::defaultProfile();
@@ -115,9 +117,8 @@ void BrowserSettings::reloadSettings()
     m_thirdPartyCookies = readValue(m_settings, kThirdPartyCookiesKey, true).toBool();
 
     m_autoUnload = readValue(m_settings, kAutoUnloadKey, true).toBool();
-    m_autoUnloadMinutes = qBound(kMinAutoUnloadMinutes,
-                                 readValue(m_settings, kAutoUnloadMinutesKey, 5).toInt(),
-                                 kMaxAutoUnloadMinutes);
+    m_autoUnloadMinutes = std::clamp(readValue(m_settings, kAutoUnloadMinutesKey, 5).toInt(),
+                                     kMinAutoUnloadMinutes, kMaxAutoUnloadMinutes);
 
     emit startupBehaviorChanged();
     emit homepageUrlChanged();
@@ -279,7 +280,7 @@ int BrowserSettings::autoUnloadMinutes() const
 
 void BrowserSettings::setAutoUnloadMinutes(int minutes)
 {
-    const int clamped = qBound(kMinAutoUnloadMinutes, minutes, kMaxAutoUnloadMinutes);
+    const int clamped = std::clamp(minutes, kMinAutoUnloadMinutes, kMaxAutoUnloadMinutes);
     if (m_autoUnloadMinutes == clamped)
         return;
     m_autoUnloadMinutes = clamped;
@@ -310,7 +311,7 @@ int BrowserSettings::sidebarWidth() const
 
 void BrowserSettings::setSidebarWidth(int width)
 {
-    width = qBound(kSidebarMinWidth, width, kSidebarMaxWidth);
+    width = std::clamp(width, kSidebarMinWidth, kSidebarMaxWidth);
     if (m_sidebarWidth == width)
         return;
     m_sidebarWidth = width;

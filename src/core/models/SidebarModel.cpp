@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonParseError>
 #include <QQueue>
 #include <QSaveFile>
 #include <QSet>
@@ -319,8 +320,14 @@ void SidebarModel::load(const QString &filePath, bool restoreTabs)
         rebuild();
         return;
     }
-    const QJsonArray entries = QJsonDocument::fromJson(file.readAll()).object()
-                                   .value(QStringLiteral("nodes")).toArray();
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject())
+    {
+        rebuild();
+        return;
+    }
+    const QJsonArray entries = document.object().value(QStringLiteral("nodes")).toArray();
     file.close();
 
     struct Pending
@@ -424,9 +431,9 @@ void SidebarModel::load(const QString &filePath, bool restoreTabs)
         }
     }
 
-    for (auto &[parentId, orphans] : byParent)
+    for (const auto &entry : byParent)
     {
-        for (Pending &orphan : orphans)
+        for (const Pending &orphan : entry.second)
             forget(orphan.node.get());
     }
 
@@ -1154,7 +1161,7 @@ BrowserTab *SidebarModel::firstLooseTab(const BrowserTab *excluding) const
 
 // flattening
 
-void SidebarModel::collectRows(QVector<Row> &out, const Node *node, int depth, const BrowserTab *active) const
+void SidebarModel::collectRows(QVector<Row> &out, const Node *node, int depth) const
 {
     for (const auto &child : node->children)
     {
@@ -1170,20 +1177,15 @@ void SidebarModel::collectRows(QVector<Row> &out, const Node *node, int depth, c
         out.append(Row{child->id, Kind::Folder, depth, nullptr, false});
         if (child->expanded)
         {
-            collectRows(out, child.get(), depth + 1, active);
-            continue;
+            collectRows(out, child.get(), depth + 1);
         }
-        // keep the active tab in sight under its collapsed folder
-        const Node *activeNode = active ? m_nodes.value(active->id()) : nullptr;
-        if (activeNode && !activeNode->folder && isAncestor(child.get(), activeNode))
-            out.append(Row{active->id(), Kind::Tab, depth + 1, const_cast<BrowserTab *>(active), true});
     }
 }
 
 void SidebarModel::rebuild()
 {
     QVector<Row> next;
-    collectRows(next, &m_root, 0, activeTab());
+    collectRows(next, &m_root, 0);
     next.append(Row{kHeaderId, Kind::Header, 0, nullptr, false});
     QSet<QString> emittedSplits;
     for (int i = 0; i < m_tabs->rowCount(); ++i)
@@ -1218,6 +1220,11 @@ void SidebarModel::rebuild()
         m_rows.removeAt(i);
         endRemoveRows();
     }
+    QHash<QString, int> oldRowPositions;
+    oldRowPositions.reserve(m_rows.size());
+    for (int row = 0; row < m_rows.size(); ++row)
+        oldRowPositions.insert(m_rows.at(row).key, row);
+
     for (int i = 0; i < next.size(); ++i)
     {
         if (i < m_rows.size() && m_rows.at(i).key == next.at(i).key)
@@ -1225,26 +1232,26 @@ void SidebarModel::rebuild()
             m_rows[i] = next.at(i);
             continue;
         }
-        int from = -1;
-        for (int j = i + 1; j < m_rows.size(); ++j)
-        {
-            if (m_rows.at(j).key == next.at(i).key)
-            {
-                from = j;
-                break;
-            }
-        }
+        int from = oldRowPositions.value(next.at(i).key, -1);
+        if (from < i || from >= m_rows.size() || m_rows.at(from).key != next.at(i).key)
+            from = -1;
         if (from >= 0)
         {
+            const QString movedKey = m_rows.at(from).key;
             beginMoveRows({}, from, from, {}, i);
             m_rows.move(from, i);
             m_rows[i] = next.at(i);
+            oldRowPositions[movedKey] = i;
+            for (int row = i + 1; row <= from; ++row)
+                oldRowPositions[m_rows.at(row).key] = row;
             endMoveRows();
         }
         else
         {
             beginInsertRows({}, i, i);
             m_rows.insert(i, next.at(i));
+            for (int row = i; row < m_rows.size(); ++row)
+                oldRowPositions[m_rows.at(row).key] = row;
             endInsertRows();
         }
     }

@@ -18,6 +18,7 @@ public:
                 CefRefPtr<CefRequestContext> requestContext);
     void setBounds(const CefRect &bounds);
     void setVisible(bool visible);
+    void restore();
     void close();
     void *nativeHandle() const;
 

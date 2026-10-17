@@ -1,8 +1,9 @@
 #include "TabModel.h"
 #include "BrowserTab.h"
 
-#include <algorithm>
 #include <QtAlgorithms>
+
+#include <algorithm>
 
 TabModel::TabModel(QObject *parent)
     : QAbstractListModel(parent)

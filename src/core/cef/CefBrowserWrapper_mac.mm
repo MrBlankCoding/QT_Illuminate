@@ -1,3 +1,4 @@
+#include <QColor>
 #include <QRect>
 
 #include <unordered_map>
@@ -158,6 +159,22 @@ void cefAttachChildWindow(void *parentView, void *childHandle)
         | NSWindowCollectionBehaviorIgnoresCycle
         | NSWindowCollectionBehaviorFullScreenAuxiliary;
     [parent addChildWindow:child ordered:NSWindowAbove];
+}
+
+void cefSetChildWindowBackgroundColor(void *childHandle, const QColor &color)
+{
+    NSWindow *child = cefWindowFromHandle(childHandle);
+    NSView *contentView = child.contentView;
+    if (!contentView || !color.isValid())
+        return;
+
+    NSColor *background = [NSColor colorWithSRGBRed:color.redF()
+                                              green:color.greenF()
+                                               blue:color.blueF()
+                                              alpha:1.0];
+    child.backgroundColor = NSColor.clearColor;
+    contentView.wantsLayer = YES;
+    contentView.layer.backgroundColor = background.CGColor;
 }
 
 void cefRaiseChildWindow(void *parentView, void *childHandle)

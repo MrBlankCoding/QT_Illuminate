@@ -8,8 +8,11 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSslError>
 #include <QUrl>
 #include <QUrlQuery>
+
+#include <chrono>
 
 SearchSuggestionRequest::SearchSuggestionRequest(QObject *parent)
     : QObject(parent),
@@ -32,9 +35,16 @@ void SearchSuggestionRequest::fetch(const QString &query)
 
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("QT_Illuminate"));
+    request.setTransferTimeout(std::chrono::seconds(10));
     QNetworkReply *reply = m_manager->get(request);
     m_reply = reply;
     const QString requestedQuery = m_query;
+    connect(reply, &QNetworkReply::sslErrors, this, [reply](const QList<QSslError> &errors) {
+        BrowserLogger::instance().warning(
+            QStringLiteral("SearchSuggestions"),
+            QStringLiteral("Suggestion request encountered %1 SSL error(s)").arg(errors.size()));
+        reply->abort();
+    });
     connect(reply, &QNetworkReply::finished, this, [this, reply, requestedQuery]() {
         if (m_reply != reply) {
             reply->deleteLater();

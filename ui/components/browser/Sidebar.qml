@@ -41,8 +41,7 @@ Item {
     readonly property bool customWindowControls: !Theme.isMac && !isFullScreen
     readonly property bool menuOpen: footer.popupsOpen || sideMenus.popupsOpen || renamingId !== ""
 
-    property real dragWidth: -1
-    implicitWidth: dragWidth >= 0 ? dragWidth : Prefs.sidebarWidth
+    implicitWidth: Prefs.sidebarWidth
 
     function toggleBookmark() {
         if (root.currentUrl === "")
@@ -58,11 +57,21 @@ Item {
     function startRename(id) {
         if (!id)
             return;
+        if (root.targetWindow && root.targetWindow.claimUiFocus)
+            root.targetWindow.claimUiFocus("sidebarRename");
         root.renamingId = id;
         Qt.callLater(() => {
             const i = Browser.sidebar.rowOf(id);
-            if (i >= 0)
+            if (i >= 0) {
                 treeView.tabList.positionViewAtIndex(i, ListView.Contain);
+                // The delegate may be created only after scrolling lays out the
+                // newly inserted row, so focus it after that layout turn.
+                Qt.callLater(() => {
+                    const row = treeView.tabList.itemAtIndex(i);
+                    if (row && row.focusTitle)
+                        row.focusTitle();
+                });
+            }
         });
     }
 
@@ -160,6 +169,15 @@ Item {
         x: parent ? Math.round((parent.width - width) / 2) : 0
         y: parent ? Math.round((parent.height - height) / 2) : 0
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        onOpened: {
+            if (root.targetWindow && root.targetWindow.claimUiFocus)
+                root.targetWindow.claimUiFocus("spaceEditor");
+            Qt.callLater(function() { spaceEditor.focusName() });
+        }
+        onClosed: {
+            if (root.targetWindow && root.targetWindow.releaseUiFocus)
+                root.targetWindow.releaseUiFocus("spaceEditor");
+        }
         Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.35) }
         background: Rectangle {
             radius: 18
@@ -167,8 +185,6 @@ Item {
             border.color: Theme.border
             border.width: 1
         }
-
-        onOpened: Qt.callLater(function() { spaceEditor.focusName() })
 
         enter: Transition {
             NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 160 }
@@ -424,29 +440,4 @@ Item {
         }
     }
 
-    MouseArea {
-        id: resizeHandle
-        enabled: !root.overlay
-        x: root.width - width / 2
-        width: Theme.resizeHandleW
-        height: root.height
-        z: 10
-        hoverEnabled: true
-        preventStealing: true
-        cursorShape: Qt.SizeHorCursor
-
-        onPositionChanged: mouse => {
-            if (!pressed)
-                return;
-            const x = mapToItem(root, mouse.x, 0).x;
-            // leave the page a usable width
-            const max = Math.min(Prefs.sidebarMaxWidth, root.targetWindow.width - 360);
-            root.dragWidth = Math.max(Prefs.sidebarMinWidth, Math.min(max, x));
-        }
-        onReleased: {
-            if (root.dragWidth >= 0)
-                Prefs.sidebarWidth = Math.round(root.dragWidth);
-            root.dragWidth = -1;
-        }
-    }
 }

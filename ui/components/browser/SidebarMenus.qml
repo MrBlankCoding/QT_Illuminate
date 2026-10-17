@@ -22,29 +22,29 @@ Item {
 
         MenuItem {
             text: qsTr("New Tab")
-            onTriggered: sidebar.commandBarRequested("new")
+            onTriggered: root.sidebar.commandBarRequested("new")
         }
         MenuItem {
             text: qsTr("New Folder")
-            onTriggered: sidebar.newFolder()
+            onTriggered: root.sidebar.newFolder()
         }
 
         MenuSeparator {}
 
         MenuItem {
             text: qsTr("New Space…")
-            onTriggered: sidebar.openSpaceEditor(null)
+            onTriggered: root.sidebar.openSpaceEditor(null)
         }
         MenuItem {
             text: qsTr("Rename Space…")
-            onTriggered: sidebar.openSpaceEditor(Spaces.activeSpace)
+            onTriggered: root.sidebar.openSpaceEditor(Spaces.activeSpace)
         }
 
         MenuSeparator {}
 
         MenuItem {
             text: qsTr("Theme…")
-            onTriggered: sidebar.themePicker && sidebar.themePicker.open()
+            onTriggered: root.sidebar.themePicker && root.sidebar.themePicker.open()
         }
     }
 
@@ -82,7 +82,7 @@ Item {
 
             MenuItem {
                 text: qsTr("New Folder")
-                onTriggered: sidebar.startRename(Browser.sidebar.moveToNewFolder(tabMenu.target.nodeId))
+                onTriggered: root.sidebar.startRename(Browser.sidebar.moveToNewFolder(tabMenu.target.nodeId))
             }
             MenuSeparator {}
 
@@ -124,7 +124,7 @@ Item {
 
         MenuItem {
             text: qsTr("Rename")
-            onTriggered: sidebar.startRename(folderMenu.target.nodeId)
+            onTriggered: root.sidebar.startRename(folderMenu.target.nodeId)
         }
 
         Menu {
@@ -157,7 +157,7 @@ Item {
         }
         MenuItem {
             text: qsTr("New Subfolder")
-            onTriggered: sidebar.newFolder(folderMenu.target.nodeId)
+            onTriggered: root.sidebar.newFolder(folderMenu.target.nodeId)
         }
 
         MenuSeparator {}

@@ -7,7 +7,9 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonParseError>
 #include <QSaveFile>
+#include <QUuid>
 
 #include <algorithm>
 
@@ -128,17 +130,18 @@ void SpaceManager::deleteSpace(Space *space)
         return;
     }
 
-    const int index = m_spaces.indexOf(space);
+    const qsizetype index = m_spaces.indexOf(space);
     m_spaces.removeOne(space);
     const bool wasActive = m_activeSpace == space;
-
-    // the move has to happen first: it writes the outgoing space's session out,
-    // and that has somewhere to land
     if (wasActive)
-        setActiveSpace(m_spaces[qMin(index, m_spaces.size() - 1)]);
+        setActiveSpace(m_spaces.at((std::min)(index, m_spaces.size() - 1)));
 
     // its folders, tabs and bookmarks go with it; nothing shared is in here
-    QDir(space->storageDir()).removeRecursively();
+    const QString spacesRoot = QFileInfo(Space::spacesRootDir()).canonicalFilePath();
+    const QString storagePath = QFileInfo(space->storageDir()).canonicalFilePath();
+    if (!spacesRoot.isEmpty() && !storagePath.isEmpty()
+        && storagePath.startsWith(spacesRoot + QDir::separator()))
+        QDir(storagePath).removeRecursively();
     space->deleteLater();
     emit spacesChanged();
     save();
@@ -185,7 +188,14 @@ void SpaceManager::load()
     const QByteArray data = file.readAll();
     file.close();
 
-    const QJsonDocument doc = QJsonDocument::fromJson(data);
+    QJsonParseError parseError;
+    const QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject())
+    {
+        m_loading = false;
+        BrowserLogger::instance().error("SpaceManager", "Invalid spaces.json; ignoring its contents.");
+        return;
+    }
     const QJsonObject root = doc.object();
     const QJsonArray array = root.value(QStringLiteral("spaces")).toArray();
     const QString activeId = root.value(QStringLiteral("activeSpaceId")).toString();
@@ -193,7 +203,13 @@ void SpaceManager::load()
     for (const QJsonValue &value : array)
     {
         const QJsonObject obj = value.toObject();
-        Space *space = adopt(obj.value(QStringLiteral("id")).toString(),
+        const QString id = obj.value(QStringLiteral("id")).toString();
+        if (QUuid::fromString(id).isNull())
+        {
+            BrowserLogger::instance().warning("SpaceManager", "Skipping a space with an invalid ID.");
+            continue;
+        }
+        Space *space = adopt(id,
                              obj.value(QStringLiteral("name")).toString(),
                              colorOrDefault(obj.value(QStringLiteral("color"))));
         const QString palette = obj.value(QStringLiteral("themePalette")).toString();

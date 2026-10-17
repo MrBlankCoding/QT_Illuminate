@@ -68,6 +68,7 @@ public:
 
     // CefFocusHandler overrides
     bool OnSetFocus(CefRefPtr<CefBrowser> browser, FocusSource source) override;
+    void OnGotFocus(CefRefPtr<CefBrowser> browser) override;
 
     // CefCommandHandler overrides (Chrome style only)
     bool OnChromeCommand(CefRefPtr<CefBrowser> browser,

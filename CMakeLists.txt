@@ -29,6 +29,10 @@ else()
     message(STATUS "Qt6::Pdf not found - PDF printing via QPdfDocument is disabled")
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(X11 REQUIRED)
+endif()
+
 
 if(DEFINED ENV{CEF_ROOT})
     set(CEF_ROOT $ENV{CEF_ROOT})
@@ -370,6 +374,11 @@ target_link_libraries(QT_Illuminatemodule PUBLIC
 if(QT_ILLUMINATE_HAS_QTPDF)
     target_link_libraries(QT_Illuminatemodule PUBLIC Qt6::Pdf)
     target_compile_definitions(QT_Illuminatemodule PUBLIC QT_ILLUMINATE_HAS_QTPDF)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(QT_Illuminatemodule PUBLIC X11::X11)
+    target_compile_definitions(QT_Illuminatemodule PRIVATE QT_ILLUMINATE_HAS_X11)
 endif()
 
 if(TARGET cef::cef)

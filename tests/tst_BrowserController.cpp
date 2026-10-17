@@ -2,6 +2,8 @@
 #include <QSettings>
 #include <QTemporaryDir>
 
+#include <memory>
+
 #include "BrowserController.h"
 #include "Space.h"
 
@@ -55,8 +57,8 @@ private slots:
     {
         QString themeId;
         {
-            QScopedPointer<Space> space(makeSpace(QStringLiteral("theme-test"), QStringLiteral("Theme Test")));
-            BrowserController browser(space.data());
+            std::unique_ptr<Space> space(makeSpace(QStringLiteral("theme-test"), QStringLiteral("Theme Test")));
+            BrowserController browser(space.get());
             themeId = browser.createCustomTheme(QStringLiteral("  Evening  "), colors(QStringLiteral("#101820")));
             QVERIFY(!themeId.isEmpty());
             QCOMPARE(browser.activeCustomThemeId(), themeId);
@@ -67,8 +69,8 @@ private slots:
         }
 
         {
-            QScopedPointer<Space> space(makeSpace(QStringLiteral("theme-test"), QStringLiteral("Theme Test")));
-            BrowserController browser(space.data());
+            std::unique_ptr<Space> space(makeSpace(QStringLiteral("theme-test"), QStringLiteral("Theme Test")));
+            BrowserController browser(space.get());
             QCOMPARE(browser.activeCustomThemeId(), themeId);
             QCOMPARE(browser.customThemes().size(), 1);
             QVERIFY(browser.updateCustomTheme(themeId, QStringLiteral("Night"), colors(QStringLiteral("#202830"))));
@@ -87,8 +89,8 @@ private slots:
     }
     void closingTheActiveTabDoesNotRequestAWindowClose()
     {
-        QScopedPointer<Space> space(makeSpace(QStringLiteral("close-test"), QStringLiteral("Close Test")));
-        BrowserController browser(space.data());
+        std::unique_ptr<Space> space(makeSpace(QStringLiteral("close-test"), QStringLiteral("Close Test")));
+        BrowserController browser(space.get());
         browser.newTab(QStringLiteral("https://example.com/a"));
         browser.newTab(QStringLiteral("https://example.com/b"));
         QCOMPARE(browser.tabModel()->rowCount(), 3);
@@ -105,8 +107,8 @@ private slots:
 
     void invalidCustomThemeIsRejected()
     {
-        QScopedPointer<Space> space(makeSpace(QStringLiteral("invalid-theme-test"), QStringLiteral("Invalid Theme")));
-        BrowserController browser(space.data());
+        std::unique_ptr<Space> space(makeSpace(QStringLiteral("invalid-theme-test"), QStringLiteral("Invalid Theme")));
+        BrowserController browser(space.get());
         QCOMPARE(browser.createCustomTheme(QStringLiteral("Invalid"), {}), QString());
         QCOMPARE(browser.createCustomTheme(QStringLiteral(""), colors(QStringLiteral("#101820"))), QString());
         QVERIFY(browser.customThemes().isEmpty());

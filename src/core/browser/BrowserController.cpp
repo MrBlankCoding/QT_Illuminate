@@ -311,15 +311,12 @@ void BrowserController::setThemePalette(const QString &palette)
     const bool changed = m_space->themePalette() != palette || !m_space->themeColors().isEmpty();
     m_space->setThemePalette(palette);
     m_space->setThemeColors({});
-    const bool hadLegacyCustomTheme = !activeCustomThemeId().isEmpty();
     if (m_settings)
         m_settings->remove(QStringLiteral("activeCustomThemeId"));
     if (changed) {
         emit themePaletteChanged();
         emit activeCustomThemeChanged();
     }
-    else if (hadLegacyCustomTheme)
-        emit activeCustomThemeChanged();
 }
 
 void BrowserController::setSpaceThemeColors(const QVariantMap &colors)
@@ -603,7 +600,8 @@ void BrowserController::restoreSession()
     if (activeIndex < 0 && !restoredSessionIndexes.isEmpty())
     {
         const int savedIndex = session.value(QStringLiteral("activeIndex")).toInt(0);
-        activeIndex = restoredSessionIndexes.at(qBound(0, savedIndex, restoredSessionIndexes.size() - 1));
+        activeIndex = restoredSessionIndexes.at(
+            std::clamp(savedIndex, 0, static_cast<int>(restoredSessionIndexes.size()) - 1));
     }
     if (activeIndex < 0)
         activeIndex = 0;
@@ -918,8 +916,12 @@ void BrowserController::releaseWindow(QObject *window)
 {
     if (!window)
         return;
-    if (m_adoptedWindows.contains(window)
-        || QJSEngine::objectOwnership(window) == QJSEngine::JavaScriptOwnership)
+    const bool adopted = m_adoptedWindows.contains(window);
+    if (adopted)
+        m_adoptedWindows.removeIf([window](const QPointer<QObject> &candidate) {
+            return candidate.isNull() || candidate.data() == window;
+        });
+    if (adopted || QJSEngine::objectOwnership(window) == QJSEngine::JavaScriptOwnership)
         window->deleteLater();
 }
 

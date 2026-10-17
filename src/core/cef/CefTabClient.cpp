@@ -191,8 +191,23 @@ bool CefTabClient::OnPreKeyEvent(CefRefPtr<CefBrowser> browser,
 
 bool CefTabClient::OnSetFocus(CefRefPtr<CefBrowser> browser, FocusSource source)
 {
-    Q_UNUSED(source);
-    return isMainBrowser(browser) && m_wrapper && m_wrapper->inputSuppressed();
+    if (!isMainBrowser(browser) || !m_wrapper || !m_wrapper->inputSuppressed())
+        return false;
+
+    // A direct click in the page is an explicit handoff back from Qt UI.
+    // Let CEF take focus, then move Qt's logical focus to the CefBrowser item
+    // so the shared QML focus state releases native input suppression.
+    if (source == FOCUS_SOURCE_SYSTEM) {
+        emit m_wrapper->nativeFocusRequested();
+        return false;
+    }
+    return true;
+}
+
+void CefTabClient::OnGotFocus(CefRefPtr<CefBrowser> browser)
+{
+    if (isMainBrowser(browser) && m_wrapper)
+        emit m_wrapper->nativeFocusRequested();
 }
 
 bool CefTabClient::OnChromeCommand(CefRefPtr<CefBrowser> browser,

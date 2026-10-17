@@ -8,6 +8,7 @@ Grid {
     id: root
 
     readonly property int maxTiles: 9
+    property int bookmarkRevision: 0
     property string activeUrl: ""
 
     columns: 3
@@ -28,20 +29,33 @@ Grid {
         Browser.newTab(url);
     }
 
+    Connections {
+        target: Bookmarks
+        function onDataChanged() { root.bookmarkRevision++ }
+    }
+
     Repeater {
-        model: Bookmarks
+        model: Math.min(Bookmarks.count, root.maxTiles)
 
         delegate: Rectangle {
             id: tile
             required property int index
-            required property string title
-            required property string url
-            required property string iconUrl
+            readonly property string bookmarkTitle: {
+                root.bookmarkRevision
+                return Bookmarks.itemAt(index).title
+            }
+            readonly property string bookmarkUrl: {
+                root.bookmarkRevision
+                return Bookmarks.itemAt(index).url
+            }
+            readonly property string bookmarkIconUrl: {
+                root.bookmarkRevision
+                return Bookmarks.itemAt(index).iconUrl
+            }
 
             property bool iconFailed: false
-            readonly property bool isActive: root.activeUrl !== "" && root.activeUrl === tile.url
+            readonly property bool isActive: root.activeUrl !== "" && root.activeUrl === tile.bookmarkUrl
 
-            visible: index < root.maxTiles
             width: root.tileWidth
             height: 40
             radius: Theme.radiusTab
@@ -62,8 +76,8 @@ Grid {
                 height: 18
                 sourceSize.width: 36
                 sourceSize.height: 36
-                source: tile.iconFailed ? "" : tile.iconUrl
-                visible: tile.iconUrl !== "" && !tile.iconFailed
+                source: tile.iconFailed ? "" : tile.bookmarkIconUrl
+                visible: tile.bookmarkIconUrl !== "" && !tile.iconFailed
                 asynchronous: true
                 fillMode: Image.PreserveAspectFit
                 onStatusChanged: if (status === Image.Error) tile.iconFailed = true
@@ -73,9 +87,9 @@ Grid {
                 anchors.centerIn: parent
                 width: 18
                 height: 18
-                visible: tile.iconUrl === "" || tile.iconFailed
-                url: tile.url
-                title: tile.title
+                visible: tile.bookmarkIconUrl === "" || tile.iconFailed
+                url: tile.bookmarkUrl
+                title: tile.bookmarkTitle
             }
 
             HoverHandler {
@@ -84,11 +98,11 @@ Grid {
             }
             TapHandler {
                 id: tap
-                onTapped: root.open(tile.url)
+                onTapped: root.open(tile.bookmarkUrl)
             }
             TapHandler {
                 acceptedButtons: Qt.MiddleButton
-                onTapped: Browser.newTab(tile.url, true)
+                onTapped: Browser.newTab(tile.bookmarkUrl, true)
             }
             TapHandler {
                 acceptedButtons: Qt.RightButton
@@ -100,17 +114,17 @@ Grid {
                 popupType: Popup.Native
 
                 MenuItem {
-                    text: tile.title
+                    text: tile.bookmarkTitle
                     enabled: false
                 }
                 MenuSeparator {}
                 MenuItem {
                     text: "Open in New Tab"
-                    onTriggered: Browser.newTab(tile.url)
+                    onTriggered: Browser.newTab(tile.bookmarkUrl)
                 }
                 MenuItem {
                     text: "Open in Background"
-                    onTriggered: Browser.newTab(tile.url, true)
+                    onTriggered: Browser.newTab(tile.bookmarkUrl, true)
                 }
                 MenuSeparator {}
                 MenuItem {

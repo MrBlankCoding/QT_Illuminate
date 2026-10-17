@@ -42,3 +42,12 @@ QString InternalPageManager::title(const QString &url)
         return QStringLiteral("Setup");
     return {};
 }
+
+QString InternalPageManager::iconUrl(const QString &url)
+{
+    const QString lc = url.trimmed().toLower();
+    if (!lc.startsWith(QLatin1String("chrome://")) &&
+        !lc.startsWith(QLatin1String("illuminate://")))
+        return {};
+    return QStringLiteral("qrc:/QT_Illuminate/ui/icons/globe.svg");
+}

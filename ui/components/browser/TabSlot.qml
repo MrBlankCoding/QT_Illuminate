@@ -53,10 +53,22 @@ Item {
     }
 
     readonly property bool isInternalPage: InternalPages.isInternal(model.url.toString())
+    readonly property string tabUrl: model.url.toString()
     onIsInternalPageChanged: if (isInternalPage && browserContext) browserContext.updateTabRenderProcessPid(model.id, 0)
+
+    function syncBundledIcon() {
+        if (!tabSlot.browserContext)
+            return;
+        const icon = InternalPages.iconUrl(tabSlot.tabUrl);
+        const existingIcon = String(tabSlot.model.iconUrl || "");
+        if (icon !== "" || existingIcon.startsWith("qrc:/QT_Illuminate/ui/icons/"))
+            tabSlot.browserContext.updateTabIcon(tabSlot.model.id, icon);
+    }
+    onTabUrlChanged: syncBundledIcon()
+    Component.onCompleted: syncBundledIcon()
     function syncRenderPid() {
         if (browserContext)
-            browserContext.updateTabRenderProcessPid(tabSlot.webView ? tabSlot.webView.ownerTabId : tabSlot.model.id,
+            browserContext.updateTabRenderProcessPid(tabSlot.webView ? tabSlot.webView["ownerTabId"] : tabSlot.model.id, // qmllint disable missing-property
                                                      tabSlot.webView ? tabSlot.webView.renderProcessPid : 0)
     }
 
@@ -115,7 +127,11 @@ Item {
         active: tabSlot.isInternalPage
         visible: tabSlot.isInternalPage
         source: tabSlot.isInternalPage ? InternalPages.qmlSource(tabSlot.model.url.toString()) : ""
-        onLoaded: if (tabSlot.browserContext) tabSlot.browserContext.updateTabTitle(tabSlot.model.id, InternalPages.title(tabSlot.model.url.toString()))
+        onLoaded: {
+            if (tabSlot.browserContext)
+                tabSlot.browserContext.updateTabTitle(tabSlot.model.id, InternalPages.title(tabSlot.model.url.toString()));
+            tabSlot.syncBundledIcon();
+        }
     }
 
     Loader {
@@ -151,6 +167,7 @@ Item {
                     ? CefBrowser.Active
                     : (tabSlot.discardable ? CefBrowser.Discarded : CefBrowser.Frozen)
                 onLifecycleStateChanged: tabSlot.syncRenderPid()
+                onNativeFocusRequested: tabSlot.browserWindow.returnFocusToWeb()
                 backgroundColor: Theme.bg
                 cornerRadius: tabSlot.viewStack.cornerRadius
                 Component.onCompleted: {

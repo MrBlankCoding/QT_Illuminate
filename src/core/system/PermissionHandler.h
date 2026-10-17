@@ -19,10 +19,10 @@ class PermissionHandler : public QObject, public ExternalQmlSingleton<Permission
     Q_PROPERTY(bool defaultBrowserOpensSystemSettings READ defaultBrowserOpensSystemSettings CONSTANT)
 
 public:
-    enum Decision { Deny = -1, Ask = 0, Allow = 1 };
+    enum Decision : int { Deny = -1, Ask = 0, Allow = 1 };
     Q_ENUM(Decision)
 
-    enum PermissionType {
+    enum PermissionType : int {
         Unsupported = 0,
         MediaAudioCapture = 1,
         MediaVideoCapture = 2,
@@ -37,10 +37,10 @@ public:
     };
     Q_ENUM(PermissionType)
 
-    enum SystemResource { Camera, Microphone, Location, ScreenCapture }; // could be more
+    enum SystemResource : int { Camera, Microphone, Location, ScreenCapture }; // could be more
     Q_ENUM(SystemResource)
 
-    enum SystemAccess { Granted, NotDetermined, Denied };
+    enum SystemAccess : int { Granted, NotDetermined, Denied };
     Q_ENUM(SystemAccess)
 
     explicit PermissionHandler(QObject *parent);

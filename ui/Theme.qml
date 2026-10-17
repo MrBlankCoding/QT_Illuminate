@@ -97,15 +97,15 @@ QtObject {
     // sidebar: the window background, which also shows around the content card
     readonly property color sidebarBg:   currentColorSet.sidebarBg
     readonly property bool transparentChrome: UI.Browser ? UI.Browser.transparentChrome : false
-    readonly property real chromeOpacityDark:  0.42
-    readonly property real chromeOpacityLight: 0.26
+    readonly property real chromeOpacityDark:  0.58
+    readonly property real chromeOpacityLight: 0.68
 
     readonly property color chromeBg: transparentChrome
         ? Qt.rgba(sidebarBg.r, sidebarBg.g, sidebarBg.b, isDark ? chromeOpacityDark : chromeOpacityLight)
         : sidebarBg
 
-    readonly property real glassOpacityDark:  0.94
-    readonly property real glassOpacityLight: 0.97
+    readonly property real glassOpacityDark:  0.84
+    readonly property real glassOpacityLight: 0.88
     readonly property color glassTint: transparentChrome
         ? Qt.rgba(sidebarBg.r, sidebarBg.g, sidebarBg.b, isDark ? glassOpacityDark : glassOpacityLight)
         : sidebarBg
@@ -156,7 +156,6 @@ QtObject {
     readonly property int tabRowHeight:  36
     readonly property int iconButton:    28
     readonly property int faviconSize:   18
-    readonly property int resizeHandleW: 8
     readonly property int sidebarIndent: 14          // per folder level
     readonly property int sidebarMaxIndent: 6        // deeper levels stop indenting
 

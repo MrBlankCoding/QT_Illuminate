@@ -173,6 +173,7 @@ signals:
     void backgroundColorChanged();
     void cornerRadiusChanged();
     void inputSuppressedChanged();
+    void nativeFocusRequested();
 
     void devToolsViewChanged();
     void externalBrowserChanged();
@@ -217,6 +218,11 @@ private:
     QRect m_nativeRect;
     bool m_nativeVisible = true;
     QMetaObject::Connection m_frameConnection;
+    QMetaObject::Connection m_windowXConnection;
+    QMetaObject::Connection m_windowYConnection;
+    QMetaObject::Connection m_windowScreenConnection;
+    QMetaObject::Connection m_windowVisibilityConnection;
+    QMetaObject::Connection m_windowActivationConnection;
     QMetaObject::Connection m_windowActiveConnection;
     QUrl m_createdUrl;
     QString m_lastFindText;

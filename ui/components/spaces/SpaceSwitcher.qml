@@ -9,8 +9,9 @@ Item {
     id: root
 
     property var sidebar
-    readonly property var spaces: Spaces.spaces
-    readonly property var activeSpace: Spaces.activeSpace
+    readonly property var spaceManager: Spaces
+    readonly property var spaces: root.spaceManager.spaces
+    readonly property var activeSpace: root.spaceManager.activeSpace
     readonly property int dotTargetSize: spaces.length <= 4 ? 30
         : spaces.length <= 8 ? 26
         : spaces.length <= 14 ? 22 : 18
@@ -29,7 +30,7 @@ Item {
 
     function select(space) {
         if (space && space !== root.activeSpace)
-            Spaces.activeSpace = space;
+            root.spaceManager.activeSpace = space;
     }
 
     function revealActiveSpace() {
@@ -82,37 +83,38 @@ Item {
                         id: spaceDots
                         model: root.spaces
                         delegate: Item {
+                            id: dot
                             required property var modelData
-                            readonly property bool selected: modelData === root.activeSpace
+                            readonly property bool selected: dot.modelData === root.activeSpace
                             width: root.dotTargetSize
                             height: dotItems.height
 
                             Rectangle {
                                 anchors.centerIn: parent
-                                width: selected ? root.dotDiameter : Math.max(6, root.dotDiameter - 3)
+                                width: dot.selected ? root.dotDiameter : Math.max(6, root.dotDiameter - 3)
                                 height: width
                                 radius: width / 2
-                                color: modelData.color
-                                border.width: selected ? 1 : 0
+                                color: dot.modelData.color
+                                border.width: dot.selected ? 1 : 0
                                 border.color: Theme.text
                             }
 
                             HoverHandler { id: dotHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: root.select(modelData) }
+                            TapHandler { onTapped: root.select(dot.modelData) }
                             TapHandler {
                                 acceptedButtons: Qt.RightButton
                                 onTapped: {
-                                    spaceMenu.target = modelData;
+                                    spaceMenu.target = dot.modelData;
                                     spaceMenu.popup();
                                 }
                             }
                             ToolTip.visible: dotHover.hovered
                             ToolTip.delay: 350
-                            ToolTip.text: modelData.name
+                            ToolTip.text: dot.modelData.name
                             Accessible.role: Accessible.Button
-                            Accessible.name: qsTr("Space: %1").arg(modelData.name)
-                            Accessible.description: selected ? qsTr("Current space") : qsTr("Switch to this space")
-                            Accessible.selected: selected
+                            Accessible.name: qsTr("Space: %1").arg(dot.modelData.name)
+                            Accessible.description: dot.selected ? qsTr("Current space") : qsTr("Switch to this space")
+                            Accessible.selected: dot.selected
                         }
                     }
                 }
@@ -149,7 +151,7 @@ Item {
         MenuSeparator {}
         MenuItem {
             text: qsTr("Delete Space…")
-            enabled: Spaces.spaces.length > 1
+            enabled: root.spaces.length > 1
             onTriggered: root.deleteRequested(spaceMenu.target)
         }
     }

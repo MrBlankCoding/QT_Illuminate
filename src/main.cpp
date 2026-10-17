@@ -9,6 +9,10 @@
 #include <QLocalSocket>
 #include <QWindow>
 
+#include <algorithm>
+#include <memory>
+#include <utility>
+
 #include "core/browser/BrowserSettings.h"
 #include "core/menus/ShortcutRegistry.h"
 #include "core/cef/CefManager.h"
@@ -23,8 +27,6 @@
 #include <include/base/cef_compiler_specific.h>
 
 #include <QByteArray>
-#include <memory>
-#include <utility>
 
 static void activateWindows()
 {
@@ -145,7 +147,24 @@ NO_STACK_PROTECTOR int main(int argc, char *argv[])
     if (subprocessExitCode >= 0)
         return subprocessExitCode;
 
+#if defined(Q_OS_LINUX)
+    // CEF's Linux native child-window API uses X11 window IDs. On Wayland,
+    // default to Qt's X11 backend when XWayland is available so the CEF view
+    // can be parented inside the Qt shell.
+    const bool useXcbForEmbedding = qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")
+        && !qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY")
+        && !qEnvironmentVariableIsEmpty("DISPLAY");
+    if (useXcbForEmbedding)
+        qputenv("QT_QPA_PLATFORM", "xcb");
+#endif
+
     QStringList flagsList = SystemInfo::instance()->chromiumFlags();
+#if defined(Q_OS_LINUX)
+    if (std::none_of(flagsList.cbegin(), flagsList.cend(), [](const QString &flag) {
+            return flag.startsWith(QStringLiteral("--ozone-platform="));
+        }))
+        flagsList << QStringLiteral("--ozone-platform=x11");
+#endif
     if (qEnvironmentVariableIsSet("QT_ILLUMINATE_VERBOSE_CEF"))
     {
         flagsList += QStringLiteral("--enable-logging");

@@ -41,7 +41,7 @@ public:
         ActiveRole,
         TabIndexRole,
         InFolderRole,
-        PeekRole,  // active tab shown under its collapsed folder
+        PeekRole,
         TabCountRole,
         SplitTabsRole,
         SplitTitleRole,
@@ -165,7 +165,7 @@ private:
     void leaveTab(BrowserTab *tab);
     void syncFromTab(BrowserTab *tab);
 
-    void collectRows(QVector<Row> &out, const Node *node, int depth, const BrowserTab *active) const;
+    void collectRows(QVector<Row> &out, const Node *node, int depth) const;
     void rebuild();
     void commit();
     void scheduleSave();

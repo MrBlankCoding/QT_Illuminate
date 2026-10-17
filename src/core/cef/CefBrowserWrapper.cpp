@@ -23,6 +23,7 @@
 #include <QQuickWindow>
 #include <QTimer>
 
+#include <algorithm>
 #include <cmath>
 
 #include <include/cef_app.h>
@@ -33,6 +34,7 @@ void cefSetNativeViewGeometry(void *view, const QRect &rect, bool visible); // C
 void cefSetNativeViewCornerRadius(void *view, qreal radius);                // CefBrowserWrapper_mac.mm
 bool cefResignNativeFocus(void *view);                                      // CefBrowserWrapper_mac.mm
 void cefAttachChildWindow(void *parentView, void *childHandle);             // CefBrowserWrapper_mac.mm
+void cefSetChildWindowBackgroundColor(void *childHandle, const QColor &color); // CefBrowserWrapper_mac.mm
 void cefDetachChildWindow(void *childHandle);                               // CefBrowserWrapper_mac.mm
 void cefSetChildWindowCornerRadius(void *childHandle, qreal radius);        // CefBrowserWrapper_mac.mm
 void cefRaiseChildWindow(void *parentView, void *childHandle);              // CefBrowserWrapper_mac.mm
@@ -51,20 +53,160 @@ static void cefSetNativeViewGeometry(cef_window_handle_t hwnd, const QRect &rect
     SetWindowPos(hwnd, nullptr, rect.x(), rect.y(), rect.width(), rect.height(),
                  SWP_NOZORDER | SWP_NOACTIVATE);
 }
+static void cefRaiseChildWindow(void *, void *childHandle)
+{
+    HWND hwnd = reinterpret_cast<HWND>(childHandle);
+    if (hwnd)
+        SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+}
+static void cefAttachChildWindow(void *parentHandle, void *childHandle)
+{
+    HWND parent = reinterpret_cast<HWND>(parentHandle);
+    HWND child = reinterpret_cast<HWND>(childHandle);
+    if (!parent || !child)
+        return;
+    LONG_PTR style = GetWindowLongPtr(child, GWL_STYLE);
+    style &= ~(WS_POPUP | WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+    style |= WS_CHILD;
+    SetWindowLongPtr(child, GWL_STYLE, style);
+    SetParent(child, parent);
+    SetWindowPos(child, HWND_TOP, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+}
+static void cefDetachChildWindow(void *childHandle)
+{
+    HWND child = reinterpret_cast<HWND>(childHandle);
+    if (child) {
+        ShowWindow(child, SW_HIDE);
+        SetParent(child, nullptr);
+    }
+}
+static bool cefResignNativeFocus(cef_window_handle_t childHandle)
+{
+    HWND child = reinterpret_cast<HWND>(childHandle);
+    HWND parent = child ? GetParent(child) : nullptr;
+    if (!parent || (GetFocus() != child && GetActiveWindow() != child))
+        return false;
+    SetActiveWindow(parent);
+    SetFocus(parent);
+    return true;
+}
+static void cefFocusParentWindow(void *parentHandle)
+{
+    HWND parent = reinterpret_cast<HWND>(parentHandle);
+    if (parent) {
+        SetActiveWindow(parent);
+        SetFocus(parent);
+    }
+}
+#elif defined(QT_ILLUMINATE_HAS_X11)
+#include <X11/Xlib.h>
+
+namespace {
+Display *cefX11Display()
+{
+    static Display *display = XOpenDisplay(nullptr);
+    return display;
+}
+}
+
+static void cefSetNativeViewGeometry(cef_window_handle_t window, const QRect &rect, bool visible)
+{
+    Display *display = cefX11Display();
+    if (!display || !window)
+        return;
+    const Window child = static_cast<Window>(window);
+    if (visible) {
+        XMoveResizeWindow(display, child, rect.x(), rect.y(),
+                          static_cast<unsigned int>(qMax(1, rect.width())),
+                          static_cast<unsigned int>(qMax(1, rect.height())));
+        XMapWindow(display, child);
+    } else {
+        XUnmapWindow(display, child);
+    }
+    XFlush(display);
+}
+static void cefRaiseChildWindow(void *, void *childHandle)
+{
+    Display *display = cefX11Display();
+    if (display && childHandle) {
+        XRaiseWindow(display, static_cast<Window>(reinterpret_cast<quintptr>(childHandle)));
+        XFlush(display);
+    }
+}
+static void cefAttachChildWindow(void *parentHandle, void *childHandle)
+{
+    Display *display = cefX11Display();
+    if (display && parentHandle && childHandle) {
+        XReparentWindow(display,
+                        static_cast<Window>(reinterpret_cast<quintptr>(childHandle)),
+                        static_cast<Window>(reinterpret_cast<quintptr>(parentHandle)), 0, 0);
+        XFlush(display);
+    }
+}
+static void cefDetachChildWindow(void *childHandle)
+{
+    Display *display = cefX11Display();
+    if (display && childHandle) {
+        const Window child = static_cast<Window>(reinterpret_cast<quintptr>(childHandle));
+        XUnmapWindow(display, child);
+        XReparentWindow(display, child,
+                        DefaultRootWindow(display), 0, 0);
+        XFlush(display);
+    }
+}
+static bool cefResignNativeFocus(cef_window_handle_t childHandle)
+{
+    Display *display = cefX11Display();
+    if (!display || !childHandle)
+        return false;
+    Window root = None;
+    Window parent = None;
+    Window *children = nullptr;
+    unsigned int childCount = 0;
+    if (!XQueryTree(display, static_cast<Window>(childHandle), &root, &parent, &children, &childCount))
+        return false;
+    if (children)
+        XFree(children);
+    if (parent == None)
+        return false;
+    XSetInputFocus(display, parent, RevertToParent, CurrentTime);
+    XFlush(display);
+    return true;
+}
+static void cefFocusParentWindow(void *parentHandle)
+{
+    Display *display = cefX11Display();
+    if (display && parentHandle) {
+        XSetInputFocus(display,
+                       static_cast<Window>(reinterpret_cast<quintptr>(parentHandle)),
+                       RevertToParent, CurrentTime);
+        XFlush(display);
+    }
+}
 #else
-// TODO: X11 child windows are not repositioned yet
+// Native embedding is unavailable on platforms without a supported window system.
 static void cefSetNativeViewGeometry(cef_window_handle_t, const QRect &, bool) {}
 #endif
 
 #ifndef __APPLE__
 static void cefSetNativeViewCornerRadius(cef_window_handle_t, qreal) {}
+#if !defined(_WIN32) && !defined(QT_ILLUMINATE_HAS_X11)
 static bool cefResignNativeFocus(cef_window_handle_t) { return false; }
-// only macOS hosts pages in a window of their own
+#endif
+static void cefSetChildWindowBackgroundColor(void *, const QColor &) {}
+static void cefSetChildWindowCornerRadius(void *, qreal) {}
+#if !defined(_WIN32)
+#if !defined(QT_ILLUMINATE_HAS_X11)
+static void cefRaiseChildWindow(void *, void *) {}
 static void cefAttachChildWindow(void *, void *) {}
 static void cefDetachChildWindow(void *) {}
-static void cefSetChildWindowCornerRadius(void *, qreal) {}
-static void cefRaiseChildWindow(void *, void *) {}
+#endif
+#endif
+#if !defined(_WIN32) && !defined(QT_ILLUMINATE_HAS_X11)
 static void cefFocusParentWindow(void *) {}
+#endif
 static bool cefChildWindowIsKey(void *) { return false; }
 static void cefSetChildWindowCanTakeKey(void *, bool) {}
 #endif
@@ -97,11 +239,11 @@ void *nativeHandleOf(const QQuickWindow *window)
     return reinterpret_cast<void *>(window->winId());
 }
 
-// Qt works in device-independent pixels; on Windows the child HWND is
-// positioned in physical pixels. macOS views use points, X11 is unhandled.
+// Qt uses device-independent pixels; Windows and X11 child windows use
+// physical pixels. macOS native windows use points.
 QRect toNativeRect(const QRect &rect, const QQuickWindow *window)
 {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(QT_ILLUMINATE_HAS_X11)
     const qreal dpr = window ? window->devicePixelRatio() : 1.0;
     return QRectF(rect.x() * dpr, rect.y() * dpr, rect.width() * dpr, rect.height() * dpr).toAlignedRect();
 #else
@@ -223,7 +365,7 @@ bool CefBrowserWrapper::chromeStyle() const
 
 void CefBrowserWrapper::setZoomFactor(qreal factor)
 {
-    factor = factor > 0 ? qBound(kMinZoomFactor, factor, kMaxZoomFactor) : 1.0;
+    factor = factor > 0 ? std::clamp(factor, kMinZoomFactor, kMaxZoomFactor) : 1.0;
     if (qFuzzyCompare(m_zoomFactor, factor))
         return;
 
@@ -249,9 +391,32 @@ void CefBrowserWrapper::refreshNativeView(bool raiseAboveSiblings)
         return;
 
     // Reposition if needed, then restore this tab above sibling CEF windows.
+#ifdef __APPLE__
+    // CEF's macOS Chrome-style view is hosted in a child NSWindow. AppKit can
+    // change that window's frame while focus moves between the child and Qt;
+    // invalidate the cached frame so updateHostWindow reapplies the QML item
+    // bounds before restoring it.
+    if (m_hostWindowReady)
+        m_nativeRect = QRect();
+#endif
     updateNativeGeometry();
-    if (raiseAboveSiblings && m_hostWindowReady && window()->isActive() && m_nativeVisible)
+    if (!raiseAboveSiblings || !m_nativeVisible)
+        return;
+    if (m_hostWindowReady)
+    {
+        // AppKit can order a child window out while the application is
+        // inactive. Re-show it explicitly; the cached visible state may still
+        // say true when the parent window becomes active again.
+        m_hostWindow->restore();
         cefRaiseChildWindow(nativeHandleOf(window()), m_hostWindow->nativeHandle());
+    }
+#ifdef _WIN32
+    else if (auto host = hostOf(m_browser))
+        cefRaiseChildWindow(nativeHandleOf(window()), host->GetWindowHandle());
+#elif defined(QT_ILLUMINATE_HAS_X11)
+    else if (auto host = hostOf(m_browser))
+        cefRaiseChildWindow(nativeHandleOf(window()), host->GetWindowHandle());
+#endif
 }
 
 void CefBrowserWrapper::setBackgroundColor(const QColor &color)
@@ -259,13 +424,15 @@ void CefBrowserWrapper::setBackgroundColor(const QColor &color)
     if (m_backgroundColor != color)
     {
         m_backgroundColor = color;
+        if (m_hostWindow)
+            cefSetChildWindowBackgroundColor(m_hostWindow->nativeHandle(), color);
         emit backgroundColorChanged();
     }
 }
 
 void CefBrowserWrapper::setCornerRadius(qreal radius)
 {
-    radius = qMax<qreal>(0, radius);
+    radius = (std::max)(qreal(0), radius);
     if (qFuzzyIsNull(m_cornerRadius - radius))
         return;
 
@@ -302,15 +469,19 @@ void CefBrowserWrapper::applyInputSuppression()
     if (m_inputSuppressed)
     {
         // the page's own window holds key focus; give it back to ours
-        if (m_hostWindow && window())
+        if (m_hostWindow && window()) {
+            cefSetChildWindowCanTakeKey(m_hostWindow->nativeHandle(), false);
             cefFocusParentWindow(nativeHandleOf(window()));
-        else
+        } else {
             m_restoreFocus = cefResignNativeFocus(host->GetWindowHandle());
+        }
         host->SetFocus(false);
     }
     else
     {
         m_restoreFocus = false;
+        if (m_hostWindow)
+            cefSetChildWindowCanTakeKey(m_hostWindow->nativeHandle(), true);
         host->SetFocus(true);
     }
 }
@@ -551,13 +722,11 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
 
     CefRefPtr<CefRequestContext> requestContext = CefManager::defaultProfile()->requestContext();
 
-#ifdef __APPLE__
     if (CefManager::chromeStyle())
     {
         createHostWindow(settings, requestContext);
         return;
     }
-#endif
 
     m_createdUrl = m_url;
     const CefString initialUrl = m_url.isEmpty() ? CefString() : qUrlToCefString(m_url);
@@ -573,9 +742,15 @@ void CefBrowserWrapper::createHostWindow(const CefBrowserSettings &settings,
                                          CefRefPtr<CefRequestContext> requestContext)
 {
     m_createdUrl = m_url;
-    const QRect screen = screenRect();
+    const QRect screen = toNativeRect(screenRect(), window());
+    const QRect native = toNativeRect(sceneRect(), window());
+#ifdef __APPLE__
+    const QRect hostBounds = screen;
+#else
+    const QRect hostBounds = native;
+#endif
     QPointer<CefBrowserWrapper> guard = this;
-    m_hostWindow = new CefHostWindow(CefRect(screen.x(), screen.y(), screen.width(), screen.height()),
+    m_hostWindow = new CefHostWindow(CefRect(hostBounds.x(), hostBounds.y(), hostBounds.width(), hostBounds.height()),
                                      [guard]() {
                                          if (guard)
                                              guard->onHostWindowReady();
@@ -591,6 +766,7 @@ void CefBrowserWrapper::onHostWindowReady()
         return;
     m_hostWindowReady = true;
     cefAttachChildWindow(nativeHandleOf(window()), m_hostWindow->nativeHandle());
+    cefSetChildWindowBackgroundColor(m_hostWindow->nativeHandle(), m_backgroundColor);
     m_nativeCornerRadius = m_cornerRadius;
     cefSetChildWindowCornerRadius(m_hostWindow->nativeHandle(), m_cornerRadius);
     m_nativeRect = QRect();
@@ -602,7 +778,8 @@ void CefBrowserWrapper::updateHostWindow()
     if (!m_hostWindowReady || !window())
         return;
 
-    const QRect screen = screenRect();
+    const QRect screen = toNativeRect(screenRect(), window());
+    const QRect native = toNativeRect(sceneRect(), window());
     const bool visible = isVisible() && window()->isVisible();
     if (screen == m_nativeRect && visible == m_nativeVisible)
         return;
@@ -610,20 +787,28 @@ void CefBrowserWrapper::updateHostWindow()
     m_nativeRect = screen;
     m_nativeVisible = visible;
 
-    m_hostWindow->setBounds(CefRect(screen.x(), screen.y(), screen.width(), screen.height()));
+#ifdef __APPLE__
+    const QRect hostBounds = screen;
+#else
+    const QRect hostBounds = native;
+#endif
+    m_hostWindow->setBounds(CefRect(hostBounds.x(), hostBounds.y(), hostBounds.width(), hostBounds.height()));
     if (showing)
     {
         // Keep key where it is: the page coming up only takes it over from
         // the page going away, never from our window.
         void *handle = m_hostWindow->nativeHandle();
-        cefSetChildWindowCanTakeKey(handle, cefChildWindowIsKey(nativeHandleOf(window())));
+        cefSetChildWindowCanTakeKey(handle, !m_inputSuppressed && cefChildWindowIsKey(nativeHandleOf(window())));
         m_hostWindow->setVisible(true);
-        cefSetChildWindowCanTakeKey(handle, true);
+        cefSetChildWindowCanTakeKey(handle, !m_inputSuppressed);
     }
     else
     {
         m_hostWindow->setVisible(visible);
     }
+#if !defined(__APPLE__)
+    cefSetNativeViewGeometry(m_hostWindow->nativeHandle(), native, visible);
+#endif
     if (m_nativeCornerRadius != m_cornerRadius)
     {
         m_nativeCornerRadius = m_cornerRadius;
@@ -775,21 +960,54 @@ void CefBrowserWrapper::itemChange(ItemChange change, const ItemChangeData &data
     if (change == ItemSceneChange)
     {
         QObject::disconnect(m_frameConnection);
+        QObject::disconnect(m_windowXConnection);
+        QObject::disconnect(m_windowYConnection);
+        QObject::disconnect(m_windowScreenConnection);
+        QObject::disconnect(m_windowVisibilityConnection);
+        QObject::disconnect(m_windowActivationConnection);
         QObject::disconnect(m_windowActiveConnection);
         if (data.window)
         {
             m_frameConnection = connect(data.window, &QQuickWindow::afterAnimating,
                                         this, &CefBrowserWrapper::updateNativeGeometry);
+            // Native title-bar moves can finish without another Qt animation
+            // frame. Track the top-level window directly so its CEF child
+            // window receives the final global position as soon as it changes.
+            m_windowXConnection = connect(data.window, &QWindow::xChanged,
+                                          this, &CefBrowserWrapper::updateNativeGeometry);
+            m_windowYConnection = connect(data.window, &QWindow::yChanged,
+                                          this, &CefBrowserWrapper::updateNativeGeometry);
+            m_windowScreenConnection = connect(data.window, &QWindow::screenChanged,
+                                               this, &CefBrowserWrapper::updateNativeGeometry);
+            m_windowVisibilityConnection = connect(data.window, &QWindow::visibilityChanged, this,
+                [this, window = data.window]() {
+                    if (window != this->window() || !isVisible())
+                        return;
+                    if (!window->isVisible()) {
+                        updateNativeGeometry();
+                        return;
+                    }
+                    m_nativeRect = QRect();
+                    refreshNativeView(true);
+                });
+            m_windowActivationConnection = connect(data.window, &QWindow::activeChanged, this,
+                [this, window = data.window]() {
+                    if (!window->isActive() || window != this->window() || !isVisible())
+                        return;
+                    m_nativeRect = QRect();
+                    refreshNativeView(true);
+                });
 
             m_windowActiveConnection = connect(qGuiApp, &QGuiApplication::applicationStateChanged, this,
                                                [this, window = data.window](Qt::ApplicationState state) {
                 if (state != Qt::ApplicationActive || window != this->window() || !isVisible())
                     return;
 
+                if (!window->isActive())
+                    return;
+
                 m_nativeRect = QRect();
-                updateNativeGeometry();
-                if (m_hostWindowReady && m_nativeVisible)
-                    cefRaiseChildWindow(nativeHandleOf(window), m_hostWindow->nativeHandle());
+                refreshNativeView(true);
             });
             if (m_hostWindowReady)
                 onHostWindowReady();

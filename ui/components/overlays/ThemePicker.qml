@@ -12,6 +12,7 @@ Popup {
     id: root
 
     property bool showArrow: true
+    property var focusRouter: null
     property real arrowOffset: 0
     property real customHue: 0.60
     property real customSaturation: 0.75
@@ -81,12 +82,15 @@ Popup {
     }
 
     onOpened: {
+        if (root.focusRouter)
+            root.focusRouter.claimUiFocus("themePicker");
         const accent = Theme.accent
         customHue = accent.hslHue < 0 ? 0 : accent.hslHue
         customSaturation = accent.hslSaturation
         intensity = 1
         hexInput.text = accent.toString().toUpperCase()
     }
+    onClosed: if (root.focusRouter) root.focusRouter.releaseUiFocus("themePicker")
 
     popupType: Popup.Window
     modal: false
@@ -158,7 +162,7 @@ Popup {
             Layout.leftMargin: 17; Layout.rightMargin: 17; Layout.topMargin: 15
             spacing: 9
             Rectangle {
-                width: 28; height: 28; radius: 9
+                Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 9
                 color: Qt.alpha(Theme.accent, 0.14)
                 border.color: Qt.alpha(Theme.accent, 0.25); border.width: 1
                 Rectangle { width: 12; height: 12; radius: 6; anchors.centerIn: parent; color: Theme.accent }
@@ -204,7 +208,7 @@ Popup {
 
         Rectangle {
             Layout.fillWidth: true; Layout.leftMargin: 17; Layout.rightMargin: 17
-            Layout.topMargin: 13; height: 1; color: Theme.cardBorder
+            Layout.topMargin: 13; Layout.preferredHeight: 1; color: Theme.cardBorder
         }
 
         RowLayout {
@@ -334,7 +338,7 @@ Popup {
                 Accessible.name: qsTr("Theme color intensity")
             }
             Rectangle {
-                width: 20; height: 20; radius: 7
+                Layout.preferredWidth: 20; Layout.preferredHeight: 20; radius: 7
                 color: Qt.hsla(root.customHue, root.customSaturation * root.intensity, 0.5, 1)
                 border.width: 1; border.color: Theme.cardBorder
             }
@@ -359,7 +363,7 @@ Popup {
                 }
             }
             Item {
-                width: 30; height: 30
+                Layout.preferredWidth: 30; Layout.preferredHeight: 30
                 Rectangle { anchors.fill: parent; radius: 7; color: colorButtonHover.hovered ? Theme.itemHover : Theme.fieldBg; border.width: 1; border.color: Theme.cardBorder }
                 LucideIcon { anchors.centerIn: parent; source: "qrc:/QT_Illuminate/ui/icons/square.svg"; size: 14; color: Theme.textMuted }
                 HoverHandler { id: colorButtonHover; cursorShape: Qt.PointingHandCursor }
@@ -374,31 +378,50 @@ Popup {
         RowLayout {
             Layout.fillWidth: true
             Layout.leftMargin: 17; Layout.rightMargin: 17; Layout.topMargin: 10; Layout.bottomMargin: 12
-            RowLayout {
-                Layout.fillWidth: true; spacing: 7
-                Text { text: qsTr("Transparent sidebar"); color: Theme.textMuted; font.family: Theme.fontFamily; font.pixelSize: 10 }
-                Item {
-                    width: 30; height: 20
-                    Rectangle {
-                        anchors.fill: parent; radius: 10
-                        color: Browser.transparentChrome ? Theme.accent : Theme.fieldBg
-                        border.width: 1; border.color: Theme.cardBorder
-                    }
-                    Rectangle {
-                        width: 14; height: 14; radius: 7; y: 3
-                        x: Browser.transparentChrome ? 13 : 3
-                        color: "white"
-                        Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                    }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: Browser.transparentChrome = !Browser.transparentChrome }
-                    Accessible.role: Accessible.Switch
-                    Accessible.name: qsTr("Transparent sidebar")
-                    Accessible.checked: Browser.transparentChrome
+            spacing: 12
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 3
+                Text {
+                    text: qsTr("Translucent sidebar")
+                    color: Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 11
+                    font.weight: Font.Medium
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("Let your desktop show through the browser chrome")
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 9
+                    wrapMode: Text.WordWrap
                 }
             }
             Item {
-                width: 76; height: 25
+                Layout.preferredWidth: 38; Layout.preferredHeight: 24
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 12
+                    color: Browser.transparentChrome ? Theme.accent : Theme.fieldBg
+                    border.width: 1
+                    border.color: Browser.transparentChrome ? Qt.alpha(Theme.accent, 0.55) : Theme.cardBorder
+                    Behavior on color { ColorAnimation { duration: 140 } }
+                }
+                Rectangle {
+                    width: 18; height: 18; radius: 9; y: 3
+                    x: Browser.transparentChrome ? 17 : 3
+                    color: "white"
+                    Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                }
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: Browser.transparentChrome = !Browser.transparentChrome }
+                Accessible.role: Accessible.Switch
+                Accessible.name: qsTr("Translucent sidebar")
+                Accessible.checked: Browser.transparentChrome
+            }
+            Item {
+                Layout.preferredWidth: 76; Layout.preferredHeight: 25
                 Text {
                     anchors.centerIn: parent; text: qsTr("Reset")
                     color: resetHover.hovered ? Theme.text : Theme.textMuted

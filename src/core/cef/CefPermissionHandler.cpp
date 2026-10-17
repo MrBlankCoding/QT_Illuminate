@@ -154,23 +154,25 @@ void CefPermissionHandlerImpl::OnDismissPermissionPrompt(CefRefPtr<CefBrowser> b
 
 void CefPermissionHandlerImpl::trackOnQtThread(uint64_t promptId, QPointer<CefPermissionRequest> request)
 {
+    const auto state = m_pendingPromptState;
     QMetaObject::invokeMethod(
         QCoreApplication::instance(),
-        [this, promptId, request]() { m_pendingPrompts.insert(promptId, request); },
+        [state, promptId, request]() { state->prompts.insert(promptId, request); },
         Qt::QueuedConnection);
 }
 
 void CefPermissionHandlerImpl::invalidateOnQtThread(uint64_t promptId)
 {
+    const auto state = m_pendingPromptState;
     QMetaObject::invokeMethod(
         QCoreApplication::instance(),
-        [this, promptId]() {
-            auto it = m_pendingPrompts.find(promptId);
-            if (it == m_pendingPrompts.end())
+        [state, promptId]() {
+            auto it = state->prompts.find(promptId);
+            if (it == state->prompts.end())
                 return;
             if (it.value())
                 it.value()->invalidate();
-            m_pendingPrompts.erase(it);
+            state->prompts.erase(it);
         },
         Qt::QueuedConnection);
 }

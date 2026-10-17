@@ -7,6 +7,7 @@ Popup {
     id: root
 
     property var webView: null
+    property var focusRouter: null
     property int matchCount: 0
     property int activeMatch: 0
     property bool hasSearched: false
@@ -67,6 +68,8 @@ Popup {
     }
 
     onOpened: {
+        if (root.focusRouter)
+            root.focusRouter.claimUiFocus("findBar");
         if (input.text.length > 0)
             root.search(false);
         Qt.callLater(() => {
@@ -84,6 +87,8 @@ Popup {
         });
     }
     onClosed: {
+        if (root.focusRouter)
+            root.focusRouter.releaseUiFocus("findBar");
         root.resetSearch();
         if (root.webView)
             root.webView.forceActiveFocus();

@@ -7,6 +7,8 @@
 #include <QUrl>
 #include <QHash>
 
+#include <memory>
+
 class CefBrowserWrapper;
 class CefPermissionRequest : public QObject
 {
@@ -65,11 +67,16 @@ public:
                                    cef_permission_request_result_t result) override;
 
 private:
+    struct PendingPromptState
+    {
+        QHash<uint64_t, QPointer<CefPermissionRequest>> prompts;
+    };
+
     void trackOnQtThread(uint64_t promptId, QPointer<CefPermissionRequest> request);
     void invalidateOnQtThread(uint64_t promptId);
 
     QPointer<CefBrowserWrapper> m_wrapper;
-    QHash<uint64_t, QPointer<CefPermissionRequest>> m_pendingPrompts;
+    std::shared_ptr<PendingPromptState> m_pendingPromptState = std::make_shared<PendingPromptState>();
 
     IMPLEMENT_REFCOUNTING(CefPermissionHandlerImpl);
 };

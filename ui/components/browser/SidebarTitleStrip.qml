@@ -8,6 +8,7 @@ Item {
     id: root
 
     property var sidebar
+    readonly property bool fullscreen: sidebar.isFullScreen
 
     Layout.fillWidth: true
     Layout.preferredHeight: Theme.titleBarHeight
@@ -15,7 +16,7 @@ Item {
     WindowDragRegion {
         anchors.fill: parent
         // it would move the overlay's own window
-        enabled: !sidebar.overlay
+        enabled: !root.sidebar.overlay
     }
 
     RowLayout {
@@ -23,13 +24,20 @@ Item {
         spacing: 2
 
         Item {
-            visible: Theme.isMac && !sidebar.isFullScreen && !sidebar.overlay
+            visible: Theme.isMac && !root.sidebar.overlay
             Layout.preferredWidth: Theme.trafficLightW - Theme.sidebarPadding
         }
 
+        SidebarButton {
+            visible: root.fullscreen && Theme.isMac
+            icon: "qrc:/QT_Illuminate/ui/icons/panel-left.svg"
+            iconSize: 15
+            onClicked: root.sidebar.toggleCollapsed()
+        }
+
         WindowControls {
-            visible: sidebar.customWindowControls
-            targetWindow: sidebar.targetWindow
+            visible: root.sidebar.customWindowControls
+            targetWindow: root.sidebar.targetWindow
             buttonWidth: Theme.iconButton + 2
             buttonHeight: Theme.iconButton
             Layout.alignment: Qt.AlignVCenter
@@ -40,27 +48,28 @@ Item {
         }
 
         SidebarButton {
+            visible: !root.fullscreen || !Theme.isMac
             icon: "qrc:/QT_Illuminate/ui/icons/panel-left.svg"
             iconSize: 15
-            onClicked: sidebar.toggleCollapsed()
+            onClicked: root.sidebar.toggleCollapsed()
         }
 
         SidebarButton {
             icon: "qrc:/QT_Illuminate/ui/icons/chevron-left.svg"
             iconSize: 18
-            enabled: sidebar.canGoBack
+            enabled: root.sidebar.canGoBack
             onClicked: Browser.goBack()
         }
         SidebarButton {
             icon: "qrc:/QT_Illuminate/ui/icons/chevron-right.svg"
             iconSize: 18
-            enabled: sidebar.canGoForward
+            enabled: root.sidebar.canGoForward
             onClicked: Browser.goForward()
         }
         SidebarButton {
-            icon: sidebar.isLoading ? "qrc:/QT_Illuminate/ui/icons/x.svg" : "qrc:/QT_Illuminate/ui/icons/rotate-cw.svg"
+            icon: root.sidebar.isLoading ? "qrc:/QT_Illuminate/ui/icons/x.svg" : "qrc:/QT_Illuminate/ui/icons/rotate-cw.svg"
             iconSize: 15
-            enabled: sidebar.currentUrl !== ""
+            enabled: root.sidebar.currentUrl !== ""
             onClicked: Browser.reload()
         }
     }

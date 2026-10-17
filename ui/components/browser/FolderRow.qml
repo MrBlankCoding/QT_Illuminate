@@ -23,6 +23,13 @@ Item {
 
     readonly property bool hovered: hoverHandler.hovered
 
+    function focusTitle() {
+        if (!root.editing)
+            return;
+        titleInput.forceActiveFocus();
+        titleInput.selectAll();
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: Theme.radiusTab
@@ -139,8 +146,7 @@ Item {
             return;
         titleInput.canceled = false;
         titleInput.text = root.title;
-        titleInput.forceActiveFocus();
-        titleInput.selectAll();
+        Qt.callLater(root.focusTitle);
     }
     Component.onCompleted: if (editing) editingChanged()
 
@@ -151,15 +157,7 @@ Item {
     TapHandler {
         id: tapHandler
         enabled: !root.editing
-        onTapped: (eventPoint, button) => {
-            if (tapCount === 2) {
-                // the first tap already toggled; put it back and rename instead
-                root.toggled();
-                root.renameRequested();
-            } else {
-                root.toggled();
-            }
-        }
+        onTapped: root.toggled()
     }
 
     TapHandler {

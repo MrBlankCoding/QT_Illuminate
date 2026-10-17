@@ -1,4 +1,5 @@
 import QtQuick
+import QT_Illuminate.ui as App
 
 Item {
     id: root
@@ -126,10 +127,10 @@ Item {
             root.spaceSwitchRequested(payload)
             return
         case "space.next":
-            Spaces.cycleSpace(1)
+            App.Spaces.cycleSpace(1)
             return
         case "space.previous":
-            Spaces.cycleSpace(-1)
+            App.Spaces.cycleSpace(-1)
             return
         case "space.new":
             root.newSpaceRequested()

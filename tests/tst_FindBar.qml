@@ -21,7 +21,7 @@ Item {
                 findTextCount: 0,
                 lastFindText: qsTr(""),
                 findText: function (text, flags) {
-                    this.findTextCount++;
+                    this["findTextCount"]++; // qmllint disable missing-property
                     this.lastFindText = text;
                 },
                 forceActiveFocus: function () {}

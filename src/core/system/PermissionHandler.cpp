@@ -199,7 +199,7 @@ int PermissionHandler::systemAccessForType(int type) const
 {
     SystemAccess worst = Granted;
     for (SystemResource r : resourcesForType(type))
-        worst = std::max(worst, platformSystemAccess(r));
+        worst = (std::max)(worst, platformSystemAccess(r));
     return worst;
 }
 

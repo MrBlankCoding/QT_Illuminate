@@ -81,7 +81,7 @@ private slots:
 
         QSignalSpy spy(registry, &ShortcutRegistry::shortcutsChanged);
         QVERIFY(registry->setSequence(QStringLiteral("copyUrl"), QStringLiteral("Ctrl+Alt+U")));
-        QCOMPARE(spy.count(), 1);
+        QCOMPARE(spy.size(), 1);
 
         QCOMPARE(registry->sequences(QStringLiteral("copyUrl")), QStringList{QStringLiteral("Ctrl+Alt+U")});
         QVERIFY(registry->isCustomized(QStringLiteral("copyUrl")));

@@ -48,6 +48,9 @@ void CefHostWindow::OnWindowDestroyed(CefRefPtr<CefWindow> window)
 
 void CefHostWindow::setBounds(const CefRect &bounds)
 {
+    if (m_bounds.x == bounds.x && m_bounds.y == bounds.y
+        && m_bounds.width == bounds.width && m_bounds.height == bounds.height)
+        return;
     m_bounds = bounds;
     if (m_window)
         m_window->SetBounds(bounds);
@@ -70,6 +73,14 @@ void CefHostWindow::setVisible(bool visible)
                 self->m_window->Hide();
         });
     }
+}
+
+void CefHostWindow::restore()
+{
+    if (!m_window || m_closing)
+        return;
+    m_visible = true;
+    m_window->Show();
 }
 
 void CefHostWindow::close()

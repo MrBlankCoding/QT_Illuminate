@@ -34,9 +34,9 @@ ChildMap childMap(qint64 root)
 {
     ChildMap map;
     QList<qint64> queue{root};
-    while (!queue.isEmpty())
+    for (qsizetype cursor = 0; cursor < queue.size(); ++cursor)
     {
-        const qint64 pid = queue.takeFirst();
+        const qint64 pid = queue.at(cursor);
         const int bytes = proc_listpids(PROC_PPID_ONLY, uint32_t(pid), nullptr, 0);
         if (bytes <= 0)
             continue;
@@ -58,7 +58,7 @@ ChildMap childMap(qint64 root)
 // matches the "Memory" column in Activity Monitor
 qint64 processBytes(qint64 pid)
 {
-    rusage_info_v2 info{};
+    rusage_info_v2 info = {};
     if (proc_pid_rusage(pid_t(pid), RUSAGE_INFO_V2, reinterpret_cast<rusage_info_t *>(&info)) != 0)
         return 0;
     return qint64(info.ri_phys_footprint);
@@ -178,7 +178,7 @@ ChildMap childMap(qint64)
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snap == INVALID_HANDLE_VALUE)
         return map;
-    PROCESSENTRY32W entry{};
+    PROCESSENTRY32W entry = {};
     entry.dwSize = sizeof(entry);
     for (BOOL ok = Process32FirstW(snap, &entry); ok; ok = Process32NextW(snap, &entry))
         map[entry.th32ParentProcessID].append(entry.th32ProcessID);
@@ -192,7 +192,7 @@ qint64 processBytes(qint64 pid)
     HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, DWORD(pid));
     if (!h)
         return 0;
-    PROCESS_MEMORY_COUNTERS_EX pmc{};
+    PROCESS_MEMORY_COUNTERS_EX pmc = {};
     qint64 bytes = 0;
     if (GetProcessMemoryInfo(h, reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&pmc), sizeof(pmc)))
         bytes = qint64(pmc.PrivateUsage);
@@ -291,9 +291,9 @@ QVariantMap MemoryMonitor::snapshot() const
     // visited guards against pid reuse making a cycle (windows keeps stale ppids)
     QList<qint64> queue{self};
     QSet<qint64> visited;
-    while (!queue.isEmpty())
+    for (qsizetype cursor = 0; cursor < queue.size(); ++cursor)
     {
-        const qint64 pid = queue.takeFirst();
+        const qint64 pid = queue.at(cursor);
         if (visited.contains(pid))
             continue;
         visited.insert(pid);

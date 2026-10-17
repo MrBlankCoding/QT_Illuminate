@@ -51,8 +51,8 @@ void applyAccent(HWND hwnd, int state, unsigned int tint)
     if (!fn)
         return;
 
-    AccentPolicy policy{state, 2, static_cast<int>(tint), 0};
-    WindowCompositionAttributeData data{WCA_ACCENT_POLICY, &policy, sizeof(policy)};
+    AccentPolicy policy = {state, 2, static_cast<int>(tint), 0};
+    WindowCompositionAttributeData data = {WCA_ACCENT_POLICY, &policy, sizeof(policy)};
     fn(hwnd, &data);
 }
 } // namespace
@@ -107,7 +107,8 @@ void WindowHelper::setWindowTransparent(QQuickWindow *window, bool transparent, 
 
     if (transparent)
     {
-        applyAccent(hwnd, ACCENT_ENABLE_ACRYLICBLURBEHIND, 0x01000000u);
+        const unsigned int tint = dark ? 0x6620202Au : 0x66F0F1F5u;
+        applyAccent(hwnd, ACCENT_ENABLE_ACRYLICBLURBEHIND, tint);
     }
     else
     {

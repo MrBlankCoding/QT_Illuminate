@@ -323,7 +323,7 @@ QVector<MenuItem> AppMenu::bookmarkEntries() const
 
     entries.append(MenuItem::separator());
 
-    const int listed = qMin(total, kMaxListedBookmarks);
+    const int listed = (std::min)(total, kMaxListedBookmarks);
     for (int i = 0; i < listed; ++i)
     {
         const QVariantMap bookmark = model->itemAt(i);

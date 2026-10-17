@@ -19,6 +19,8 @@
 #include <QThread>
 #include <QTimer>
 
+#include <algorithm>
+#include <chrono>
 #include <vector>
 
 #include <include/cef_version.h>
@@ -29,7 +31,7 @@ namespace
 {
 
 constexpr int kMaxPumpDelayMs = 1000 / 30;
-constexpr qint64 kBrowserCloseTimeoutMs = 10000;
+constexpr auto kBrowserCloseTimeout = std::chrono::seconds(10);
 constexpr char kBrowserLanguageKey[] = "general/language";
 constexpr const char *kCustomSchemes[] = {"illuminate", "newtab"};
 constexpr const char *kListSwitches[] = {
@@ -242,7 +244,7 @@ void CefManager::closeAllBrowsers()
 
     QElapsedTimer timer;
     timer.start();
-    while (timer.elapsed() < kBrowserCloseTimeoutMs && openBrowserCount() > 0)
+    while (std::chrono::milliseconds(timer.elapsed()) < kBrowserCloseTimeout && openBrowserCount() > 0)
     {
         if (m_externalPump)
             CefDoMessageLoopWork();
@@ -358,7 +360,7 @@ void CefManager::scheduleMessagePumpWork(int64_t delayMs)
         });
     }
 
-    const int delay = static_cast<int>(qBound<int64_t>(0, delayMs, int64_t(kMaxPumpDelayMs)));
+    const int delay = static_cast<int>(std::clamp<int64_t>(delayMs, 0, int64_t(kMaxPumpDelayMs)));
     // keep whichever deadline comes first
     if (m_pumpTimer->isActive() && m_pumpTimer->remainingTime() <= delay)
         return;

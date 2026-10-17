@@ -98,7 +98,7 @@ private slots:
         QCOMPARE(rows(model).first(3), (QStringList{"f:0:Outer", "f:1:Inner", "t:2:0"}));
     }
 
-    void theActiveTabStaysVisibleUnderItsCollapsedFolder()
+    void collapsingHidesEveryDescendant()
     {
         TabModel tabs;
         SidebarModel model(&tabs);
@@ -110,12 +110,11 @@ private slots:
         tabs.setActiveIndex(tabs.indexOf(t[1]));
         model.setExpanded(folder, false);
 
-        QCOMPARE(rows(model), (QStringList{"f:0:F", "t:1:1", "h:0:"}));
-        QVERIFY(model.index(1).data(SidebarModel::PeekRole).toBool());
+        QCOMPARE(rows(model), (QStringList{"f:0:F", "h:0:"}));
 
-        // switching away lets it fold back in
+        // Changing the active tab does not reveal a collapsed folder's contents.
         tabs.setActiveIndex(tabs.indexOf(t[0]));
-        QCOMPARE(rows(model), (QStringList{"f:0:F", "t:1:0", "h:0:"}));
+        QCOMPARE(rows(model), (QStringList{"f:0:F", "h:0:"}));
     }
 
     void aFolderCannotBeDroppedIntoItself()
