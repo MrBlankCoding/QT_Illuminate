@@ -399,7 +399,10 @@ if ($DoClean) {
 # ── build ────────────────────────────────────────────────────────────────────
 
 Write-Host '→ Building…'
-& cmake --build $BuildDir --config $BuildType --parallel ([Environment]::ProcessorCount)
+# Build the app target and its dependencies only. The default ALL_BUILD target
+# also compiles every test executable, which is unnecessary for a normal app
+# build and particularly costly with MSVC.
+& cmake --build $BuildDir --target QT_Illuminate --config $BuildType --parallel ([Environment]::ProcessorCount)
 Assert-NativeSuccess 'build'
 
 if (-not (Test-Path -LiteralPath $AppBinary)) {

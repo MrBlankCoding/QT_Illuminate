@@ -147,6 +147,52 @@ Item {
             onContextMenuRequested: sideMenus.sidebarMenu.popup()
         }
 
+        Item {
+            id: newTabButton
+            Layout.fillWidth: true
+            Layout.preferredHeight: Theme.tabRowHeight
+            Layout.leftMargin: Theme.space1
+            Layout.rightMargin: Theme.space1
+
+            readonly property bool hovered: hoverHandler.hovered
+
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.radiusTab
+                color: tapHandler.pressed ? Theme.itemPressed
+                     : newTabButton.hovered ? Theme.itemHover : "transparent"
+                Behavior on color { ColorAnimation { duration: Theme.durationFast } }
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: Theme.space3
+                spacing: Theme.space2 + 2
+
+                LucideIcon {
+                    source: "qrc:/QT_Illuminate/ui/icons/plus.svg"
+                    size: 16
+                    color: newTabButton.hovered ? Theme.text : Theme.textMuted
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("New Tab")
+                    color: newTabButton.hovered ? Theme.text : Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeM
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+
+            HoverHandler { id: hoverHandler }
+            TapHandler {
+                id: tapHandler
+                onTapped: Browser.newTab()
+            }
+            Accessible.name: qsTr("New Tab")
+        }
+
         // Downloads, space switcher, and creation menu stay docked at the bottom.
         SidebarFooter {
             id: footer

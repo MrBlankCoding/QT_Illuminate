@@ -5,6 +5,7 @@
 #include <include/views/cef_window.h>
 #include <include/views/cef_window_delegate.h>
 
+#include <atomic>
 #include <functional>
 
 class CefHostWindow : public CefWindowDelegate, public CefBrowserViewDelegate
@@ -44,6 +45,7 @@ private:
     std::function<void()> m_ready;
     CefRefPtr<CefBrowserView> m_browserView;
     CefRefPtr<CefWindow> m_window;
+    std::atomic<cef_window_handle_t> m_nativeHandle{nullptr};
     bool m_visible = false;
     bool m_closing = false;
 

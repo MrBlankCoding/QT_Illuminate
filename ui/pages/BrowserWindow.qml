@@ -17,7 +17,7 @@ Window {
     minimumHeight: 420
     title: (Browser.activeTitle || "New Tab") + " — QT_Illuminate"
     color: Theme.chromeBg
-    readonly property bool frameless: Qt.platform.os !== "osx"
+    readonly property bool frameless: !Theme.isMac
     flags: frameless ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
     readonly property bool contentFullScreen: viewStack.activeWebView ? viewStack.activeWebView.fullScreen : false
     property bool fullScreenForContent: false
@@ -547,7 +547,7 @@ Window {
                             viewStack.refreshActiveWebView();
                         }
                         function onNewTabOpened() {
-                            Qt.callLater(() => root.openCommandBar("new"));
+                            root.openCommandBar("new");
                         }
 
                         function onCloseWindowRequested() {

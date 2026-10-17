@@ -1,5 +1,4 @@
 #include "CefProfile.h"
-#include "../utils/cef_helpers.h"
 #include "../utils/BrowserLogger.h"
 
 #include <include/cef_task.h>
@@ -106,12 +105,7 @@ CefRefPtr<CefRequestContext> CefProfile::requestContext()
 {
     if (!m_requestContext)
     {
-        CefRequestContextSettings settings;
-        if (!m_cachePath.isEmpty())
-            CefString(&settings.cache_path) = qStringToCef(m_cachePath);
-        settings.persist_session_cookies = true;
-
-        m_requestContext = CefRequestContext::CreateContext(settings, nullptr);
+        m_requestContext = CefRequestContext::GetGlobalContext();
         BrowserLogger::instance().info("Profile",
             QString("CefRequestContext initialized for storage=%1").arg(m_storagePath));
 

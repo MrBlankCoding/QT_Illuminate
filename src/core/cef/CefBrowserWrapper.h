@@ -148,8 +148,7 @@ protected:
 
 private:
     void initializeBrowserHost();
-    void createHostWindow(const CefBrowserSettings &settings,
-                          CefRefPtr<CefRequestContext> requestContext);
+    void createHostWindow(const CefBrowserSettings &settings);
     void onHostWindowReady();
     void updateHostWindow();
     QRect screenRect() const;

@@ -126,7 +126,12 @@ CefProfile *CefManager::defaultProfile()
 
 bool CefManager::chromeStyle()
 {
-    static const bool chrome = qEnvironmentVariableIntValue("ILLUMINATE_ALLOY_STYLE") == 0;
+    static const QString style = qEnvironmentVariable("ILLUMINATE_ALLOY_STYLE");
+#ifdef Q_OS_WIN
+    static const bool chrome = !style.isNull() && style == QLatin1String("0");
+#else
+    static const bool chrome = style.isEmpty() || style == QLatin1String("0");
+#endif
     return chrome;
 }
 
@@ -183,7 +188,9 @@ bool CefManager::initialize(int argc, char **argv)
     const QString rootCache = CefProfile::rootCachePath();
     if (!QDir().mkpath(rootCache))
         BrowserLogger::instance().warning("CEF", "Could not create cache directory: " + rootCache);
+    CefString(&settings.cache_path) = qStringToCef(rootCache);
     CefString(&settings.root_cache_path) = qStringToCef(rootCache);
+    settings.persist_session_cookies = true;
     
     const QStringList profileDirs = QDir(rootCache).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     for (const QString &profileDir : profileDirs)

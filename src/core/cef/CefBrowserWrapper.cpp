@@ -25,9 +25,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 
 #include <include/cef_app.h>
 #include <include/cef_parser.h>
+#include <include/cef_task.h>
 
 #ifdef __APPLE__
 void cefSetNativeViewGeometry(void *view, const QRect &rect, bool visible); // CefBrowserWrapper_mac.mm
@@ -43,6 +45,49 @@ bool cefChildWindowIsKey(void *parentView);                                 // C
 void cefSetChildWindowCanTakeKey(void *childHandle, bool allowed);          // CefBrowserWrapper_mac.mm
 #elif defined(_WIN32)
 #include <windows.h>
+#include <QHash>
+#include <QtMath>
+
+namespace {
+QHash<quintptr, qreal> &cefWindowCornerRadii()
+{
+    static QHash<quintptr, qreal> radii;
+    return radii;
+}
+
+UINT dpiForWindow(HWND hwnd)
+{
+    using GetDpiForWindowFn = UINT(WINAPI *)(HWND);
+    static const auto getDpiForWindow = reinterpret_cast<GetDpiForWindowFn>(
+        GetProcAddress(GetModuleHandleW(L"user32.dll"), "GetDpiForWindow"));
+    return getDpiForWindow ? getDpiForWindow(hwnd) : 96;
+}
+
+void applyWindowCornerRadius(HWND hwnd, qreal radius)
+{
+    if (!hwnd)
+        return;
+    if (radius <= 0) {
+        SetWindowRgn(hwnd, nullptr, TRUE);
+        return;
+    }
+
+    RECT bounds{};
+    if (!GetWindowRect(hwnd, &bounds))
+        return;
+    const int width = bounds.right - bounds.left;
+    const int height = bounds.bottom - bounds.top;
+    if (width <= 0 || height <= 0)
+        return;
+
+    const int radiusPx = qRound(radius * dpiForWindow(hwnd) / 96.0);
+    const int diameter = qMin(qMin(width, height), qMax(1, radiusPx * 2));
+    HRGN region = CreateRoundRectRgn(0, 0, width + 1, height + 1, diameter, diameter);
+    if (region && !SetWindowRgn(hwnd, region, TRUE))
+        DeleteObject(region);
+}
+} // namespace
+
 static void cefSetNativeViewGeometry(cef_window_handle_t hwnd, const QRect &rect, bool visible)
 {
     if (!hwnd)
@@ -52,6 +97,22 @@ static void cefSetNativeViewGeometry(cef_window_handle_t hwnd, const QRect &rect
         return;
     SetWindowPos(hwnd, nullptr, rect.x(), rect.y(), rect.width(), rect.height(),
                  SWP_NOZORDER | SWP_NOACTIVATE);
+    applyWindowCornerRadius(hwnd, cefWindowCornerRadii().value(reinterpret_cast<quintptr>(hwnd)));
+}
+static void cefSetNativeViewCornerRadius(cef_window_handle_t hwnd, qreal radius)
+{
+    if (!hwnd)
+        return;
+    const quintptr key = reinterpret_cast<quintptr>(hwnd);
+    if (radius <= 0)
+        cefWindowCornerRadii().remove(key);
+    else
+        cefWindowCornerRadii().insert(key, radius);
+    applyWindowCornerRadius(hwnd, radius);
+}
+static void cefSetChildWindowCornerRadius(void *childHandle, qreal radius)
+{
+    cefSetNativeViewCornerRadius(reinterpret_cast<cef_window_handle_t>(childHandle), radius);
 }
 static void cefRaiseChildWindow(void *, void *childHandle)
 {
@@ -78,6 +139,7 @@ static void cefDetachChildWindow(void *childHandle)
 {
     HWND child = reinterpret_cast<HWND>(childHandle);
     if (child) {
+        cefSetNativeViewCornerRadius(child, 0);
         ShowWindow(child, SW_HIDE);
         SetParent(child, nullptr);
     }
@@ -191,12 +253,16 @@ static void cefSetNativeViewGeometry(cef_window_handle_t, const QRect &, bool) {
 #endif
 
 #ifndef __APPLE__
+#if !defined(_WIN32)
 static void cefSetNativeViewCornerRadius(cef_window_handle_t, qreal) {}
+#endif
 #if !defined(_WIN32) && !defined(QT_ILLUMINATE_HAS_X11)
 static bool cefResignNativeFocus(cef_window_handle_t) { return false; }
 #endif
 static void cefSetChildWindowBackgroundColor(void *, const QColor &) {}
+#if !defined(_WIN32)
 static void cefSetChildWindowCornerRadius(void *, qreal) {}
+#endif
 #if !defined(_WIN32)
 #if !defined(QT_ILLUMINATE_HAS_X11)
 static void cefRaiseChildWindow(void *, void *) {}
@@ -213,6 +279,19 @@ static void cefSetChildWindowCanTakeKey(void *, bool) {}
 
 namespace
 {
+class ClosureTask final : public CefTask
+{
+public:
+    explicit ClosureTask(std::function<void()> callback) : m_callback(std::move(callback)) {}
+
+    void Execute() override { m_callback(); }
+
+private:
+    std::function<void()> m_callback;
+
+    IMPLEMENT_REFCOUNTING(ClosureTask);
+};
+
 // Chromium maps zoom levels to factors as factor = 1.2^level.
 constexpr qreal kZoomBase = 1.2;
 constexpr qreal kMinZoomFactor = 0.25;
@@ -308,6 +387,7 @@ CefBrowserWrapper::~CefBrowserWrapper()
     m_browser = nullptr;
     if (m_hostWindow)
     {
+        cefSetChildWindowCornerRadius(m_hostWindow->nativeHandle(), 0);
         cefDetachChildWindow(m_hostWindow->nativeHandle());
         if (host)
             host->CloseBrowser(true);
@@ -317,6 +397,7 @@ CefBrowserWrapper::~CefBrowserWrapper()
     }
     if (!host)
         return;
+    cefSetNativeViewCornerRadius(host->GetWindowHandle(), 0);
     cefSetNativeViewGeometry(host->GetWindowHandle(), m_nativeRect, false);
 
     // DevTools browsers are owned by the page's host, not by us
@@ -720,26 +801,34 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
     if (m_backgroundColor.isValid())
         settings.background_color = m_backgroundColor.rgba();
 
-    CefRefPtr<CefRequestContext> requestContext = CefManager::defaultProfile()->requestContext();
-
     if (CefManager::chromeStyle())
     {
-        createHostWindow(settings, requestContext);
+        createHostWindow(settings);
         return;
     }
 
     m_createdUrl = m_url;
     const CefString initialUrl = m_url.isEmpty() ? CefString() : qUrlToCefString(m_url);
-    if (!CefBrowserHost::CreateBrowser(windowInfo, m_client, initialUrl, settings, nullptr, requestContext))
-    {
-        // Without this the wrapper would wait forever for OnAfterCreated.
-        m_creatingBrowser = false;
-        qWarning() << "[CEF] CreateBrowser failed for" << m_url;
-    }
+    QPointer<CefBrowserWrapper> guard(this);
+    CefRefPtr<CefClient> client = m_client;
+    CefPostTask(TID_UI, new ClosureTask(
+        [guard, client, windowInfo, initialUrl, settings]() {
+            if (!guard)
+                return;
+            const auto requestContext = CefManager::defaultProfile()->requestContext();
+            if (!CefBrowserHost::CreateBrowser(windowInfo, client, initialUrl, settings, nullptr, requestContext))
+            {
+                QMetaObject::invokeMethod(guard.data(), [guard]() {
+                    if (!guard)
+                        return;
+                    guard->m_creatingBrowser = false;
+                    qWarning() << "[CEF] CreateBrowser failed for" << guard->m_url;
+                }, Qt::QueuedConnection);
+            }
+        }));
 }
 
-void CefBrowserWrapper::createHostWindow(const CefBrowserSettings &settings,
-                                         CefRefPtr<CefRequestContext> requestContext)
+void CefBrowserWrapper::createHostWindow(const CefBrowserSettings &settings)
 {
     m_createdUrl = m_url;
     const QRect screen = toNativeRect(screenRect(), window());
@@ -755,8 +844,14 @@ void CefBrowserWrapper::createHostWindow(const CefBrowserSettings &settings,
                                          if (guard)
                                              guard->onHostWindowReady();
                                      });
-    m_hostWindow->create(m_client, m_url.isEmpty() ? CefString() : qUrlToCefString(m_url),
-                         settings, requestContext);
+    CefRefPtr<CefHostWindow> hostWindow = m_hostWindow;
+    CefRefPtr<CefClient> client = m_client;
+    const CefString initialUrl = m_url.isEmpty() ? CefString() : qUrlToCefString(m_url);
+    CefPostTask(TID_UI, new ClosureTask(
+        [hostWindow, client, initialUrl, settings]() {
+            const auto requestContext = CefManager::defaultProfile()->requestContext();
+            hostWindow->create(client, initialUrl, settings, requestContext);
+        }));
 }
 
 // the window exists: hang it off ours, then size and show it like a view
@@ -807,7 +902,11 @@ void CefBrowserWrapper::updateHostWindow()
         m_hostWindow->setVisible(visible);
     }
 #if !defined(__APPLE__)
+#ifdef _WIN32
+    cefSetNativeViewGeometry(reinterpret_cast<cef_window_handle_t>(m_hostWindow->nativeHandle()), native, visible);
+#else
     cefSetNativeViewGeometry(m_hostWindow->nativeHandle(), native, visible);
+#endif
 #endif
     if (m_nativeCornerRadius != m_cornerRadius)
     {

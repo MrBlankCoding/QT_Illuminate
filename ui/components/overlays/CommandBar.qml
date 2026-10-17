@@ -35,7 +35,12 @@ Popup {
     property var heldSuggestions: []
     property point lastPointer: Qt.point(-1, -1)
 
-    popupType: Popup.Window
+    // A new-tab page has no native CEF surface to cover, so keep its command
+    // bar in the main window. This avoids a second HWND appearing during the
+    // tab switch. Editing an address over a live webview still needs a native
+    // popup window so it can render above CEF's child HWND.
+    popupType: mode === "new" && String(Browser.activeUrl) === "newtab://newtab"
+        ? Popup.Item : Popup.Window
     modal: false
     focus: true
     Component.onCompleted: PopupCloser.watch(root)

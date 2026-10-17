@@ -72,6 +72,11 @@ void WindowHelper::applyTitleBarStyle(QQuickWindow *window, qreal barHeight)
 
     BOOL enable = TRUE;
     DwmSetWindowAttribute(hwnd, 20, &enable, sizeof(enable));
+    // DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2.
+    const DWORD cornerPreferenceAttribute = 33;
+    const int roundedCorners = 2;
+    DwmSetWindowAttribute(hwnd, cornerPreferenceAttribute, &roundedCorners,
+                          sizeof(roundedCorners));
     MARGINS margins = {0, 0, 0, static_cast<LONG>(barHeight)};
     DwmExtendFrameIntoClientArea(hwnd, &margins);
 #else

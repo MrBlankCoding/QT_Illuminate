@@ -13,7 +13,7 @@ ApplicationWindow {
     title: "Settings"
     color: Theme.glassBg
 
-    readonly property bool frameless: Qt.platform.os !== "osx"
+    readonly property bool frameless: !Theme.isMac
     flags: frameless ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
 
     ChromeGlass {
