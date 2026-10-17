@@ -887,7 +887,8 @@ void CefBrowserWrapper::updateHostWindow()
 #else
     const QRect hostBounds = native;
 #endif
-    m_hostWindow->setBounds(CefRect(hostBounds.x(), hostBounds.y(), hostBounds.width(), hostBounds.height()));
+    m_hostWindow->setBounds(CefRect(hostBounds.x(), hostBounds.y(), hostBounds.width(), hostBounds.height()),
+                            nativeHandleOf(window()), sceneRect());
     if (showing)
     {
         // Keep key where it is: the page coming up only takes it over from
@@ -918,10 +919,18 @@ void CefBrowserWrapper::updateHostWindow()
 // where the item is on screen: what a window of its own is positioned by
 QRect CefBrowserWrapper::screenRect() const
 {
-    const QRect scene = sceneRect();
     if (!window())
-        return scene;
-    return QRect(window()->mapToGlobal(scene.topLeft()), scene.size());
+        return sceneRect();
+
+    // Chrome-style browsers on macOS live in a native child NSWindow, which
+    // does not honor QQuickItem clipping. Keep that native window within the
+    // Qt window's content bounds even when a layout or animation briefly
+    // places the item past an edge.
+    const QRect windowBounds(QPoint(0, 0), window()->size());
+    const QRect visibleScene = sceneRect().intersected(windowBounds);
+    if (visibleScene.isEmpty())
+        return QRect(visibleScene.topLeft(), QSize(0, 0));
+    return QRect(window()->mapToGlobal(visibleScene.topLeft()), visibleScene.size());
 }
 
 void CefBrowserWrapper::initializeBrowserHost()

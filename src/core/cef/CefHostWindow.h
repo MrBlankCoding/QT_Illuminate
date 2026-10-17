@@ -4,6 +4,7 @@
 #include <include/views/cef_browser_view_delegate.h>
 #include <include/views/cef_window.h>
 #include <include/views/cef_window_delegate.h>
+#include <QRect>
 
 #include <atomic>
 #include <functional>
@@ -17,7 +18,7 @@ public:
                 const CefString &url,
                 const CefBrowserSettings &settings,
                 CefRefPtr<CefRequestContext> requestContext);
-    void setBounds(const CefRect &bounds);
+    void setBounds(const CefRect &bounds, void *parentView = nullptr, const QRect &geometry = QRect());
     void setVisible(bool visible);
     void restore();
     void close();

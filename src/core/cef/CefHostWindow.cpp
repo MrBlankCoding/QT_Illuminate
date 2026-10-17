@@ -10,6 +10,10 @@
 
 #include <utility>
 
+#ifdef __APPLE__
+void cefSetChildWindowGeometry(void *parentView, void *childHandle, const QRect &rect); // CefBrowserWrapper_mac.mm
+#endif
+
 CefHostWindow::CefHostWindow(const CefRect &bounds, std::function<void()> ready)
     : m_bounds(bounds), m_ready(std::move(ready))
 {
@@ -59,22 +63,31 @@ void CefHostWindow::OnWindowDestroyed(CefRefPtr<CefWindow> window)
     m_window = nullptr;
 }
 
-void CefHostWindow::setBounds(const CefRect &bounds)
+void CefHostWindow::setBounds(const CefRect &bounds, void *parentView, const QRect &geometry)
 {
     if (!CefCurrentlyOn(TID_UI))
     {
         CefRefPtr<CefHostWindow> self(this);
         CefPostTask(TID_UI, CefCreateClosureTask(base::BindOnce(
-            &CefHostWindow::setBounds, self, bounds)));
+            &CefHostWindow::setBounds, self, bounds, parentView, geometry)));
         return;
     }
 
-    if (m_bounds.x == bounds.x && m_bounds.y == bounds.y
-        && m_bounds.width == bounds.width && m_bounds.height == bounds.height)
-        return;
-    m_bounds = bounds;
-    if (m_window)
-        m_window->SetBounds(bounds);
+    const bool boundsChanged = m_bounds.x != bounds.x || m_bounds.y != bounds.y
+        || m_bounds.width != bounds.width || m_bounds.height != bounds.height;
+    if (boundsChanged)
+    {
+        m_bounds = bounds;
+        if (m_window)
+            m_window->SetBounds(bounds);
+    }
+#ifdef __APPLE__
+    if (m_window && parentView)
+        cefSetChildWindowGeometry(parentView, m_window->GetWindowHandle(), geometry);
+#else
+    Q_UNUSED(parentView);
+    Q_UNUSED(geometry);
+#endif
 }
 
 void CefHostWindow::setVisible(bool visible)

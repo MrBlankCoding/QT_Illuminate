@@ -11,6 +11,10 @@ Window {
     // the root object is not shown for us; this is the app's only window at
     // startup, so it opens itself
     visible: true
+    // Let the native window system choose the usable screen bounds on macOS.
+    // A fixed content size can leave the window short of the available frame,
+    // especially with the transparent full-size title bar enabled below.
+    visibility: Theme.isMac ? Window.Maximized : Window.Windowed
     width: 1280
     height: 840
     minimumWidth: 640
@@ -18,7 +22,9 @@ Window {
     title: (Browser.activeTitle || "New Tab") + " — QT_Illuminate"
     color: Theme.chromeBg
     readonly property bool frameless: !Theme.isMac
-    flags: frameless ? Qt.Window | Qt.FramelessWindowHint : Qt.Window
+    flags: frameless
+        ? Qt.Window | Qt.FramelessWindowHint
+        : Qt.Window | (Theme.isMac ? Qt.ExpandedClientAreaHint | Qt.NoTitleBarBackgroundHint : 0)
     readonly property bool contentFullScreen: viewStack.activeWebView ? viewStack.activeWebView.fullScreen : false
     property bool fullScreenForContent: false
     property bool contentFullScreenShown: false

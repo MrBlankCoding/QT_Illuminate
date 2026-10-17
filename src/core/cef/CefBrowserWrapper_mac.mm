@@ -161,6 +161,37 @@ void cefAttachChildWindow(void *parentView, void *childHandle)
     [parent addChildWindow:child ordered:NSWindowAbove];
 }
 
+void cefSetChildWindowGeometry(void *parentViewHandle, void *childHandle, const QRect &rect)
+{
+    NSView *parentView = (__bridge NSView *)parentViewHandle;
+    NSWindow *child = cefWindowFromHandle(childHandle);
+    if (!parentView || !child || !child.parentWindow || rect.isEmpty())
+    {
+        if (child)
+            child.alphaValue = 0.0;
+        return;
+    }
+
+    NSRect bounds = NSMakeRect(rect.x(), rect.y(), rect.width(), rect.height());
+    const NSRect parentBounds = parentView.bounds;
+    bounds = NSIntersectionRect(bounds, parentBounds);
+    if (NSIsEmptyRect(bounds))
+    {
+        child.alphaValue = 0.0;
+        return;
+    }
+
+    if (!parentView.isFlipped)
+        bounds.origin.y = NSMaxY(parentBounds) - NSMaxY(bounds);
+
+    NSWindow *parentWindow = child.parentWindow;
+    const NSRect windowFrame = [parentView convertRect:bounds toView:nil];
+    const NSRect screenFrame = [parentWindow convertRectToScreen:windowFrame];
+    child.alphaValue = 1.0;
+    if (!NSEqualRects(child.frame, screenFrame))
+        [child setFrame:screenFrame display:YES];
+}
+
 void cefSetChildWindowBackgroundColor(void *childHandle, const QColor &color)
 {
     NSWindow *child = cefWindowFromHandle(childHandle);
