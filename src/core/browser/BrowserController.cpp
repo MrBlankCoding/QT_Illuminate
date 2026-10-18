@@ -25,6 +25,7 @@
 BrowserController::BrowserController(Space *space, QObject *parent, const QString &settingsFilePath)
     : QObject(parent)
     , m_space(space)
+    , m_webProfile(space ? CefProfile::forSpace(space->id(), space->storageDir()) : CefProfile::instance())
     , m_settings(new QSettings(settingsFilePath.isEmpty()
                                    ? QDir::homePath() + QDir::separator() + ".illuminate"
                                          + QDir::separator() + "settings.ini"
@@ -64,6 +65,7 @@ void BrowserController::setActiveSpace(Space *space)
     m_model->clear();
 
     m_space = space;
+    m_webProfile = CefProfile::forSpace(space->id(), space->storageDir());
     m_sessionRestoredForSpace = false;
     emit spaceChanged();
     emit themePaletteChanged();
@@ -128,7 +130,7 @@ TabModel *BrowserController::tabModel() const { return m_model; }
 SidebarModel *BrowserController::sidebar() const { return m_sidebar; }
 CefProfile *BrowserController::webProfile() const
 {
-    return CefManager::defaultProfile();
+    return m_webProfile ? m_webProfile : CefManager::defaultProfile();
 }
 bool BrowserController::chromeStyle() const { return CefManager::chromeStyle(); }
 

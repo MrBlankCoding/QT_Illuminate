@@ -50,6 +50,7 @@ class CefBrowserWrapper : public QQuickItem
     Q_PROPERTY(bool externalBrowser READ externalBrowser WRITE setExternalBrowser NOTIFY externalBrowserChanged)
     // Chrome style pages print, find and run extensions through Chrome
     Q_PROPERTY(bool chromeStyle READ chromeStyle CONSTANT)
+    Q_PROPERTY(CefProfile *profile READ profile WRITE setProfile NOTIFY profileChanged)
 
 public:
     enum LifecycleState
@@ -116,6 +117,8 @@ public:
     bool externalBrowser() const { return m_externalBrowser; }
     void setExternalBrowser(bool external);
     bool chromeStyle() const;
+    CefProfile *profile() const { return m_profile; }
+    void setProfile(CefProfile *profile);
 
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goForward();
@@ -185,6 +188,7 @@ signals:
 
     void devToolsViewChanged();
     void externalBrowserChanged();
+    void profileChanged();
     void fullScreenChanged();
 
     void loadRequested(const QUrl &url);
@@ -198,6 +202,7 @@ signals:
 
 private:
     QUrl m_url;
+    CefProfile *m_profile = nullptr;
     bool m_loading = false;
     int m_loadProgress = 0;
     QString m_title;

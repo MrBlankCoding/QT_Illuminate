@@ -319,6 +319,14 @@ CefBrowserWrapper::CefBrowserWrapper(QQuickItem *parent)
     setFlag(ItemHasContents, true);
 }
 
+void CefBrowserWrapper::setProfile(CefProfile *profile)
+{
+    if (m_profile == profile)
+        return;
+    m_profile = profile;
+    emit profileChanged();
+}
+
 CefBrowserWrapper::~CefBrowserWrapper()
 {
     auto host = hostOf(m_browser);

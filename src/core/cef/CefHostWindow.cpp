@@ -1,4 +1,5 @@
 #include "CefHostWindow.h"
+#include "../utils/BrowserLogger.h"
 
 #include <QtGlobal>
 #include <QCoreApplication>
@@ -33,11 +34,19 @@ void CefHostWindow::create(CefRefPtr<CefClient> client,
     }
 
     m_browserView = CefBrowserView::CreateBrowserView(client, url, settings, nullptr, requestContext, this);
+    if (!m_browserView) {
+        BrowserLogger::instance().error("CEF", "Could not create browser view for host window");
+        return;
+    }
     CefWindow::CreateTopLevelWindow(this);
 }
 
 void CefHostWindow::OnWindowCreated(CefRefPtr<CefWindow> window)
 {
+    if (!window || !m_browserView) {
+        BrowserLogger::instance().error("CEF", "Host window was created without a browser view");
+        return;
+    }
     m_window = window;
     m_nativeHandle.store(window->GetWindowHandle(), std::memory_order_release);
     window->AddChildView(m_browserView);

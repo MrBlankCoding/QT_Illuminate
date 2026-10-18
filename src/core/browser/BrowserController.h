@@ -39,7 +39,7 @@ class BrowserController : public QObject, public ExternalQmlSingleton<BrowserCon
     Q_PROPERTY(QString activeCustomThemeId READ activeCustomThemeId NOTIFY activeCustomThemeChanged)
     Q_PROPERTY(QVariantMap activeThemeColors READ activeThemeColors NOTIFY activeCustomThemeChanged)
     Q_PROPERTY(bool firstRun READ isFirstRun NOTIFY firstRunChanged)
-    Q_PROPERTY(CefProfile *webProfile READ webProfile CONSTANT)
+    Q_PROPERTY(CefProfile *webProfile READ webProfile NOTIFY spaceChanged)
     Q_PROPERTY(Space *space READ space NOTIFY spaceChanged)
     Q_PROPERTY(bool chromeStyle READ chromeStyle CONSTANT)
 
@@ -150,6 +150,7 @@ private:
     TabModel *m_model;
     SidebarModel *m_sidebar;
     Space *m_space = nullptr;
+    CefProfile *m_webProfile = nullptr;
 
     QObject *m_activeTabCtx = nullptr;
     QList<QPointer<QObject>> m_adoptedWindows;

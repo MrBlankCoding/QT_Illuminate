@@ -180,6 +180,7 @@ Item {
             CefBrowser {
                 id: webView
                 property string ownerTabId: ""
+                profile: tabSlot.browserContext ? tabSlot.browserContext.webProfile : null
                 anchors.fill: parent
                 visible: tabSlot.visible
                 keepVisibleWhileLoading: !tabSlot.visible && webView.loading && tabSlot.activeTabHasWebView

@@ -256,8 +256,7 @@ void BrowserSettings::setThirdPartyCookiesEnabled(bool enabled)
 
 void BrowserSettings::applyThirdPartyCookies()
 {
-    if (m_webProfile)
-        m_webProfile->setThirdPartyCookiesAllowed(m_thirdPartyCookies);
+    CefProfile::setThirdPartyCookiesAllowedForAll(m_thirdPartyCookies);
 }
 
 // tabs

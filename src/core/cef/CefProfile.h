@@ -21,7 +21,8 @@ class CefProfile : public QObject
     Q_PROPERTY(QString privacyOperationStatus READ privacyOperationStatus NOTIFY privacyOperationStatusChanged)
 
 public:
-    explicit CefProfile(const QString &storagePath, const QString &cachePath, QObject *parent = nullptr);
+    explicit CefProfile(const QString &storagePath, const QString &cachePath, QObject *parent = nullptr,
+                        bool globalContext = false);
     ~CefProfile() override;
 
     QString storagePath() const { return m_storagePath; }
@@ -43,6 +44,8 @@ public:
 
     static QString rootCachePath();
     static CefProfile *instance();
+    static CefProfile *forSpace(const QString &spaceId, const QString &spaceStoragePath);
+    static void setThirdPartyCookiesAllowedForAll(bool allowed);
     static QString storageDir();
     static void releaseAllRequestContexts();
 
@@ -63,4 +66,5 @@ private:
     bool m_thirdPartyCookiesAllowed = true;
     bool m_privacyOperationBusy = false;
     QString m_privacyOperationStatus;
+    bool m_globalContext = false;
 };

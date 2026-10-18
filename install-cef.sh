@@ -93,14 +93,6 @@ sha1_of() {
     fi
 }
 
-# Fetch the index.json and pick the latest *stable* full binary for the
-# given platform.  Prints: <cef_version>|<chromium_version>|<filename>|<size_bytes>|<sha1>
-#
-# NOTE: the JSON is fed to python3 over stdin via a here-string, and the
-# python program itself lives in a temp file (not "python3 - <<HEREDOC").
-# Piping data into `python3 -` while also attaching a heredoc doesn't work:
-# the heredoc becomes the *program source* read from stdin, which leaves
-# nothing on stdin for json.load(sys.stdin) to read afterwards.
 pick_build() {
     local platform="$1"
     local want_version="${2:-}"

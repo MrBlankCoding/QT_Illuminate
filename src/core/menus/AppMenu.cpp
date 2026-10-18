@@ -198,7 +198,7 @@ MenuItem AppMenu::applicationMenu() const
 
 MenuItem AppMenu::fileMenu() const
 {
-    return MenuItem::subMenu(QStringLiteral("File"), {
+    QVector<MenuItem> entries{
         MenuItem::action(QStringLiteral("tab.new"), QStringLiteral("New Tab"), shortcut("newTab")),
         MenuItem::action(QStringLiteral("tab.close"), QStringLiteral("Close Tab"), shortcut("closeTab")),
         MenuItem::separator(),
@@ -208,7 +208,22 @@ MenuItem AppMenu::fileMenu() const
         MenuItem::action(QStringLiteral("page.savePdf"), QStringLiteral("Save as PDF…"), shortcut("savePdf")),
         MenuItem::separator(),
         MenuItem::action(QStringLiteral("page.downloads"), QStringLiteral("Downloads"), shortcut("downloads")),
-    });
+    };
+
+#if defined(Q_OS_MACOS)
+    MenuItem about = MenuItem::action(QStringLiteral("app.about"), QStringLiteral("About %1").arg(
+                                                                          QCoreApplication::applicationName()));
+    about.menuRole = QAction::AboutRole;
+    MenuItem quit = MenuItem::action(QStringLiteral("app.quit"), QStringLiteral("Quit %1").arg(
+                                                                        QCoreApplication::applicationName()),
+                                      shortcut("quit"));
+    quit.menuRole = QAction::QuitRole;
+    entries.append(MenuItem::separator());
+    entries.append(about);
+    entries.append(quit);
+#endif
+
+    return MenuItem::subMenu(QStringLiteral("File"), entries);
 }
 
 MenuItem AppMenu::editMenu() const

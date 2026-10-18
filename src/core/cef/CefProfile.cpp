@@ -9,13 +9,17 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QList>
 #include <QStandardPaths>
 #include <QPointer>
 #include <QMetaObject>
+#include <QHash>
 #include <QtGlobal>
 
 #include <algorithm>
+#include <utility>
 
 namespace
 {
@@ -198,10 +202,12 @@ private:
 namespace
 {
 CefProfile *s_instance = nullptr;
+QHash<QString, CefProfile *> s_spaceProfiles;
 }
 
-CefProfile::CefProfile(const QString &storagePath, const QString &cachePath, QObject *parent)
-    : QObject(parent), m_storagePath(storagePath), m_cachePath(cachePath)
+CefProfile::CefProfile(const QString &storagePath, const QString &cachePath, QObject *parent,
+                       bool globalContext)
+    : QObject(parent), m_storagePath(storagePath), m_cachePath(cachePath), m_globalContext(globalContext)
 {
     QDir().mkpath(m_storagePath);
     QDir().mkpath(m_cachePath);
@@ -212,8 +218,53 @@ CefProfile::~CefProfile() = default;
 CefProfile *CefProfile::instance()
 {
     if (!s_instance)
-        s_instance = new CefProfile(storageDir(), rootCachePath(), qApp);
+        s_instance = new CefProfile(storageDir(), rootCachePath(), qApp, true);
     return s_instance;
+}
+
+CefProfile *CefProfile::forSpace(const QString &spaceId, const QString &spaceStoragePath)
+{
+    if (spaceId.isEmpty() || spaceStoragePath.isEmpty())
+        return instance();
+    if (const auto it = s_spaceProfiles.constFind(spaceId); it != s_spaceProfiles.cend())
+        return it.value();
+
+    // Keep the existing shared profile attached to one stable space so its
+    // history, cookies, and logins remain available after upgrading.
+    const QString ownerPath = QDir(rootCachePath()).filePath(QStringLiteral("space-profile-owner"));
+    QFile ownerFile(ownerPath);
+    QString legacyOwner;
+    if (ownerFile.open(QIODevice::ReadOnly))
+        legacyOwner = QString::fromUtf8(ownerFile.readAll()).trimmed();
+    if (legacyOwner.isEmpty()) {
+        QDir().mkpath(QFileInfo(ownerPath).absolutePath());
+        if (ownerFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            ownerFile.write(spaceId.toUtf8());
+            ownerFile.close();
+        }
+        legacyOwner = spaceId;
+    }
+    if (legacyOwner == spaceId) {
+        CefProfile *profile = instance();
+        s_spaceProfiles.insert(spaceId, profile);
+        return profile;
+    }
+
+    const QString storagePath = QDir(spaceStoragePath).filePath(QStringLiteral("profile"));
+    // CEF expects per-context cache paths to be direct children of
+    // CefSettings.root_cache_path. Keep each profile at that level.
+    const QString cachePath = QDir(rootCachePath()).filePath(QStringLiteral("space-%1").arg(spaceId));
+    auto *profile = new CefProfile(storagePath, cachePath, qApp);
+    profile->setThirdPartyCookiesAllowed(instance()->thirdPartyCookiesAllowed());
+    s_spaceProfiles.insert(spaceId, profile);
+    return profile;
+}
+
+void CefProfile::setThirdPartyCookiesAllowedForAll(bool allowed)
+{
+    instance()->setThirdPartyCookiesAllowed(allowed);
+    for (CefProfile *profile : std::as_const(s_spaceProfiles))
+        profile->setThirdPartyCookiesAllowed(allowed);
 }
 
 QString CefProfile::storageDir()
@@ -224,11 +275,21 @@ QString CefProfile::storageDir()
 
 void CefProfile::releaseAllRequestContexts()
 {
-    if (!s_instance)
+    CefProfile *globalProfile = s_instance;
+    if (!globalProfile && s_spaceProfiles.isEmpty())
         return;
-    s_instance->m_requestContext = nullptr;
-    s_instance->deleteLater();
+    if (globalProfile) {
+        globalProfile->m_requestContext = nullptr;
+        globalProfile->deleteLater();
+    }
     s_instance = nullptr;
+    for (CefProfile *profile : std::as_const(s_spaceProfiles)) {
+        if (profile == globalProfile)
+            continue;
+        profile->m_requestContext = nullptr;
+        profile->deleteLater();
+    }
+    s_spaceProfiles.clear();
 }
 
 void CefProfile::setHttpUserAgent(const QString &ua)
@@ -254,9 +315,21 @@ CefRefPtr<CefRequestContext> CefProfile::requestContext()
 
     if (!m_requestContext)
     {
-        m_requestContext = CefRequestContext::GetGlobalContext();
+        if (m_globalContext) {
+            m_requestContext = CefRequestContext::GetGlobalContext();
+        } else {
+            CefRequestContextSettings settings;
+            CefString(&settings.cache_path) = CefString(m_cachePath.toStdString());
+            m_requestContext = CefRequestContext::CreateContext(settings, nullptr);
+        }
+        if (!m_requestContext) {
+            BrowserLogger::instance().error("Profile",
+                QString("Could not create CefRequestContext for cache=%1").arg(m_cachePath));
+            return nullptr;
+        }
         BrowserLogger::instance().info("Profile",
-            QString("CefRequestContext initialized for storage=%1").arg(m_storagePath));
+            QString("CefRequestContext initialized for storage=%1, cache=%2")
+                .arg(m_storagePath, m_cachePath));
 
         applyThirdPartyCookiePolicy();
     }

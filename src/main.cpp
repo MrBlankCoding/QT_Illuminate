@@ -219,7 +219,7 @@ NO_STACK_PROTECTOR int main(int argc, char *argv[])
     BrowserLogger::instance().info("Main", QString("Qt %1").arg(qVersion()));
     BrowserController controller(spaces.activeSpace());
 
-    // a space owns its folders, tabs and bookmarks; the rest is shared
+    // Each space owns its tabs, bookmarks and Chromium profile data.
     bookmarks.setSpace(spaces.activeSpace());
     QObject::connect(&spaces, &SpaceManager::activeSpaceChanged, &spaces, [&]() {
         controller.setActiveSpace(spaces.activeSpace());

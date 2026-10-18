@@ -109,11 +109,17 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
     const CefString initialUrl = m_url.isEmpty() ? CefString() : qUrlToCefString(m_url);
     QPointer<CefBrowserWrapper> guard(this);
     CefRefPtr<CefClient> client = m_client;
+    CefProfile *profile = m_profile;
     CefPostTask(TID_UI, new ClosureTask(
-        [guard, client, windowInfo, initialUrl, settings]() {
+        [guard, client, profile, windowInfo, initialUrl, settings]() {
             if (!guard)
                 return;
-            const auto requestContext = CefManager::defaultProfile()->requestContext();
+            const auto requestContext = (profile ? profile : CefManager::defaultProfile())->requestContext();
+            if (!requestContext) {
+                guard->m_creatingBrowser = false;
+                BrowserLogger::instance().error("CEF", "Could not create request context for browser tab");
+                return;
+            }
             if (!CefBrowserHost::CreateBrowser(windowInfo, client, initialUrl, settings, nullptr, requestContext))
             {
                 QMetaObject::invokeMethod(guard.data(), [guard]() {
@@ -144,10 +150,15 @@ void CefBrowserWrapper::createHostWindow(const CefBrowserSettings &settings)
                                      });
     CefRefPtr<CefHostWindow> hostWindow = m_hostWindow;
     CefRefPtr<CefClient> client = m_client;
+    CefProfile *profile = m_profile;
     const CefString initialUrl = m_url.isEmpty() ? CefString() : qUrlToCefString(m_url);
     CefPostTask(TID_UI, new ClosureTask(
-        [hostWindow, client, initialUrl, settings]() {
-            const auto requestContext = CefManager::defaultProfile()->requestContext();
+        [hostWindow, client, profile, initialUrl, settings]() {
+            const auto requestContext = (profile ? profile : CefManager::defaultProfile())->requestContext();
+            if (!requestContext) {
+                BrowserLogger::instance().error("CEF", "Could not create request context for host window");
+                return;
+            }
             hostWindow->create(client, initialUrl, settings, requestContext);
         }));
 }

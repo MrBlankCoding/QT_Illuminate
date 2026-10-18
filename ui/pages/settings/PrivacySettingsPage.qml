@@ -8,6 +8,15 @@ SettingsPage {
     heading: "Privacy"
     subtitle: "Control what sites can access and what browsing data Illuminate keeps."
 
+    Text {
+        Layout.fillWidth: true
+        text: "Each space has its own browsing history, cookies, sign-ins and site storage."
+        color: Theme.textMuted
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeM
+        wrapMode: Text.WordWrap
+    }
+
     property var savedPermissions: Permissions.rememberedDecisions()
 
     SettingsCard {
@@ -31,7 +40,7 @@ SettingsPage {
     Text {
         Layout.fillWidth: true
         Layout.topMargin: 4
-        text: "First-party cookies remain available when third-party cookies are blocked. The policy applies to all spaces and takes effect immediately."
+        text: "First-party cookies remain available when third-party cookies are blocked. This policy applies to every space."
         color: Theme.textMuted
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSizeS
@@ -95,7 +104,7 @@ SettingsPage {
         SettingItem {
             topDivider: false
             title: "Cookies and sign-in data"
-            description: "Remove stored cookies for all sites. You may be signed out of websites. This does not remove local storage or saved site permissions."
+            description: "Remove cookies for websites in this space. You may be signed out here; other spaces are unaffected."
 
             PillButton {
                 text: Browser.webProfile && Browser.webProfile.privacyOperationBusy ? "Working…" : "Clear cookies"
@@ -109,7 +118,7 @@ SettingsPage {
 
         SettingItem {
             title: "Cached files"
-            description: "Remove temporary page resources stored to speed up loading. This keeps cookies, site data, permissions, and browsing history."
+            description: "Remove cached files for this space. Cookies, site data, permissions, and browsing history stay."
 
             PillButton {
                 text: Browser.webProfile && Browser.webProfile.privacyOperationBusy ? "Working…" : "Clear cache"
@@ -148,7 +157,7 @@ SettingsPage {
         onAccepted: if (Browser.webProfile) Browser.webProfile.clearCookies()
 
         Label {
-            text: "This removes sign-in cookies for all websites. You may need to sign in again. Local storage and site permissions remain."
+            text: "This removes sign-in cookies for websites in this space. You may need to sign in again here. Other spaces are unchanged."
             wrapMode: Text.WordWrap
             width: 340
         }

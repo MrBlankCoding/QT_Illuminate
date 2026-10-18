@@ -179,7 +179,7 @@ Item {
                     SetupHeading {
                         Layout.fillWidth: true
                         title: qsTr("Name your first space")
-                        subtitle: qsTr("A space holds its own folders, tabs and bookmarks. Logins, cookies and history are shared by every space. You can add more from the space row at the foot of the sidebar.")
+                        subtitle: qsTr("A space has its own folders, tabs, bookmarks, browsing history, cookies and sign-ins. You can add more from the space row at the foot of the sidebar.")
                     }
 
                     SpaceEditor {

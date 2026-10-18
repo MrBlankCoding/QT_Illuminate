@@ -6,9 +6,9 @@ import QT_Illuminate.ui
 
 ApplicationWindow {
     id: root
-    width: 760
-    height: 600
-    minimumWidth: 560
+    width: Theme.isMac ? 820 : 760
+    height: Theme.isMac ? 620 : 600
+    minimumWidth: Theme.isMac ? 640 : 560
     minimumHeight: 420
     title: "Settings"
     color: Theme.bg
@@ -65,7 +65,7 @@ ApplicationWindow {
         anchors.top: header.visible ? header.bottom : parent.top
         anchors.left: parent.left
         anchors.bottom: parent.bottom
-        width: 168
+        width: Theme.isMac ? 190 : 168
         color: Theme.surface
 
         Rectangle {
@@ -78,10 +78,10 @@ ApplicationWindow {
 
         Column {
             anchors.top: parent.top
-            anchors.topMargin: 12
+            anchors.topMargin: Theme.isMac ? 18 : 12
             anchors.left: parent.left
             anchors.right: parent.right
-            spacing: 2
+            spacing: Theme.isMac ? 4 : 2
 
             Repeater {
                 model: navRoot.sections
@@ -121,9 +121,9 @@ ApplicationWindow {
 
         StackLayout {
             id: pages
-            y: 32
+            y: Theme.isMac ? 36 : 32
             x: (flick.width - width) / 2
-            width: Math.min(flick.width - 48, 640)
+            width: Math.min(flick.width - (Theme.isMac ? 72 : 48), 640)
             height: pageList[navRoot.currentIndex].implicitHeight
             currentIndex: navRoot.currentIndex
 
