@@ -29,6 +29,10 @@
 
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<!-- Qt owns window and browser-session restoration. Letting AppKit restore
+	     its saved windows can trigger a blocking recovery alert after a crash. -->
+	<key>NSQuitAlwaysKeepsWindows</key>
+	<false/>
 
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>

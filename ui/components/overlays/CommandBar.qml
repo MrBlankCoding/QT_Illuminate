@@ -52,10 +52,6 @@ Popup {
     x: Math.round((parent.width - width) / 2)
     y: Math.max(16, Math.round((parent.height - height) / 2))
 
-    ChromeGlass {
-        popupTarget: root
-    }
-
     function resetState() {
         rebuildTimer.stop();
         suggestTimer.stop();
@@ -401,7 +397,7 @@ Popup {
                 NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
             }
             radius: Theme.radiusCommand
-            color: Theme.glassCardBg
+            color: Theme.cardBg
             border.width: 1
             border.color: Theme.cardBorder
             clip: true

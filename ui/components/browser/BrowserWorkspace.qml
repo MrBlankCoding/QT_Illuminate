@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Effects
 import QtQuick.Layouts
 import QT_Illuminate.ui
 
@@ -15,9 +14,11 @@ Item {
     property alias findBar: findBar
     property alias zoomIndicator: zoomIndicator
     property alias dockLoader: dockLoader
-    property alias overlayLoader: overlayLoader
-    property alias sidebarOverlay: sidebarOverlay
     readonly property real dockWidth: dock.fullWidth
+
+    function stopDockSlideOut() { dockSlideOut.stop(); }
+    function startDockSlideOut() { dockSlideOut.start(); }
+    function startDockSlideIn() { dockSlideIn.start(); }
 
     anchors.fill: parent
 
@@ -71,8 +72,6 @@ Item {
                 }
                 onFinished: {
                     browserWindow.sidebarDockCollapsed = true;
-                    browserWindow.sidebarPeeked = false;
-                    browserWindow.sidebarPeekSuppressed = true;
                 }
             }
 
@@ -152,13 +151,6 @@ Item {
                             browserWindow.requestWindowClose();
                         }
 
-                        function onTransparentChromeChanged() {
-                            WindowHelper.setWindowTransparent(root, Browser.transparentChrome, Theme.isDark);
-                        }
-
-                        function onThemeModeChanged() {
-                            WindowHelper.setWindowTransparent(root, Theme.transparentChrome, Theme.isDark);
-                        }
                     }
 
                     Repeater {
@@ -223,43 +215,6 @@ Item {
         }
     }
 
-    Item {
-        id: revealEdge
-        x: 0
-        y: 0
-        // Give the pointer a forgiving target; the old 10px strip was easy to
-        // skim past, especially while moving along the window edge.
-        width: Theme.cardMargin + 8
-        height: parent.height
-        visible: browserWindow.sidebarCollapsed && !browserWindow.contentFullScreen && (!Theme.isMac || !browserWindow.sidebarPeeked)
-
-        HoverHandler {
-            id: revealHover
-            onHoveredChanged: {
-                if (hovered) {
-                    if (!browserWindow.sidebarPeekSuppressed)
-                        revealDelay.restart();
-                } else {
-                    revealDelay.stop();
-                    browserWindow.sidebarPeekSuppressed = false;
-                }
-            }
-        }
-        Timer {
-            id: revealDelay
-            // Filter accidental edge passes while still feeling immediate.
-            interval: 95
-            onTriggered: {
-                if (Theme.isMac && !browserWindow.sidebarPeekSuppressed) {
-                    browserWindow.sidebarPeeked = true;
-                    sidebarOverlay.open();
-                } else if (!Theme.isMac) {
-                    sidebarOverlay.open();
-                }
-            }
-        }
-    }
-
     // the window can still be dragged by its top edge while collapsed
     WindowDragRegion {
         x: 0
@@ -267,78 +222,6 @@ Item {
         width: parent.width
         height: Theme.cardMargin
         visible: browserWindow.sidebarCollapsed && !browserWindow.contentFullScreen
-    }
-
-    Popup {
-        id: sidebarOverlay
-        readonly property int shadowPad: 16
-
-        popupType: Popup.Window
-        modal: false
-        focus: false
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        padding: shadowPad
-        x: -shadowPad
-        y: Theme.space1 - shadowPad
-        width: Prefs.sidebarWidth + 2 * shadowPad
-        height: browserWindow.height - 2 * Theme.space1 + 2 * shadowPad
-
-        enter: Transition {
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 170; easing.type: Easing.OutCubic }
-            NumberAnimation { property: "x"; from: -sidebarOverlay.width * 0.16; to: -sidebarOverlay.shadowPad; duration: 240; easing.type: Easing.OutCubic }
-        }
-        exit: Transition {
-            NumberAnimation { property: "opacity"; to: 0; duration: 130; easing.type: Easing.InCubic }
-            NumberAnimation { property: "x"; to: -sidebarOverlay.width * 0.16; duration: 170; easing.type: Easing.InCubic }
-        }
-
-        background: Item {
-            RectangularShadow {
-                anchors.fill: overlayCard
-                radius: overlayCard.radius
-                blur: 24
-                offset.x: 2
-                color: Theme.shadow
-            }
-                Rectangle {
-                    id: overlayCard
-                    anchors.fill: parent
-                    anchors.margins: sidebarOverlay.shadowPad
-                    radius: Theme.radiusCard
-                    color: Theme.chromeBg
-                    border.width: 1
-                    border.color: Theme.cardBorder
-                }
-        }
-
-        contentItem: Item {
-            Loader {
-                id: overlayLoader
-                anchors.fill: parent
-                active: true
-                sourceComponent: sidebarComponent
-                onLoaded: item.overlay = true
-            }
-
-            HoverHandler {
-                id: overlayHover
-                onHoveredChanged: if (hovered) hideDelay.stop(); else hideDelay.restart()
-            }
-        }
-
-        Timer {
-            id: hideDelay
-            interval: 500
-            onTriggered: {
-                // a native menu opened from the overlay takes the pointer with it
-                if (overlayHover.hovered || (overlayLoader.item && overlayLoader.item["menuOpen"])) // qmllint disable missing-property
-                    hideDelay.restart();
-                else
-                    sidebarOverlay.close();
-            }
-        }
-        onOpened: hideDelay.restart()
-        onClosed: browserWindow.sidebarPeeked = false
     }
 
 }

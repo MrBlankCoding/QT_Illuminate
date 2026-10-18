@@ -4,16 +4,20 @@ import QT_Illuminate.ui
 
 pragma ComponentBehavior: Bound
 
-Grid {
+Item {
     id: root
 
     readonly property int maxTiles: 9
     property int bookmarkRevision: 0
     property string activeUrl: ""
 
-    columns: 3
-    spacing: 6
+    readonly property int columns: 3
+    readonly property int spacing: 6
     visible: Bookmarks.count > 0
+    implicitHeight: {
+        const rows = Math.ceil(Math.min(Bookmarks.count, root.maxTiles) / root.columns);
+        return rows > 0 ? rows * 40 + (rows - 1) * root.spacing : 0;
+    }
 
     readonly property real tileWidth: (width - (columns - 1) * spacing) / columns
 
@@ -56,6 +60,8 @@ Grid {
             property bool iconFailed: false
             readonly property bool isActive: root.activeUrl !== "" && root.activeUrl === tile.bookmarkUrl
 
+            x: (index % root.columns) * (root.tileWidth + root.spacing)
+            y: Math.floor(index / root.columns) * (40 + root.spacing)
             width: root.tileWidth
             height: 40
             radius: Theme.radiusTab

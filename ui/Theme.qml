@@ -96,23 +96,6 @@ QtObject {
 
     // sidebar: the window background, which also shows around the content card
     readonly property color sidebarBg:   currentColorSet.sidebarBg
-    readonly property bool transparentChrome: UI.Browser ? UI.Browser.transparentChrome : false
-    readonly property real chromeOpacityDark:  0.58
-    readonly property real chromeOpacityLight: 0.68
-
-    readonly property color chromeBg: transparentChrome
-        ? Qt.rgba(sidebarBg.r, sidebarBg.g, sidebarBg.b, isDark ? chromeOpacityDark : chromeOpacityLight)
-        : sidebarBg
-
-    readonly property real glassOpacityDark:  0.84
-    readonly property real glassOpacityLight: 0.88
-    readonly property color glassTint: transparentChrome
-        ? Qt.rgba(sidebarBg.r, sidebarBg.g, sidebarBg.b, isDark ? glassOpacityDark : glassOpacityLight)
-        : sidebarBg
-    readonly property color glassBg:        transparentChrome ? glassTint : bg
-    readonly property color glassSurface:   transparentChrome ? glassTint : surface
-    readonly property color glassCardBg:    transparentChrome ? glassTint : cardBg
-    // translucent fills read correctly over any sidebar tint (spaces, phase 4)
     readonly property color itemHover:   Qt.alpha(accent, isDark ? 0.08 : 0.06)
     readonly property color itemPressed: Qt.alpha(accent, isDark ? 0.14 : 0.11)
     readonly property color itemActive:  Qt.tint(surface, Qt.alpha(accent, isDark ? 0.20 : 0.12))

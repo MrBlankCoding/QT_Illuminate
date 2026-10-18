@@ -17,7 +17,7 @@ Window {
     minimumWidth: 640
     minimumHeight: 420
     title: (Browser.activeTitle || "New Tab") + " — QT_Illuminate"
-    color: Theme.chromeBg
+    color: Theme.sidebarBg
     readonly property bool frameless: !Theme.isMac
     flags: frameless
         ? Qt.Window | Qt.FramelessWindowHint
@@ -99,7 +99,7 @@ Window {
     function syncMacWindowButtons() {
         if (Theme.isMac) {
             const fullscreen = root.visibility === Window.FullScreen;
-            const buttonsVisible = fullscreen || !root.sidebarCollapsed || root.sidebarPeeked;
+            const buttonsVisible = fullscreen || !root.sidebarCollapsed;
             WindowHelper.setWindowButtonsVisible(root, buttonsVisible);
         }
     }
@@ -193,30 +193,18 @@ Window {
     }
 
     readonly property bool sidebarCollapsed: Prefs.sidebarCollapsed
-    property bool sidebarPeeked: false
-    property bool sidebarPeekSuppressed: false
     property bool sidebarDockCollapsed: Prefs.sidebarCollapsed
-    onSidebarPeekedChanged: {
-        root.syncMacWindowButtons();
-    }
     onSidebarCollapsedChanged: {
         root.syncMacWindowButtons();
         if (!root.sidebarCollapsed) {
-            dockSlideOut.stop();
-            workspace.sidebarOverlay.close();
-            root.sidebarPeeked = false;
-            root.sidebarPeekSuppressed = false;
+            workspace.stopDockSlideOut();
             root.sidebarDockCollapsed = false;
             workspace.dockLoader.x = -workspace.dockLoader.width;
             workspace.dockLoader.opacity = 0;
-            Qt.callLater(dockSlideIn.start);
+            Qt.callLater(workspace.startDockSlideIn);
         } else {
-            if (!root.sidebarDockCollapsed) {
-                dockSlideOut.start();
-            } else {
-                root.sidebarPeeked = false;
-                root.sidebarPeekSuppressed = true;
-            }
+            if (!root.sidebarDockCollapsed)
+                workspace.startDockSlideOut();
         }
     }
 
@@ -229,17 +217,13 @@ Window {
             workspace.viewStack.activeWebView.refreshNativeView(true);
     }
 
-    // the sidebar exists twice when it is collapsed: in the dock and in the
-    // peek overlay; a shortcut should reach whichever one is on screen
+    // Route sidebar shortcuts to the single dock instance.
     function forEachSidebar(action) {
-        for (const sidebar of [workspace.dockLoader.item, workspace.overlayLoader.item]) {
-            if (sidebar)
-                action(sidebar);
-        }
+        if (workspace.dockLoader.item)
+            action(workspace.dockLoader.item);
     }
 
     function openCommandBar(mode) {
-        workspace.sidebarOverlay.close();
         const url = Browser.activeUrl;
         if (mode === "edit" && url !== "" && url !== "newtab://newtab")
             commandBar.openEdit(url);
@@ -292,20 +276,10 @@ Window {
         Logger.info("BrowserWindow", "Window ready, platform=" + Qt.platform.os);
         WindowHelper.applyTitleBarStyle(root, Theme.titleBarHeight);
         root.syncMacWindowButtons();
-        WindowHelper.setWindowTransparent(root, Theme.transparentChrome, Theme.isDark);
         AppMenu.attach(root);
     }
 
     Component.onDestruction: AppMenu.detach(root)
-
-    Connections {
-        // keep the native vibrancy appearance in sync with the system scheme
-        target: Application.styleHints
-        function onColorSchemeChanged() {
-            if (Browser.themeMode === "system")
-                WindowHelper.setWindowTransparent(root, Theme.transparentChrome, Theme.isDark);
-        }
-    }
 
     BrowserWorkspace {
         id: workspace

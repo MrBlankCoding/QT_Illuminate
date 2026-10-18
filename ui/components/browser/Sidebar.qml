@@ -19,7 +19,6 @@ Item {
     property var findBar: null
     property var zoomIndicator: null
     property var themePicker: null
-    property bool overlay: false
     property var targetWindow: root.Window.window
     readonly property bool currentBookmarked: addressPill.isBookmarked
 
@@ -42,6 +41,14 @@ Item {
     readonly property bool menuOpen: footer.popupsOpen || sideMenus.popupsOpen || renamingId !== ""
 
     implicitWidth: Prefs.sidebarWidth
+
+    // The CEF surface may extend beneath the QML dock/peek window. Keep the
+    // sidebar opaque so its controls never appear to float over page content.
+    Rectangle {
+        anchors.fill: parent
+        color: Theme.sidebarBg
+        z: -1
+    }
 
     function toggleBookmark() {
         if (root.currentUrl === "")
@@ -107,7 +114,7 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: Theme.sidebarPadding
         // the card's own margin is the gap on the right
-        anchors.rightMargin: root.overlay ? Theme.sidebarPadding : 0
+        anchors.rightMargin: 0
         anchors.bottomMargin: Theme.sidebarPadding
         spacing: Theme.space2
 

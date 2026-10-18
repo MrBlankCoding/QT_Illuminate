@@ -38,7 +38,6 @@ class BrowserController : public QObject, public ExternalQmlSingleton<BrowserCon
     Q_PROPERTY(QVariantList customThemes READ customThemes NOTIFY customThemesChanged)
     Q_PROPERTY(QString activeCustomThemeId READ activeCustomThemeId NOTIFY activeCustomThemeChanged)
     Q_PROPERTY(QVariantMap activeThemeColors READ activeThemeColors NOTIFY activeCustomThemeChanged)
-    Q_PROPERTY(bool transparentChrome READ transparentChrome WRITE setTransparentChrome NOTIFY transparentChromeChanged)
     Q_PROPERTY(bool firstRun READ isFirstRun NOTIFY firstRunChanged)
     Q_PROPERTY(CefProfile *webProfile READ webProfile CONSTANT)
     Q_PROPERTY(Space *space READ space NOTIFY spaceChanged)
@@ -67,8 +66,6 @@ public:
     QVariantList customThemes() const;
     QString activeCustomThemeId() const;
     QVariantMap activeThemeColors() const;
-    bool transparentChrome() const;
-    void setTransparentChrome(bool enabled);
     bool isFirstRun() const;
     CefProfile *webProfile() const;
     bool chromeStyle() const;
@@ -136,7 +133,6 @@ signals:
     void themePaletteChanged();
     void customThemesChanged();
     void activeCustomThemeChanged();
-    void transparentChromeChanged();
     void newTabOpened(); // UI opens the command bar for a requested new tab
     void loadRequested(const QString &tabId, const QUrl &url);
     void navigationRequested(const QString &tabId, const QString &action); // "back"|"forward"|"reload"|"devtools"

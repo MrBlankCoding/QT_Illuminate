@@ -25,10 +25,6 @@ Popup {
     height: implicitHeight
     padding: 0
 
-    ChromeGlass {
-        popupTarget: root
-    }
-
     Timer {
         id: debounceTimer
         interval: 160
@@ -128,7 +124,7 @@ Popup {
 
     background: Rectangle {
         radius: 8
-        color: Theme.glassSurface
+        color: Theme.surface
         border.color: Theme.border
         border.width: 1
     }
