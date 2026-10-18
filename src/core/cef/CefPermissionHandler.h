@@ -21,6 +21,11 @@ public:
                                   int type,
                                   CefRefPtr<CefPermissionPromptCallback> callback,
                                   QObject *parent = nullptr);
+    CefPermissionRequest(const QUrl &origin,
+                         int type,
+                         uint32_t requestedPermissions,
+                         CefRefPtr<CefMediaAccessCallback> callback,
+                         QObject *parent = nullptr);
 
     // an unanswered prompt is denied, so CEF never waits on it forever
     ~CefPermissionRequest() override;
@@ -33,15 +38,18 @@ public:
     Q_INVOKABLE void deny();
 
 
-    void invalidate() { m_callback = nullptr; }
+    void invalidate() { m_callback = nullptr; m_mediaCallback = nullptr; }
     bool answered() const { return m_answered; }
 
 private:
     void answer(cef_permission_request_result_t result);
+    void answerMedia(bool allow);
 
     QUrl m_origin;
     int m_type;
     CefRefPtr<CefPermissionPromptCallback> m_callback;
+    CefRefPtr<CefMediaAccessCallback> m_mediaCallback;
+    uint32_t m_requestedPermissions = 0;
     bool m_answered = false;
 };
 

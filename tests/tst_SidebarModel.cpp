@@ -235,7 +235,7 @@ private slots:
 
         QVERIFY(!group.isEmpty());
         QCOMPARE(model.rowCount(), 3); // one split row, header, and one loose tab
-        QCOMPARE(model.index(0).data(SidebarModel::KindRole).toString(), QStringLiteral("split"));
+        QCOMPARE(model.index(1).data(SidebarModel::KindRole).toString(), QStringLiteral("split"));
         QCOMPARE(model.splitTabs(group), (QVariantList{t[1]->id(), t[0]->id()}));
         QVERIFY(model.isInFolder(t[0]));
         QVERIFY(model.isInFolder(t[1]));
@@ -251,8 +251,8 @@ private slots:
         QVERIFY(model.canDrop(t[1]->id(), t[0]->id(), SidebarModel::Into));
         QVERIFY(model.drop(t[1]->id(), t[0]->id(), SidebarModel::Into));
 
-        const QString group = model.index(0).data(SidebarModel::NodeIdRole).toString();
-        QCOMPARE(model.index(0).data(SidebarModel::KindRole).toString(), QStringLiteral("split"));
+        const QString group = model.index(1).data(SidebarModel::NodeIdRole).toString();
+        QCOMPARE(model.index(1).data(SidebarModel::KindRole).toString(), QStringLiteral("split"));
         QCOMPARE(model.splitTabs(group), (QVariantList{t[0]->id(), t[1]->id()}));
         QVERIFY(!model.canDrop(t[2]->id(), t[0]->id(), SidebarModel::Into));
         QCOMPARE(model.splitTabs(group).size(), 2);
@@ -276,8 +276,8 @@ private slots:
         SidebarModel model(&tabs);
         model.load(path);
         QCOMPARE(tabs.rowCount(), 2);
-        const QString restoredGroup = model.index(0).data(SidebarModel::NodeIdRole).toString();
-        QCOMPARE(model.index(0).data(SidebarModel::KindRole).toString(), QStringLiteral("split"));
+        const QString restoredGroup = model.index(1).data(SidebarModel::NodeIdRole).toString();
+        QCOMPARE(model.index(1).data(SidebarModel::KindRole).toString(), QStringLiteral("split"));
         QCOMPARE(model.splitTabs(restoredGroup).size(), 2);
         QCOMPARE(restoredGroup, group);
     }

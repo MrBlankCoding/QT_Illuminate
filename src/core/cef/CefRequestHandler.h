@@ -28,6 +28,11 @@ public:
                             CefRefPtr<CefSSLInfo> ssl_info,
                             CefRefPtr<CefCallback> callback) override;
 
+    void OnRenderProcessTerminated(CefRefPtr<CefBrowser> browser,
+                                   TerminationStatus status,
+                                   int error_code,
+                                   const CefString &error_string) override;
+
 private:
     QPointer<CefBrowserWrapper> m_wrapper;
 

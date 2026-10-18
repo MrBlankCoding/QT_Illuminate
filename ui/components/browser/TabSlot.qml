@@ -20,6 +20,12 @@ Item {
         return revision >= 0 ? browserContext.sidebar.splitTabs(model.id) : [];
     }
     readonly property int splitMemberIndex: splitMemberIds ? splitMemberIds.indexOf(model.id) : -1
+    readonly property bool activeTabHasWebView: {
+        if (!browserContext)
+            return false;
+        const activeTab = browserContext.tabModel.tabAt(browserContext.tabModel.activeIndex);
+        return activeTab && !InternalPages.isInternal(String(activeTab.url));
+    }
     readonly property real splitGap: splitMemberIndex >= 0 ? 8 : 0
     x: splitMemberIndex === 1 ? parent.width / 2 + splitGap / 2 : 0
     width: splitMemberIndex < 0 ? parent.width
@@ -54,7 +60,11 @@ Item {
 
     readonly property bool isInternalPage: InternalPages.isInternal(model.url.toString())
     readonly property string tabUrl: model.url.toString()
-    onIsInternalPageChanged: if (isInternalPage && browserContext) browserContext.updateTabRenderProcessPid(model.id, 0)
+    onIsInternalPageChanged: {
+        if (isInternalPage && browserContext)
+            browserContext.updateTabRenderProcessPid(model.id, 0);
+        Qt.callLater(syncWebViewUrl);
+    }
 
     function syncBundledIcon() {
         if (!tabSlot.browserContext)
@@ -64,7 +74,38 @@ Item {
         if (icon !== "" || existingIcon.startsWith("qrc:/QT_Illuminate/ui/icons/"))
             tabSlot.browserContext.updateTabIcon(tabSlot.model.id, icon);
     }
-    onTabUrlChanged: syncBundledIcon()
+    function syncWebViewUrl() {
+        if (tabSlot.isInternalPage || !webLoader.item)
+            return;
+
+        // Repeater delegates can survive tab row moves. Keep the live CEF
+        // wrapper associated with the tab represented by this delegate every
+        // time its model/view is rebound, rather than only at component
+        // creation. Folder operations commonly move rows while browsers are
+        // being restored or loaded in the background.
+        const targetTab = tabSlot.browserContext
+            ? tabSlot.browserContext.tabModel.tabAt(tabSlot.index) : null;
+        if (!targetTab || String(targetTab.id) !== String(tabSlot.model.id))
+            return;
+
+        const targetUrl = tabSlot.model.url;
+        if (!targetUrl || targetUrl.toString() === "")
+            return;
+
+        webLoader.item.ownerTabId = String(tabSlot.model.id);
+        targetTab.setCefBrowserWrapper(webLoader.item);
+        if (tabSlot.model.suspended && tabSlot.index !== tabSlot.browserContext.tabModel.activeIndex
+            && tabSlot.splitMemberIndex < 0)
+            return;
+        if (webLoader.item.url.toString() !== targetUrl.toString())
+            webLoader.item.url = targetUrl;
+    }
+
+    onTabUrlChanged: {
+        syncBundledIcon();
+        Qt.callLater(syncWebViewUrl);
+    }
+    onModelChanged: Qt.callLater(syncWebViewUrl)
     Component.onCompleted: syncBundledIcon()
     function syncRenderPid() {
         if (browserContext)
@@ -72,21 +113,13 @@ Item {
                                                      tabSlot.webView ? tabSlot.webView.renderProcessPid : 0)
     }
 
-    readonly property int discardAfterMs: Prefs.autoUnloadEnabled
-        ? Math.max(1, Prefs.autoUnloadMinutes) * 60 * 1000
-        : 0
-    property bool discardable: false
-    onVisibleChanged: if (visible) discardable = false
-    Timer {
-        interval: Math.max(1, tabSlot.discardAfterMs)
-        running: tabSlot.discardAfterMs > 0 && !tabSlot.visible && tabSlot.webView !== null
-        onTriggered: tabSlot.discardable = true
-    }
     property bool devToolsOpen: false
     // point for the next "Inspect", in page coordinates; (0,0) = none
     property point devToolsInspectAt: Qt.point(0, 0)
     readonly property CefBrowser webView: webLoader.item as CefBrowser
     onWebViewChanged: {
+        Qt.callLater(tabSlot.syncWebViewUrl)
+        Qt.callLater(tabSlot.refreshNativeView)
         viewStack.refreshActiveWebView()
         if (tabSlot.devToolsOpen)
             tabSlot.openDevTools(devToolsLoader.item)
@@ -144,15 +177,7 @@ Item {
         visible: !tabSlot.isInternalPage
 
         onLoaded: {
-            const u = tabSlot.model.url;
-            if (u && u.toString() !== "" && !tabSlot.isInternalPage)
-            {
-                const currentTab = tabSlot.browserContext ? tabSlot.browserContext.tabModel.tabAt(tabSlot.index) : null;
-                if (currentTab && currentTab.id === tabSlot.model.id) {
-                    item.ownerTabId = currentTab.id;
-                    item.url = u;
-                }
-            }
+            tabSlot.syncWebViewUrl();
         }
 
         sourceComponent: Component {
@@ -161,11 +186,12 @@ Item {
                 property string ownerTabId: ""
                 anchors.fill: parent
                 visible: tabSlot.visible
+                keepVisibleWhileLoading: !tabSlot.visible && webView.loading && tabSlot.activeTabHasWebView
                 inputSuppressed: tabSlot.browserWindow.inputOverlayOpen
                     && tabSlot.index === (tabSlot.browserContext ? tabSlot.browserContext.tabModel.activeIndex : -1)
                 lifecycleState: webView.visible
                     ? CefBrowser.Active
-                    : (tabSlot.discardable ? CefBrowser.Discarded : CefBrowser.Frozen)
+                    : CefBrowser.Frozen
                 onLifecycleStateChanged: tabSlot.syncRenderPid()
                 onNativeFocusRequested: tabSlot.browserWindow.returnFocusToWeb()
                 backgroundColor: Theme.bg
@@ -185,6 +211,12 @@ Item {
                     tabSlot.syncRenderPid();
                     if (webView.loading)
                         Logger.debug("WebView", "Tab " + tabSlot.index + " loading");
+                    else if (tabSlot.visible)
+                        // A tab can finish navigation while its native CEF
+                        // child window is being hidden or restored. Re-raise
+                        // it after the load transition settles so an older
+                        // sibling surface cannot remain over the page.
+                        Qt.callLater(tabSlot.refreshNativeView);
                 }
 
                 onJavaScriptConsoleMessage: function (level, message, lineNumber, sourceId) {
@@ -192,6 +224,10 @@ Item {
                     if (level === 0)
                         return
                     const text = level + "/" + sourceId + ":" + lineNumber + " " + msg
+                    if (msg.indexOf("Error with Permissions-Policy header: Unrecognized feature:") >= 0) {
+                        Logger.warning("WebConsole", text)
+                        return
+                    }
                     if (level >= 3)
                         Logger.error("WebView", text)
                     else
@@ -257,6 +293,21 @@ Item {
                             webView.reload();
                         else if (action === "devtools")
                             tabSlot.devToolsOpen = !tabSlot.devToolsOpen;
+                    }
+                }
+
+                Connections {
+                    target: webView
+                    function onLoadRequested(url) {
+                        if (!tabSlot.browserContext || !webView.ownerTabId)
+                            return;
+                        const destination = url.toString();
+                        tabSlot.browserContext.updateTabUrl(webView.ownerTabId, destination);
+                        tabSlot.browserContext.updateTabTitle(webView.ownerTabId,
+                            InternalPages.title(destination) || "New Tab");
+                        tabSlot.browserContext.updateTabLoading(webView.ownerTabId, false);
+                        tabSlot.browserContext.updateTabProgress(webView.ownerTabId, 0);
+                        tabSlot.browserContext.updateTabRenderProcessPid(webView.ownerTabId, 0);
                     }
                 }
             }
@@ -454,6 +505,7 @@ Item {
 
                 PillButton {
                     text: "Allow"
+                    enabled: tabSlot.pendingBlockedResource < 0
                     textColor: "white"
                     fillColor: Theme.accent
                     hoverFillColor: Qt.darker(Theme.accent, 1.1)

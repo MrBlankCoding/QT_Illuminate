@@ -45,7 +45,8 @@ class BrowserController : public QObject, public ExternalQmlSingleton<BrowserCon
     Q_PROPERTY(bool chromeStyle READ chromeStyle CONSTANT)
 
 public:
-    explicit BrowserController(Space *space, QObject *parent = nullptr);
+    explicit BrowserController(Space *space, QObject *parent = nullptr,
+                               const QString &settingsFilePath = {});
 
     void setActiveSpace(Space *space);
     Space *space() const { return m_space; }

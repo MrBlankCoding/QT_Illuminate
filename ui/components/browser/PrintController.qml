@@ -8,29 +8,23 @@ Item {
     required property var activeWebView
 
     property var pendingPrintView: null
-    property string pendingPrintPdfPath: ""
     property string pendingSavePdfPath: ""
 
     function printActivePage() {
         const wv = printController.activeWebView;
         if (!wv)
             return;
-        // Chrome style pages get Chrome's own print preview
-        if (wv.chromeStyle)
-            wv.print();
-        else
-            openSystemPrintFor(wv);
+        // Use Chromium's print dialog on every platform.
+        wv.print();
+    }
+
+    function openSystemPrintFor(view) {
+        if (view)
+            view.print();
     }
 
     function savePdfActivePage() {
         requestSavePdf(printController.activeWebView);
-    }
-
-    function openSystemPrintFor(view) {
-        if (!view)
-            return;
-        printController.pendingPrintPdfPath = suggestedTempPdfPath();
-        view.printToPdf(printController.pendingPrintPdfPath);
     }
 
     function sameLocalPath(a, b) {
@@ -42,19 +36,6 @@ Item {
     }
 
     function onPdfPrintingFinished(filePath, success) {
-        if (printController.pendingPrintPdfPath !== ""
-            && printController.sameLocalPath(filePath, printController.pendingPrintPdfPath)) {
-            printController.pendingPrintPdfPath = "";
-            if (!success) {
-                Logger.error("BrowserWindow", "Print: failed to render page to PDF");
-                return;
-            }
-            if (typeof PrintHelper !== "undefined")
-                PrintHelper.printPdf(filePath);
-            else
-                Logger.error("BrowserWindow", "Print: PrintHelper unavailable");
-            return;
-        }
         if (printController.pendingSavePdfPath !== ""
             && printController.sameLocalPath(filePath, printController.pendingSavePdfPath)) {
             printController.pendingSavePdfPath = "";
@@ -89,11 +70,6 @@ Item {
         let base = (Browser.activeTitle || "page").replace(/[^\w\- ]+/g, " ").trim() || "page";
         const downloads = printController.toLocalPath(StandardPaths.writableLocation(StandardPaths.DownloadLocation));
         return downloads + "/" + base + ".pdf";
-    }
-
-    function suggestedTempPdfPath() {
-        const temp = printController.toLocalPath(StandardPaths.writableLocation(StandardPaths.TempLocation));
-        return temp + "/qt-illuminate-print-" + Date.now() + ".pdf";
     }
 
     FileDialog {

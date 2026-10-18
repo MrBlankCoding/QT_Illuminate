@@ -10,6 +10,7 @@
 #include "CefProfile.h"
 #include "CefManager.h"
 #include "CefHostWindow.h"
+#include "CefNativeViewVisibility.h"
 #include "../utils/cef_helpers.h"
 #include "../utils/BrowserLogger.h"
 
@@ -466,6 +467,16 @@ void CefBrowserWrapper::setLifecycleState(int state)
     }
 }
 
+void CefBrowserWrapper::setKeepVisibleWhileLoading(bool keepVisible)
+{
+    if (m_keepVisibleWhileLoading == keepVisible)
+        return;
+
+    m_keepVisibleWhileLoading = keepVisible;
+    emit keepVisibleWhileLoadingChanged();
+    updateNativeGeometry();
+}
+
 void CefBrowserWrapper::refreshNativeView(bool raiseAboveSiblings)
 {
     if (!window() || !isVisible())
@@ -487,9 +498,15 @@ void CefBrowserWrapper::refreshNativeView(bool raiseAboveSiblings)
     {
         // AppKit can order a child window out while the application is
         // inactive. Re-show it explicitly; the cached visible state may still
-        // say true when the parent window becomes active again.
-        m_hostWindow->restore();
-        cefRaiseChildWindow(nativeHandleOf(window()), m_hostWindow->nativeHandle());
+        // say true when the parent window becomes active again. Restore is
+        // dispatched to CEF's UI thread, so raise only after Show() has run;
+        // raising immediately here races that asynchronous native operation.
+        QPointer<CefBrowserWrapper> guard(this);
+        m_hostWindow->restore([guard]() {
+            if (!guard || !guard->window() || !guard->isVisible() || !guard->m_hostWindowReady)
+                return;
+            cefRaiseChildWindow(nativeHandleOf(guard->window()), guard->m_hostWindow->nativeHandle());
+        });
     }
 #ifdef _WIN32
     else if (auto host = hostOf(m_browser))
@@ -875,7 +892,12 @@ void CefBrowserWrapper::updateHostWindow()
 
     const QRect screen = toNativeRect(screenRect(), window());
     const QRect native = toNativeRect(sceneRect(), window());
-    const bool visible = isVisible() && window()->isVisible();
+    // Keep in-flight background navigations alive in their native surface
+    // when another web tab is selected. QML only enables this while the
+    // foreground is another CEF page, so the child window cannot cover
+    // Illuminate's own Qt-rendered internal pages.
+    const bool visible = CefNativeViewVisibility::shouldShow(
+        window()->isVisible(), isVisible(), m_loading, m_keepVisibleWhileLoading);
     if (screen == m_nativeRect && visible == m_nativeVisible)
         return;
     const bool showing = visible && !m_nativeVisible;
@@ -1023,6 +1045,7 @@ void CefBrowserWrapper::onLoadingStateChanged(bool isLoading, bool canGoBack, bo
     {
         m_loading = isLoading;
         emit loadingChanged();
+        updateNativeGeometry();
     }
     if (m_canGoBack != canGoBack)
     {
@@ -1139,6 +1162,14 @@ void CefBrowserWrapper::itemChange(ItemChange change, const ItemChangeData &data
     else if (change == ItemVisibleHasChanged)
     {
         updateNativeGeometry();
+        if (isVisible())
+        {
+            QPointer<CefBrowserWrapper> guard(this);
+            QTimer::singleShot(0, this, [guard]() {
+                if (guard && guard->isVisible())
+                    guard->refreshNativeView(true);
+            });
+        }
     }
 }
 

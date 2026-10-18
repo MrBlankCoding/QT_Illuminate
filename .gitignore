@@ -1,146 +1,87 @@
-# Created by https://www.toptal.com/developers/gitignore/api/c++,qt,qml,cmake
-# Edit at https://www.toptal.com/developers/gitignore?templates=c++,qt,qml,cmake
-#
-# Project-specific rules live ABOVE the generated block. Regenerating rewrites
-# everything from "### C++ ###" down, so keep custom entries up here.
-
-# build output
+# CMake and build output
 /build/
-__cmake_systeminformation/
-
-# local dev state
-.vscode
-.cache/
-
-# packaged output from ./build.sh --package
+/build-*/
+coverage.xml
+/cmake-build-*/
 /dist/
-*.dmg
-*.tar.gz
-
-# crash dumps and logs from running the app or tooling in-tree.
-# anchored: src/core/ is a source directory, not a dump
-/core
-/core.*
-*.log
-
-# macOS metadata; otherwise gets committed alongside packaging/ assets
-.DS_Store
-._*
-.AppleDouble/
-.LSOverride
-# NB: no rule for Finder's Icon<CR> custom-icon file — matching it would also
-# match AppIcon.icns and every file under icons/, and git cannot match a literal CR
-
-# Linux/Windows cruft
-Thumbs.db
-desktop.ini
-
-# merge and editor leftovers
-*.orig
-*.rej
-*.swp
-*.swo
-
-### C++ ###
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-### CMake ###
-CMakeLists.txt.user
+/Testing/
+__cmake_systeminformation/
 CMakeCache.txt
-CMakeFiles
-CMakeScripts
-Testing
+CMakeFiles/
+CMakeScripts/
+CTestTestfile.cmake
 Makefile
 cmake_install.cmake
-install_manifest.txt
 compile_commands.json
-CTestTestfile.cmake
-_deps
-
-### CMake Patch ###
-CMakeUserPresets.json
-
-# External projects
+install_manifest.txt
+_deps/
 *-prefix/
 
-### QML ###
-# Cached binary representations of QML and JS files
+# Generated binaries and compiler output
+*.app/
+*.exe
+*.out
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.pdb
+*.ilk
+*.pch
+*.gch
+*.mod
+*.smod
+*.lo
+*.la
+*.lai
+*.slo
+*.d
+
+# Qt generated files and local project state
 *.qmlc
 *.jsc
-
-### Qt ###
-# C++ objects and libs
-*.so.*
-
-# Qt-es
-object_script.*.Release
-object_script.*.Debug
-*_plugin_import.cpp
-/.qmake.cache
-/.qmake.stash
-*.pro.user
-*.pro.user.*
-*.qbs.user
-*.qbs.user.*
 *.moc
 moc_*.cpp
 moc_*.h
 qrc_*.cpp
 ui_*.h
-Makefile*
-*build-*
+*_plugin_import.cpp
+*_qmlcache.qrc
 *.qm
 *.prl
-
-# Qt unit tests
-target_wrapper.*
-
-# QtCreator
+*.pro.user*
+*.qmlproject.user*
+*.qbs.user*
 *.autosave
-
-# QtCreator Qml
-*.qmlproject.user
-*.qmlproject.user.*
-
-# QtCreator CMake
+*.creator.user*
+target_wrapper.*
 CMakeLists.txt.user*
+CMakeUserPresets.json
+/.qmake.cache
+/.qmake.stash
+/.vscode/
+/.cache/
+/.qt/
 
-# QtCreator 4.8< compilation database
+# Packages, logs, and crash dumps
+*.dmg
+*.tar.gz
+*.log
+/core
+/core.*
 
-# QtCreator local machine specific files for imported projects
-*creator.user*
-
-*_qmlcache.qrc
-
-# End of https://www.toptal.com/developers/gitignore/api/c++,qt,qml,cmake
+# OS/editor temporary files
+.DS_Store
+._*
+.AppleDouble/
+.LSOverride
+Thumbs.db
+desktop.ini
+*.orig
+*.rej
+*.swp
+*.swo

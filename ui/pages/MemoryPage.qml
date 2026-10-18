@@ -422,7 +422,7 @@ Item {
             }
 
             SectionHeader {
-                text: "Chromium flags (" + SystemInfo.memoryTier + " tier)"
+                text: "Illuminate engine flags (" + SystemInfo.memoryTier + " tier)"
             }
 
             Repeater {

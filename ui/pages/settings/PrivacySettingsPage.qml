@@ -1,16 +1,24 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import QT_Illuminate.ui
 
 SettingsPage {
+    id: root
     heading: "Privacy"
-    subtitle: "Decide what sites are allowed to store."
+    subtitle: "Control what sites can access and what browsing data Illuminate keeps."
+
+    property var savedPermissions: Permissions.rememberedDecisions()
 
     SettingsCard {
+        SectionHeader {
+            text: "Cookies"
+        }
+
         SettingItem {
             topDivider: false
             title: "Allow third-party cookies"
-            description: "Lets sites you aren't on set cookies, which most need for embedded content and ads. Turn off to block them all; logins and widgets may break on some sites."
+            description: "Allows embedded services from other sites to use cookies. Blocking them can limit cross-site tracking, but may sign you out of embedded services or affect some sign-ins."
 
             SettingSwitch {
                 id: thirdPartyCookiesSwitch
@@ -20,8 +28,157 @@ SettingsPage {
         }
     }
 
-    Footnote {
+    Text {
+        Layout.fillWidth: true
         Layout.topMargin: 4
-        text: "Applies to every space and takes effect immediately, no restart needed."
+        text: "First-party cookies remain available when third-party cookies are blocked. The policy applies to all spaces and takes effect immediately."
+        color: Theme.textMuted
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeS
+        wrapMode: Text.WordWrap
+    }
+
+    SectionHeader {
+        Layout.topMargin: 12
+        text: "Site permissions"
+    }
+
+    SettingsCard {
+        Repeater {
+            model: root.savedPermissions
+
+            delegate: SettingItem {
+                required property var modelData
+                required property int index
+                topDivider: index > 0
+                title: String(modelData.origin || modelData.host)
+                description: String(modelData.label) + (modelData.allow ? " — Allowed" : " — Blocked")
+
+                PillButton {
+                    text: "Remove"
+                    textColor: Theme.textMuted
+                    fillColor: Theme.surfaceHigh
+                    hoverFillColor: Theme.surface
+                    onClicked: Permissions.forget(modelData.origin || ("https://" + modelData.host), modelData.type)
+                }
+            }
+        }
+
+        SettingItem {
+            visible: root.savedPermissions.length === 0
+            topDivider: false
+            title: "No saved site choices"
+            description: "When a site asks for a permission, choose whether Illuminate should remember your answer."
+        }
+
+        SettingItem {
+            visible: root.savedPermissions.length > 0
+            title: "Reset remembered choices"
+            description: "Remove every saved allow and block choice. Sites will ask again next time they request access."
+
+            PillButton {
+                text: "Reset all"
+                textColor: Theme.textMuted
+                fillColor: Theme.surfaceHigh
+                hoverFillColor: Theme.surface
+                onClicked: resetPermissionsDialog.open()
+            }
+        }
+    }
+
+    SectionHeader {
+        Layout.topMargin: 12
+        text: "Browsing data"
+    }
+
+    SettingsCard {
+        SettingItem {
+            topDivider: false
+            title: "Cookies and sign-in data"
+            description: "Remove stored cookies for all sites. You may be signed out of websites. This does not remove local storage or saved site permissions."
+
+            PillButton {
+                text: Browser.webProfile && Browser.webProfile.privacyOperationBusy ? "Working…" : "Clear cookies"
+                enabled: Browser.webProfile ? !Browser.webProfile.privacyOperationBusy : false
+                textColor: Theme.textMuted
+                fillColor: Theme.surfaceHigh
+                hoverFillColor: Theme.surface
+                onClicked: clearCookiesDialog.open()
+            }
+        }
+
+        SettingItem {
+            title: "Cached files"
+            description: "Remove temporary page resources stored to speed up loading. This keeps cookies, site data, permissions, and browsing history."
+
+            PillButton {
+                text: Browser.webProfile && Browser.webProfile.privacyOperationBusy ? "Working…" : "Clear cache"
+                enabled: Browser.webProfile ? !Browser.webProfile.privacyOperationBusy : false
+                textColor: Theme.textMuted
+                fillColor: Theme.surfaceHigh
+                hoverFillColor: Theme.surface
+                onClicked: clearCacheDialog.open()
+            }
+        }
+    }
+
+    Text {
+        Layout.fillWidth: true
+        Layout.topMargin: 4
+        text: Browser.webProfile ? Browser.webProfile.privacyOperationStatus : ""
+        visible: text.length > 0
+        color: Theme.textMuted
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeS
+        wrapMode: Text.WordWrap
+    }
+
+    Connections {
+        target: Permissions
+        function onDecisionsChanged() {
+            root.savedPermissions = Permissions.rememberedDecisions()
+        }
+    }
+
+    Dialog {
+        id: clearCookiesDialog
+        title: "Clear cookies?"
+        modal: true
+        standardButtons: Dialog.Cancel | Dialog.Yes
+        onAccepted: if (Browser.webProfile) Browser.webProfile.clearCookies()
+
+        Label {
+            text: "This removes sign-in cookies for all websites. You may need to sign in again. Local storage and site permissions remain."
+            wrapMode: Text.WordWrap
+            width: 340
+        }
+    }
+
+    Dialog {
+        id: clearCacheDialog
+        title: "Clear cached files?"
+        modal: true
+        standardButtons: Dialog.Cancel | Dialog.Yes
+        onAccepted: if (Browser.webProfile) Browser.webProfile.clearCache()
+
+        Label {
+            text: "This removes temporary cached page resources. Websites may load more slowly the next time you visit them."
+            wrapMode: Text.WordWrap
+            width: 340
+        }
+    }
+
+    Dialog {
+        id: resetPermissionsDialog
+        title: "Reset site permissions?"
+        modal: true
+        standardButtons: Dialog.Cancel | Dialog.Yes
+        onAccepted: Permissions.forgetAll()
+
+        Label {
+            text: "All saved allow and block choices will be removed. Sites will ask again when they request access."
+            wrapMode: Text.WordWrap
+            width: 340
+        }
     }
 }

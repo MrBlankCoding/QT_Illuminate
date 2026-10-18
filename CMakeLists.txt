@@ -1,10 +1,15 @@
 cmake_minimum_required(VERSION 3.16)
+if(APPLE)
+    set(QT_ILLUMINATE_MACOS_DEPLOYMENT_TARGET "27.0" CACHE STRING
+        "Minimum macOS version supported by the Illuminate app")
+    if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "${QT_ILLUMINATE_MACOS_DEPLOYMENT_TARGET}")
+    endif()
+endif()
+
 project(QT_Illuminate VERSION 1.0.0 LANGUAGES C CXX)
 
 if(APPLE)
-    if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
-        set(CMAKE_OSX_DEPLOYMENT_TARGET "27.0")
-    endif()
     set(QT_ILLUMINATE_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}")
 
     enable_language(OBJCXX)
@@ -16,18 +21,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(GNUInstallDirs)
 include(CTest)
-find_package(Qt6 REQUIRED COMPONENTS
+find_package(Qt6 6.8 REQUIRED COMPONENTS
     Core Gui Network Qml Quick QuickControls2
     Widgets PrintSupport Sql
 )
-
-find_package(Qt6 QUIET COMPONENTS Pdf)
-if(TARGET Qt6::Pdf)
-    set(QT_ILLUMINATE_HAS_QTPDF ON)
-else()
-    set(QT_ILLUMINATE_HAS_QTPDF OFF)
-    message(STATUS "Qt6::Pdf not found - PDF printing via QPdfDocument is disabled")
-endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(X11 REQUIRED)
@@ -40,22 +37,27 @@ elseif(DEFINED CEF_ROOT)
     # Accept -DCEF_ROOT=<path> from the command line
 endif()
 
-if(CEF_ROOT)
-    if(WIN32 AND NOT DEFINED CEF_RUNTIME_LIBRARY_FLAG)
-        set(CEF_RUNTIME_LIBRARY_FLAG "/MD" CACHE STRING "CEF MSVC runtime flag")
-    endif()
-    list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
-    set(CEF_DIR "${CEF_ROOT}")
-    find_package(CEF REQUIRED)
-    set(CEF_FOUND ON)
+if(NOT CEF_ROOT)
+    message(FATAL_ERROR
+        "CEF is required to build Illuminate. Set CEF_ROOT to a CEF binary distribution, "
+        "or run ./install-cef.sh and use the printed installation path.")
+endif()
 
-    if(APPLE)
-        set(CMAKE_OSX_DEPLOYMENT_TARGET "${QT_ILLUMINATE_DEPLOYMENT_TARGET}")
-        list(FILTER CEF_COMPILER_FLAGS EXCLUDE REGEX "^-mmacosx-version-min=")
-    endif()
+if(WIN32 AND NOT DEFINED CEF_RUNTIME_LIBRARY_FLAG)
+    set(CEF_RUNTIME_LIBRARY_FLAG "/MD" CACHE STRING "CEF MSVC runtime flag")
+endif()
+list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
+set(CEF_DIR "${CEF_ROOT}")
+find_package(CEF REQUIRED)
+set(CEF_FOUND ON)
+
+if(APPLE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "${QT_ILLUMINATE_DEPLOYMENT_TARGET}")
+    list(FILTER CEF_COMPILER_FLAGS EXCLUDE REGEX "^-mmacosx-version-min=")
 endif()
 
 option(USE_CEF_DEBUG "Link the Debug CEF framework (for lldb symbolication)" OFF)
+option(QT_ILLUMINATE_ENABLE_COVERAGE "Instrument first-party C++ code for coverage reporting" OFF)
 if(CEF_FOUND)
     add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper)
 
@@ -294,6 +296,7 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/cef/CefStrayBrowserClient.cpp
     src/core/cef/CefHostWindow.h
     src/core/cef/CefHostWindow.cpp
+    src/core/cef/CefNativeViewVisibility.h
     src/core/cef/CefQuickItem.h
     src/core/cef/CefQuickItem.cpp
     src/core/cef/CefProfile.h
@@ -321,8 +324,6 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/utils/BrowserLogger.cpp
     src/utils/ExternalQmlSingleton.h
     src/utils/LogBridge.h
-    src/utils/PrintHelper.h
-    src/utils/PrintHelper.cpp
     src/utils/ShortcutBridge.h
     src/utils/ShortcutBridge.cpp
     src/utils/WebVersion.h
@@ -371,11 +372,6 @@ target_link_libraries(QT_Illuminatemodule PUBLIC
     Qt6::Sql
 )
 
-if(QT_ILLUMINATE_HAS_QTPDF)
-    target_link_libraries(QT_Illuminatemodule PUBLIC Qt6::Pdf)
-    target_compile_definitions(QT_Illuminatemodule PUBLIC QT_ILLUMINATE_HAS_QTPDF)
-endif()
-
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(QT_Illuminatemodule PUBLIC X11::X11)
     target_compile_definitions(QT_Illuminatemodule PRIVATE QT_ILLUMINATE_HAS_X11)
@@ -383,6 +379,14 @@ endif()
 
 if(TARGET cef::cef)
     target_link_libraries(QT_Illuminatemodule PUBLIC cef::cef libcef_dll_wrapper)
+endif()
+
+if(QT_ILLUMINATE_ENABLE_COVERAGE)
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        message(FATAL_ERROR "QT_ILLUMINATE_ENABLE_COVERAGE currently requires GCC/gcov")
+    endif()
+    target_compile_options(QT_Illuminatemodule PRIVATE --coverage -O0 -g)
+    target_link_options(QT_Illuminatemodule INTERFACE --coverage)
 endif()
 
 if(WIN32 AND CEF_COMPILER_DEFINES)

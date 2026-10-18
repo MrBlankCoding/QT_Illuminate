@@ -36,7 +36,17 @@ namespace UrlResolver
             return {};
 
         if (t.contains("://"))
-            return QUrl::fromUserInput(t);
+        {
+            const QUrl url = QUrl::fromUserInput(t);
+            const QString scheme = url.scheme().toLower();
+            const QString host = url.host().toLower();
+            if (scheme == QLatin1String("chrome")
+                && (host == QLatin1String("newtab") || host == QLatin1String("new-tab-page")))
+            {
+                return QUrl(QStringLiteral("newtab://newtab"));
+            }
+            return url;
+        }
         if (looksLikeHost(t))
             return QUrl::fromUserInput("https://" + t);
         return searchUrl(t, searchTemplate);

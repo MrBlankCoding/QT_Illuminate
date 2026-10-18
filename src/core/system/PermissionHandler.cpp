@@ -8,6 +8,7 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTimer>
+#include <QByteArray>
 
 #if defined(Q_OS_LINUX)
 #include <QProcess>
@@ -55,7 +56,14 @@ PermissionHandler::PermissionType PermissionHandler::toType(int v)
 
 QString PermissionHandler::key(const QUrl &origin, int type) const
 {
-    return QStringLiteral("%1/%2/%3").arg(kGroup, origin.host(), QString::number(type));
+    QUrl normalized = origin;
+    normalized.setPath(QString());
+    normalized.setQuery(QString());
+    normalized.setFragment(QString());
+    normalized.setUserInfo(QString());
+    const QByteArray encoded = normalized.toString(QUrl::FullyEncoded).toUtf8()
+                                   .toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
+    return QStringLiteral("%1/sites/%2/%3").arg(kGroup, QString::fromLatin1(encoded), QString::number(type));
 }
 
 QString PermissionHandler::labelForType(int type) const
@@ -79,6 +87,8 @@ QString PermissionHandler::labelForType(int type) const
 
 bool PermissionHandler::resolve(const QUrl &origin, int type) const
 {
+    if (toType(type) == Unsupported)
+        return false;
     const int dec = decision(origin, type);
     return (dec != Ask);
 }
@@ -122,7 +132,14 @@ void PermissionHandler::respond(QObject *permission, bool allow, bool remember)
 
 int PermissionHandler::decision(const QUrl &origin, int type) const
 {
-    const QString v = m_settings->value(key(origin, type)).toString();
+    if (toType(type) == Unsupported)
+        return Ask;
+    QString v = m_settings->value(key(origin, type)).toString();
+    // Old entries stored only a host, so scope them to HTTPS (the secure
+    // origin on which browser permissions are normally available) instead
+    // of carrying a remembered allow over to an HTTP origin.
+    if (v.isEmpty() && origin.scheme().compare(QLatin1String("https"), Qt::CaseInsensitive) == 0)
+        v = m_settings->value(QStringLiteral("%1/%2/%3").arg(kGroup, origin.host(), QString::number(type))).toString();
     if (v == QStringLiteral("allow")) return Allow;
     if (v == QStringLiteral("deny"))  return Deny;
     return Ask;
@@ -130,7 +147,7 @@ int PermissionHandler::decision(const QUrl &origin, int type) const
 
 void PermissionHandler::storeDecision(const QUrl &origin, int type, bool allow, bool remember)
 {
-    if (!remember)
+    if (!remember || toType(type) == Unsupported)
         return;
     m_settings->setValue(key(origin, type), allow ? QStringLiteral("allow") : QStringLiteral("deny"));
     BrowserLogger::instance().info("Permissions",
@@ -142,6 +159,7 @@ void PermissionHandler::storeDecision(const QUrl &origin, int type, bool allow, 
 void PermissionHandler::forget(const QUrl &origin, int type)
 {
     m_settings->remove(key(origin, type));
+    m_settings->remove(QStringLiteral("%1/%2/%3").arg(kGroup, origin.host(), QString::number(type)));
     emit decisionsChanged();
 }
 
@@ -154,15 +172,42 @@ void PermissionHandler::forgetAll()
 QVariantList PermissionHandler::rememberedDecisions() const
 {
     QVariantList out;
+    m_settings->beginGroup(kGroup + QStringLiteral("/sites"));
+    for (const QString &host : m_settings->childGroups())
+    {
+        const QString encodedOrigin = host;
+        const QUrl origin = QUrl::fromEncoded(QByteArray::fromBase64(encodedOrigin.toLatin1(),
+            QByteArray::Base64UrlEncoding));
+        m_settings->beginGroup(encodedOrigin);
+        for (const QString &typeKey : m_settings->childKeys())
+        {
+            const int type = typeKey.toInt();
+            out.append(QVariantMap{
+                {QStringLiteral("host"), origin.host()},
+                {QStringLiteral("origin"), origin.toString()},
+                {QStringLiteral("type"), type},
+                {QStringLiteral("label"), labelForType(type)},
+                {QStringLiteral("allow"), m_settings->value(typeKey).toString() == QStringLiteral("allow")},
+            });
+        }
+        m_settings->endGroup();
+    }
+    m_settings->endGroup();
+
+    // Surface choices saved by older builds, which keyed permissions by host
+    // only, so users can still review and revoke them after upgrading.
     m_settings->beginGroup(kGroup);
     for (const QString &host : m_settings->childGroups())
     {
+        if (host == QLatin1String("sites"))
+            continue;
         m_settings->beginGroup(host);
         for (const QString &typeKey : m_settings->childKeys())
         {
             const int type = typeKey.toInt();
             out.append(QVariantMap{
                 {QStringLiteral("host"), host},
+                {QStringLiteral("origin"), QStringLiteral("https://") + host},
                 {QStringLiteral("type"), type},
                 {QStringLiteral("label"), labelForType(type)},
                 {QStringLiteral("allow"), m_settings->value(typeKey).toString() == QStringLiteral("allow")},

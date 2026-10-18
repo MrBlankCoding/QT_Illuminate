@@ -132,6 +132,9 @@ void SystemInfo::detectHardware()
     }
 #endif
 
+    QStringList enabledFeatures;
+    enabledFeatures << "HighEfficiencyModeAvailable" << "HighEfficiencyMultistateMode"
+                    << "MemorySaverModeAggressiveness";
     QStringList disabledFeatures;
     disabledFeatures << "SpareRendererForSitePerProcess" << "IntensiveDisking"
                      << "RendererCodeIntegrity" << "AutoplayIgnoreWebPreferences"
@@ -139,8 +142,14 @@ void SystemInfo::detectHardware()
 
     disabledFeatures << "GlicActorUi";
 #if defined(Q_OS_MACOS)
+    // Opt into Chromium's VideoToolbox HEVC encode/decode paths. These are
+    // runtime features; the CEF binary must also have the HEVC parser and
+    // platform decoder compiled in for them to take effect.
+    enabledFeatures << "PlatformHEVCDecoderSupport" << "PlatformHEVCEncoderSupport"
+                    << "PlatformHEVCHbdEncoderSupport";
     disabledFeatures << "MacWebContentsOcclusion";
 #endif
+    flags << "--enable-features=" + enabledFeatures.join(QLatin1Char(','));
     flags << "--process-per-site";
 
 #if defined(Q_OS_WIN)
@@ -174,8 +183,6 @@ void SystemInfo::detectHardware()
     // disk cache limit (MB -> bytes)
     flags << "--disk-cache-size=" + QString::number(m_httpCacheLimitMB * 1024 * 1024);
 
-    // disable 3rd party cookies unless explicitly toggled
-    disabledFeatures << "ThirdPartyCookieBlocking" << "ThirdPartyCookieBlockingOnStartup";
     flags << "--disable-features=" + disabledFeatures.join(QLatin1Char(','));
 
     m_chromiumFlags = flags;

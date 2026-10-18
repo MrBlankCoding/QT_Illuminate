@@ -17,6 +17,8 @@ class CefProfile : public QObject
     Q_PROPERTY(QString httpUserAgent READ httpUserAgent WRITE setHttpUserAgent NOTIFY httpUserAgentChanged)
     Q_PROPERTY(bool thirdPartyCookiesAllowed READ thirdPartyCookiesAllowed
                    WRITE setThirdPartyCookiesAllowed NOTIFY thirdPartyCookiesAllowedChanged)
+    Q_PROPERTY(bool privacyOperationBusy READ privacyOperationBusy NOTIFY privacyOperationBusyChanged)
+    Q_PROPERTY(QString privacyOperationStatus READ privacyOperationStatus NOTIFY privacyOperationStatusChanged)
 
 public:
     explicit CefProfile(const QString &storagePath, const QString &cachePath, QObject *parent = nullptr);
@@ -32,6 +34,12 @@ public:
 
     bool thirdPartyCookiesAllowed() const;
     void setThirdPartyCookiesAllowed(bool allowed);
+    void setMemorySaverSettings(bool enabled, int aggressiveness);
+    bool privacyOperationBusy() const { return m_privacyOperationBusy; }
+    QString privacyOperationStatus() const { return m_privacyOperationStatus; }
+    Q_INVOKABLE void clearCookies();
+    Q_INVOKABLE void clearCache();
+    void finishPrivacyOperation(const QString &message);
 
     static QString rootCachePath();
     static CefProfile *instance();
@@ -41,13 +49,18 @@ public:
 signals:
     void httpUserAgentChanged();
     void thirdPartyCookiesAllowedChanged();
+    void privacyOperationBusyChanged();
+    void privacyOperationStatusChanged();
 
 private:
     void applyThirdPartyCookiePolicy();
+    void applyMemorySaverSettings(bool enabled, int aggressiveness);
 
     QString m_storagePath;
     QString m_cachePath;
     QString m_userAgent;
     CefRefPtr<CefRequestContext> m_requestContext;
     bool m_thirdPartyCookiesAllowed = true;
+    bool m_privacyOperationBusy = false;
+    QString m_privacyOperationStatus;
 };

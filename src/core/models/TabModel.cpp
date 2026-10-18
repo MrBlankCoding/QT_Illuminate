@@ -208,7 +208,14 @@ int TabModel::activeIndex() const { return m_activeIndex; }
 void TabModel::setActiveIndex(int index)
 {
     if (m_activeIndex == index)
+    {
+        // A restored folder/session tab can already occupy the active index
+        // while still being suspended. In that case changing the index is a
+        // no-op, but activating the row must still create its web view.
+        if (BrowserTab *tab = tabAt(index))
+            tab->setSuspended(false);
         return;
+    }
     m_activeIndex = index;
     emit activeIndexChanged();
 }

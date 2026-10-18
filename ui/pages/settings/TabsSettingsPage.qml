@@ -12,54 +12,33 @@ SettingsPage {
     SettingsCard {
         SettingItem {
             topDivider: false
-            title: "Unload inactive tabs"
-            description: "Frees memory by discarding a background tab's page after it has been idle. The tab stays in the strip and reloads when you switch to it."
+            title: "Memory Saver"
+            description: "Discards inactive tabs to free memory. They reload when you return to them."
 
             SettingSwitch {
-                id: autoUnloadSwitch
-                checked: Prefs.autoUnloadEnabled
-                onToggled: Prefs.autoUnloadEnabled = !autoUnloadSwitch.checked
+                id: memorySaverSwitch
+                checked: Prefs.memorySaverEnabled
+                onToggled: Prefs.memorySaverEnabled = !memorySaverSwitch.checked
             }
         }
 
         SettingItem {
-            visible: Prefs.autoUnloadEnabled
-            title: "Unload after"
-            description: "How long a tab must sit in the background first."
+            visible: Prefs.memorySaverEnabled
+            title: "Memory savings"
+            description: "Choose how aggressively Chromium deactivates background tabs."
 
             SettingCombo {
-                id: unloadDelayCombo
+                id: memorySaverModeCombo
                 implicitWidth: 160
                 model: [
-                    {
-                        name: "1 minute",
-                        value: 1
-                    },
-                    {
-                        name: "5 minutes",
-                        value: 5
-                    },
-                    {
-                        name: "10 minutes",
-                        value: 10
-                    },
-                    {
-                        name: "15 minutes",
-                        value: 15
-                    },
-                    {
-                        name: "30 minutes",
-                        value: 30
-                    },
-                    {
-                        name: "1 hour",
-                        value: 60
-                    }
+                    { name: "Moderate", value: 0 },
+                    { name: "Balanced", value: 1 },
+                    { name: "Maximum", value: 2 }
                 ]
                 textRole: "name"
                 valueRole: "value"
-                value: Prefs.autoUnloadMinutes
-                onActivated: Prefs.autoUnloadMinutes = unloadDelayCombo.currentValue
+                value: Prefs.memorySaverMode
+                onActivated: Prefs.memorySaverMode = memorySaverModeCombo.currentValue
             }
         }
     }

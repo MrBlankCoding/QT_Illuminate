@@ -39,6 +39,7 @@ class CefBrowserWrapper : public QQuickItem
     Q_PROPERTY(qint64 renderProcessPid READ renderProcessPid NOTIFY renderProcessPidChanged)
     Q_PROPERTY(int lifecycleState READ lifecycleState WRITE setLifecycleState NOTIFY lifecycleStateChanged)
     Q_PROPERTY(int recommendedState READ recommendedState NOTIFY recommendedStateChanged)
+    Q_PROPERTY(bool keepVisibleWhileLoading READ keepVisibleWhileLoading WRITE setKeepVisibleWhileLoading NOTIFY keepVisibleWhileLoadingChanged)
     Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor NOTIFY backgroundColorChanged)
     Q_PROPERTY(qreal cornerRadius READ cornerRadius WRITE setCornerRadius NOTIFY cornerRadiusChanged)
     // while set, keyboard focus stays with the Qt UI (overlays) instead of the page
@@ -95,6 +96,8 @@ public:
     int lifecycleState() const { return m_lifecycleState; }
     void setLifecycleState(int state);
     int recommendedState() const { return m_recommendedState; }
+    bool keepVisibleWhileLoading() const { return m_keepVisibleWhileLoading; }
+    void setKeepVisibleWhileLoading(bool keepVisible);
     QColor backgroundColor() const { return m_backgroundColor; }
     void setBackgroundColor(const QColor &color);
     qreal cornerRadius() const { return m_cornerRadius; }
@@ -169,6 +172,7 @@ signals:
     void renderProcessPidChanged(qint64 pid);
     void lifecycleStateChanged();
     void recommendedStateChanged();
+    void keepVisibleWhileLoadingChanged();
     void backgroundColorChanged();
     void cornerRadiusChanged();
     void inputSuppressedChanged();
@@ -199,6 +203,7 @@ private:
     qint64 m_renderProcessPid = 0;
     int m_lifecycleState = Active;
     int m_recommendedState = Active;
+    bool m_keepVisibleWhileLoading = false;
     QColor m_backgroundColor = Qt::white;
     qreal m_cornerRadius = 0;
     qreal m_nativeCornerRadius = -1;

@@ -13,6 +13,7 @@ fi
 #   ./build.sh --clean --keep-data  # wipe build dir only, keep app data
 #   ./build.sh --package    # Release build + distributable package in dist/
 #                           # (macOS: deployed .app + .dmg, Linux: .tar.gz)
+#   ./build.sh --test       # build + run the test suite
 
 set -euo pipefail
 
@@ -146,6 +147,7 @@ DO_KEEP_DATA=0
 DO_RUN=0
 DO_DEV=0
 DO_PACKAGE=0
+DO_TEST=0
 DO_VERBOSE=0
 for arg in "$@"; do
     case "$arg" in
@@ -154,10 +156,11 @@ for arg in "$@"; do
         --run)    DO_RUN=1     ;;
         --dev)    DO_DEV=1     ;;
         --package) DO_PACKAGE=1 ;;
+        --test)    DO_TEST=1    ;;
         --verbose) DO_VERBOSE=1 ;;
         *)
             echo "Unknown argument: $arg"
-            echo "Usage: ./build.sh [--clean [--keep-data]] [--run | --dev] [--package] [--verbose]"
+            echo "Usage: ./build.sh [--clean [--keep-data]] [--run | --dev] [--package] [--test] [--verbose]"
             exit 1
             ;;
     esac
@@ -642,6 +645,8 @@ fi
 
 BUILD_TYPE="Release"
 (( DO_DEV )) && BUILD_TYPE="Debug"
+TESTING_ARG="OFF"
+(( DO_TEST )) && TESTING_ARG="ON"
 
 SCRIPT_DIR="${QT_ILLUMINATE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 BUILD_DIR="$SCRIPT_DIR/build"
@@ -696,17 +701,20 @@ CONFIGURED_TYPE=""
 CONFIGURED_PREFIX=""
 CONFIGURED_CEF=""
 CONFIGURED_CEF_DEBUG=""
+CONFIGURED_TESTING=""
 if [[ -f "$BUILD_DIR/CMakeCache.txt" ]]; then
     CONFIGURED_TYPE="$(sed -n 's/^CMAKE_BUILD_TYPE:[A-Z]*=//p' "$BUILD_DIR/CMakeCache.txt")"
     CONFIGURED_PREFIX="$(sed -n 's/^CMAKE_PREFIX_PATH:[A-Z]*=//p' "$BUILD_DIR/CMakeCache.txt")"
     CONFIGURED_CEF="$(sed -n 's/^CEF_ROOT:PATH=//p' "$BUILD_DIR/CMakeCache.txt" 2>/dev/null || true)"
     CONFIGURED_CEF_DEBUG="$(sed -n 's/^USE_CEF_DEBUG:BOOL=//p' "$BUILD_DIR/CMakeCache.txt" 2>/dev/null || true)"
+    CONFIGURED_TESTING="$(sed -n 's/^BUILD_TESTING:BOOL=//p' "$BUILD_DIR/CMakeCache.txt" 2>/dev/null || true)"
 fi
 
 if [[ ! -f "$BUILD_DIR/CMakeCache.txt" ]] \
         || [[ "$CONFIGURED_PREFIX" != "$QT_PREFIX" ]] \
         || [[ "$CONFIGURED_CEF" != "$CEF_ROOT" ]] \
         || [[ "$CONFIGURED_CEF_DEBUG" != "$CEF_DEBUG_ARG" ]] \
+        || [[ "$CONFIGURED_TESTING" != "$TESTING_ARG" ]] \
         || [[ "$CONFIGURED_TYPE" != "$BUILD_TYPE" ]]; then
     NEED_CONFIGURE=1
 elif [[ "$SCRIPT_DIR/CMakeLists.txt" -nt "$BUILD_DIR/CMakeCache.txt" ]]; then
@@ -727,6 +735,7 @@ if [[ "${NEED_CONFIGURE:-0}" == "1" ]]; then
               -DCMAKE_PREFIX_PATH="$QT_PREFIX" \
               -DCEF_ROOT="$CEF_ROOT" \
               -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+              -DBUILD_TESTING="$TESTING_ARG" \
               -DUSE_CEF_DEBUG="$CEF_DEBUG_ARG"
     else
         cmake -S "$SCRIPT_DIR" \
@@ -734,8 +743,9 @@ if [[ "${NEED_CONFIGURE:-0}" == "1" ]]; then
               -DCMAKE_PREFIX_PATH="$QT_PREFIX" \
               -DCEF_ROOT="$CEF_ROOT" \
               -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+              -DBUILD_TESTING="$TESTING_ARG" \
               -DUSE_CEF_DEBUG="$CEF_DEBUG_ARG" \
-              -DCMAKE_OSX_DEPLOYMENT_TARGET="27.0" \
+              -DCMAKE_OSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-27.0}" \
               -DCMAKE_OSX_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
     fi
 fi
@@ -779,7 +789,7 @@ clean_app_data
 [[ -n "$APP_BUNDLE" ]] && rm -rf "$APP_BUNDLE"
 
 if (( IS_MAC )); then
-    export MACOSX_DEPLOYMENT_TARGET="27.0"
+    export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-27.0}"
     export SDKROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
     echo "MACOSX_DEPLOYMENT_TARGET: ${MACOSX_DEPLOYMENT_TARGET:-not set}"
     echo "SDKROOT: ${SDKROOT:-not set}"
@@ -788,6 +798,12 @@ echo "TARGET_BUILD_DIR: ${TARGET_BUILD_DIR:-not set}"
 
 echo "→ Building…"
 cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --parallel "$(cpu_cores)"
+
+if (( DO_TEST )); then
+    echo "→ Running tests…"
+    ctest --test-dir "$BUILD_DIR" --build-config "$BUILD_TYPE" --output-on-failure
+    exit 0
+fi
 
 if (( IS_MAC )); then
     if [[ -d "$APP_BUNDLE/Contents/Frameworks/QtCore.framework" ]] || [[ -d "$APP_BUNDLE/Contents/PlugIns" ]]; then

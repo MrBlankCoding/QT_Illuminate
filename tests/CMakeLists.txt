@@ -54,6 +54,46 @@ qt_add_executable(tst_chromecommands tst_ChromeCommands.cpp)
 target_link_libraries(tst_chromecommands PRIVATE Qt6::Test QT_Illuminatemodule)
 add_test(NAME tst_chromecommands COMMAND tst_chromecommands)
 
+qt_add_executable(tst_ceftablifecycle tst_CefTabLifecycle.cpp)
+target_link_libraries(tst_ceftablifecycle PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_ceftablifecycle COMMAND tst_ceftablifecycle)
+
+qt_add_executable(tst_urlresolver tst_UrlResolver.cpp)
+target_link_libraries(tst_urlresolver PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_urlresolver COMMAND tst_urlresolver)
+
+qt_add_executable(tst_bookmarkmodel tst_BookmarkModel.cpp)
+target_link_libraries(tst_bookmarkmodel PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_bookmarkmodel COMMAND tst_bookmarkmodel)
+
+qt_add_executable(tst_browsertab tst_BrowserTab.cpp)
+target_link_libraries(tst_browsertab PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_browsertab COMMAND tst_browsertab)
+
+
+qt_add_executable(tst_cefprofile tst_CefProfile.cpp)
+target_link_libraries(tst_cefprofile PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_cefprofile COMMAND tst_cefprofile)
+
+qt_add_executable(tst_systeminfo tst_SystemInfo.cpp)
+target_link_libraries(tst_systeminfo PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_systeminfo COMMAND tst_systeminfo)
+
+qt_add_executable(tst_space tst_Space.cpp)
+target_link_libraries(tst_space PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_space COMMAND tst_space)
+
+qt_add_executable(tst_internalpagemanager tst_InternalPageManager.cpp)
+target_link_libraries(tst_internalpagemanager PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_internalpagemanager COMMAND tst_internalpagemanager)
+
+set(_headless_test_targets
+    tst_qmltests tst_shortcutbridge tst_shortcutregistry
+)
+set_tests_properties(${_headless_test_targets} PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
+)
+
 if(WIN32)
     add_custom_command(TARGET tst_shortcutregistry POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory
@@ -66,7 +106,7 @@ if(WIN32)
 endif()
 
 if(APPLE AND CEF_FOUND)
-    foreach(_test_target tst_qmltests tst_browsersettings tst_browsercontroller tst_permissionhandler tst_shortcutbridge tst_shortcutregistry tst_tabmodel tst_sidebarmodel tst_spacemanager tst_chromecommands)
+    foreach(_test_target tst_qmltests tst_browsersettings tst_browsercontroller tst_permissionhandler tst_shortcutbridge tst_shortcutregistry tst_tabmodel tst_sidebarmodel tst_spacemanager tst_chromecommands tst_ceftablifecycle tst_urlresolver tst_bookmarkmodel tst_browsertab tst_internalpagemanager tst_cefprofile tst_systeminfo tst_space)
         add_custom_command(TARGET ${_test_target} POST_BUILD
             COMMAND install_name_tool -change
                 "@executable_path/../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework"

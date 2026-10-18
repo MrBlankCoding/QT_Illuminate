@@ -214,7 +214,8 @@ void cefRaiseChildWindow(void *parentView, void *childHandle)
     NSWindow *child = cefWindowFromHandle(childHandle);
     if (!parent || !child || child.parentWindow != parent)
         return;
-    [child orderWindow:NSWindowAbove relativeTo:parent.windowNumber];
+
+    [child orderFront:nil];
 }
 
 void cefDetachChildWindow(void *childHandle)

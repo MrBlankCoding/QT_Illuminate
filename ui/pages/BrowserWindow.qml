@@ -34,22 +34,31 @@ Window {
     property bool restoreGeometryAfterFullScreen: false
     property bool findBarOpen: false
     property var uiFocusClaims: []
-    readonly property bool inputOverlayOpen: commandBar.visible || root.findBarOpen || root.uiFocusClaims.length > 0
+    property bool inputOverlayOpen: false
+
+    function syncInputOverlayOpen() {
+        const commandVisible = commandBar && commandBar.visible;
+        root.inputOverlayOpen = commandVisible || root.findBarOpen || root.uiFocusClaims.length > 0;
+    }
 
     function claimUiFocus(owner) {
         if (!owner || root.uiFocusClaims.includes(owner))
             return;
         root.uiFocusClaims = root.uiFocusClaims.concat([owner]);
+        root.syncInputOverlayOpen();
     }
 
     function releaseUiFocus(owner) {
         if (!owner)
             return;
         root.uiFocusClaims = root.uiFocusClaims.filter(claim => claim !== owner);
+        root.syncInputOverlayOpen();
     }
 
+    onFindBarOpenChanged: root.syncInputOverlayOpen()
     function returnFocusToWeb() {
         root.uiFocusClaims = [];
+        root.syncInputOverlayOpen();
         if (findBar.visible)
             findBar.dismiss();
         if (commandBar.visible)
@@ -373,7 +382,7 @@ Window {
             }
 
             Text {
-                text: "A Qt Quick browser built on the Chromium Embedded Framework."
+                text: "Illuminate is your personal browser for a clearer, more focused web."
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeM
                 color: Theme.textMuted
@@ -411,6 +420,7 @@ Window {
     function onPdfPrintingFinished(filePath, success) { printController.onPdfPrintingFinished(filePath, success); }
 
     Component.onCompleted: {
+        Qt.callLater(root.syncInputOverlayOpen);
         Logger.info("BrowserWindow", "Window ready, platform=" + Qt.platform.os);
         WindowHelper.applyTitleBarStyle(root, Theme.titleBarHeight);
         root.syncMacWindowButtons();
@@ -765,6 +775,7 @@ Window {
 
     CommandBar {
         id: commandBar
+        onVisibleChanged: root.syncInputOverlayOpen()
         quickActions: [
             { label: "Toggle Sidebar", icon: "qrc:/QT_Illuminate/ui/icons/panel-left.svg", run: () => root.toggleSidebar() },
             { label: "Open Settings", icon: "qrc:/QT_Illuminate/ui/icons/more-vertical.svg", run: () => root.openSettings() },

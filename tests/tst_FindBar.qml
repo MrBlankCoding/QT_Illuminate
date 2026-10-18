@@ -12,20 +12,26 @@ Item {
         FindBar {}
     }
 
+    Component {
+        id: webViewComponent
+        QtObject {
+            property int findTextCount: 0
+            property string lastFindText: ""
+            signal findTextFinished(int numberOfMatches, int activeMatchOrdinal, bool finalUpdate)
+            function findText(text, flags) {
+                findTextCount++
+                lastFindText = text
+            }
+            function forceActiveFocus() {}
+        }
+    }
+
     TestCase {
         name: "FindBarTests"
         when: windowShown
 
         function makeStubWebView() {
-            return {
-                findTextCount: 0,
-                lastFindText: qsTr(""),
-                findText: function (text, flags) {
-                    this["findTextCount"]++; // qmllint disable missing-property
-                    this.lastFindText = text;
-                },
-                forceActiveFocus: function () {}
-            };
+            return createTemporaryObject(webViewComponent, root)
         }
 
         function test_componentExists() {
@@ -43,20 +49,24 @@ Item {
         }
 
         function test_openShowsBar() {
+            // Qt's offscreen Cocoa platform crashes when Popup.Window creates
+            // a native popup window; this behavior is exercised on Linux CI.
+            if (Qt.platform.os === "osx")
+                skip("Popup.Window is not supported by the macOS offscreen test platform")
             let bar = createTemporaryObject(findBarComponent, root)
             verify(!!bar, "Component exists")
             bar.open()
             compare(bar.visible, true)
         }
 
-        function test_closeResetsState() {
+        function test_resetSearchResetsState() {
             let bar = createTemporaryObject(findBarComponent, root)
             verify(!!bar, "Component exists")
-            bar.visible = true
+            bar.webView = makeStubWebView()
             bar.hasSearched = true
             bar.matchCount = 3
             bar.activeMatch = 2
-            bar.dismiss()
+            bar.resetSearch()
             compare(bar.visible, false)
             compare(bar.hasSearched, false)
             compare(bar.matchCount, 0)

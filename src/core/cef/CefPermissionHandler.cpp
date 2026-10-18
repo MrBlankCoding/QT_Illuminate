@@ -8,6 +8,16 @@
 
 CefPermissionRequest::CefPermissionRequest(const QUrl &origin,
                                            int type,
+                                           uint32_t requestedPermissions,
+                                           CefRefPtr<CefMediaAccessCallback> callback,
+                                           QObject *parent)
+    : QObject(parent), m_origin(origin), m_type(type),
+      m_mediaCallback(std::move(callback)), m_requestedPermissions(requestedPermissions)
+{
+}
+
+CefPermissionRequest::CefPermissionRequest(const QUrl &origin,
+                                           int type,
                                            CefRefPtr<CefPermissionPromptCallback> callback,
                                            QObject *parent)
     : QObject(parent), m_origin(origin), m_type(type), m_callback(callback)
@@ -16,7 +26,10 @@ CefPermissionRequest::CefPermissionRequest(const QUrl &origin,
 
 CefPermissionRequest::~CefPermissionRequest()
 {
-    answer(CEF_PERMISSION_RESULT_DENY);
+    if (m_mediaCallback)
+        answerMedia(false);
+    else
+        answer(CEF_PERMISSION_RESULT_DENY);
 }
 
 namespace {
@@ -44,6 +57,30 @@ private:
 
 } // namespace
 
+namespace {
+class ContinueMediaPermissionTask final : public CefTask
+{
+public:
+    ContinueMediaPermissionTask(CefRefPtr<CefMediaAccessCallback> callback,
+                                uint32_t permissions, bool allow)
+        : m_callback(std::move(callback)), m_permissions(permissions), m_allow(allow) {}
+    void Execute() override
+    {
+        if (!m_callback)
+            return;
+        if (m_allow)
+            m_callback->Continue(m_permissions);
+        else
+            m_callback->Cancel();
+    }
+private:
+    CefRefPtr<CefMediaAccessCallback> m_callback;
+    uint32_t m_permissions;
+    bool m_allow;
+    IMPLEMENT_REFCOUNTING(ContinueMediaPermissionTask);
+};
+} // namespace
+
 void CefPermissionRequest::answer(cef_permission_request_result_t result)
 {
     if (m_answered)
@@ -67,6 +104,11 @@ void CefPermissionRequest::grant()
 {
     if (m_answered)
         return;
+    if (m_mediaCallback) {
+        answerMedia(true);
+        deleteLater();
+        return;
+    }
     answer(CEF_PERMISSION_RESULT_ACCEPT);
     deleteLater();
 }
@@ -75,8 +117,32 @@ void CefPermissionRequest::deny()
 {
     if (m_answered)
         return;
+    if (m_mediaCallback) {
+        answerMedia(false);
+        deleteLater();
+        return;
+    }
     answer(CEF_PERMISSION_RESULT_DENY);
     deleteLater();
+}
+
+void CefPermissionRequest::answerMedia(bool allow)
+{
+    if (m_answered)
+        return;
+    m_answered = true;
+    CefRefPtr<CefMediaAccessCallback> callback = m_mediaCallback;
+    m_mediaCallback = nullptr;
+    if (!callback)
+        return;
+    if (CefCurrentlyOn(TID_UI)) {
+        if (allow)
+            callback->Continue(m_requestedPermissions);
+        else
+            callback->Cancel();
+        return;
+    }
+    CefPostTask(TID_UI, new ContinueMediaPermissionTask(callback, m_requestedPermissions, allow));
 }
 
 CefPermissionHandlerImpl::CefPermissionHandlerImpl(CefBrowserWrapper *wrapper)
@@ -92,9 +158,36 @@ bool CefPermissionHandlerImpl::OnRequestMediaAccessPermission(CefRefPtr<CefBrows
 {
     Q_UNUSED(browser);
     Q_UNUSED(frame);
-    Q_UNUSED(requesting_url);
-    // Allow media access if user allowed via system or permission handler
-    callback->Continue(requested_permissions);
+    const bool audio = requested_permissions & CEF_MEDIA_PERMISSION_DEVICE_AUDIO_CAPTURE;
+    const bool video = requested_permissions & CEF_MEDIA_PERMISSION_DEVICE_VIDEO_CAPTURE;
+    const bool desktopAudio = requested_permissions & CEF_MEDIA_PERMISSION_DESKTOP_AUDIO_CAPTURE;
+    const bool desktopVideo = requested_permissions & CEF_MEDIA_PERMISSION_DESKTOP_VIDEO_CAPTURE;
+    int type = PermissionHandler::Unsupported;
+    if (desktopAudio || desktopVideo)
+        type = desktopAudio && desktopVideo ? PermissionHandler::DesktopAudioVideoCapture
+                                           : PermissionHandler::DesktopVideoCapture;
+    else if (audio && video)
+        type = PermissionHandler::MediaAudioVideoCapture;
+    else if (audio)
+        type = PermissionHandler::MediaAudioCapture;
+    else if (video)
+        type = PermissionHandler::MediaVideoCapture;
+
+    if (type == PermissionHandler::Unsupported || !m_wrapper) {
+        callback->Cancel();
+        return true;
+    }
+    auto *req = new CefPermissionRequest(cefStringToQUrl(requesting_url), type,
+                                         requested_permissions, callback);
+    req->moveToThread(QCoreApplication::instance()->thread());
+    QMetaObject::invokeMethod(QCoreApplication::instance(), [wrapper = m_wrapper, req]() {
+        if (wrapper) {
+            req->setParent(wrapper);
+            emit wrapper->permissionRequested(req);
+        } else {
+            delete req;
+        }
+    }, Qt::QueuedConnection);
     return true;
 }
 
@@ -110,16 +203,24 @@ bool CefPermissionHandlerImpl::OnShowPermissionPrompt(CefRefPtr<CefBrowser> brow
     const QUrl origin = cefStringToQUrl(requesting_origin);
     int type = PermissionHandler::Unsupported;
 
-    if (requested_permissions & CEF_PERMISSION_TYPE_GEOLOCATION)
+    const uint32_t cameraMic = CEF_PERMISSION_TYPE_CAMERA_STREAM | CEF_PERMISSION_TYPE_MIC_STREAM;
+    if ((requested_permissions & cameraMic) == cameraMic && (requested_permissions & ~cameraMic) == 0)
+        type = PermissionHandler::MediaAudioVideoCapture;
+    else if (requested_permissions == CEF_PERMISSION_TYPE_GEOLOCATION)
         type = PermissionHandler::Geolocation;
-    else if (requested_permissions & CEF_PERMISSION_TYPE_NOTIFICATIONS)
+    else if (requested_permissions == CEF_PERMISSION_TYPE_NOTIFICATIONS)
         type = PermissionHandler::Notifications;
-    else if (requested_permissions & CEF_PERMISSION_TYPE_CAMERA_STREAM)
+    else if (requested_permissions == CEF_PERMISSION_TYPE_CAMERA_STREAM)
         type = PermissionHandler::MediaVideoCapture;
-    else if (requested_permissions & CEF_PERMISSION_TYPE_MIC_STREAM)
+    else if (requested_permissions == CEF_PERMISSION_TYPE_MIC_STREAM)
         type = PermissionHandler::MediaAudioCapture;
-    else if (requested_permissions & CEF_PERMISSION_TYPE_CLIPBOARD)
+    else if (requested_permissions == CEF_PERMISSION_TYPE_CLIPBOARD)
         type = PermissionHandler::ClipboardReadWrite;
+    else if (requested_permissions == CEF_PERMISSION_TYPE_LOCAL_FONTS)
+        type = PermissionHandler::LocalFontsAccess;
+    else if (requested_permissions == CEF_PERMISSION_TYPE_POINTER_LOCK ||
+             requested_permissions == CEF_PERMISSION_TYPE_KEYBOARD_LOCK)
+        type = PermissionHandler::MouseLock;
 
     if (m_wrapper)
     {

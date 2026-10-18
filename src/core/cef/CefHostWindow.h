@@ -20,7 +20,7 @@ public:
                 CefRefPtr<CefRequestContext> requestContext);
     void setBounds(const CefRect &bounds, void *parentView = nullptr, const QRect &geometry = QRect());
     void setVisible(bool visible);
-    void restore();
+    void restore(std::function<void()> afterRestore = {});
     void close();
     void *nativeHandle() const;
 

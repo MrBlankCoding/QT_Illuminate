@@ -120,7 +120,7 @@ private slots:
         Space *personal = spaces.activeSpace();
         Space *work = spaces.createSpace(QStringLiteral("Work"));
 
-        BrowserController browser(personal);
+        BrowserController browser(personal, nullptr, m_dir.filePath(QStringLiteral("browser-settings.ini")));
         // main.cpp wires the two together; the test does the same by hand
         QObject::connect(&spaces, &SpaceManager::activeSpaceChanged,
                          &spaces, [&]() { browser.setActiveSpace(spaces.activeSpace()); });

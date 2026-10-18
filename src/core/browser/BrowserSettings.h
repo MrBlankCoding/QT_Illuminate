@@ -29,8 +29,8 @@ class BrowserSettings : public QObject, public ExternalQmlSingleton<BrowserSetti
     // privacy
     Q_PROPERTY(bool thirdPartyCookiesEnabled READ thirdPartyCookiesEnabled WRITE setThirdPartyCookiesEnabled NOTIFY thirdPartyCookiesEnabledChanged)
     // tabs
-    Q_PROPERTY(bool autoUnloadEnabled READ autoUnloadEnabled WRITE setAutoUnloadEnabled NOTIFY autoUnloadChanged)
-    Q_PROPERTY(int autoUnloadMinutes READ autoUnloadMinutes WRITE setAutoUnloadMinutes NOTIFY autoUnloadChanged)
+    Q_PROPERTY(bool memorySaverEnabled READ memorySaverEnabled WRITE setMemorySaverEnabled NOTIFY memorySaverChanged)
+    Q_PROPERTY(int memorySaverMode READ memorySaverMode WRITE setMemorySaverMode NOTIFY memorySaverChanged)
     Q_PROPERTY(bool confirmCloseMultipleTabs READ confirmCloseMultipleTabs WRITE setConfirmCloseMultipleTabs NOTIFY confirmCloseMultipleTabsChanged)
     Q_PROPERTY(int sidebarWidth READ sidebarWidth WRITE setSidebarWidth NOTIFY sidebarWidthChanged)
     Q_PROPERTY(bool sidebarCollapsed READ sidebarCollapsed WRITE setSidebarCollapsed NOTIFY sidebarCollapsedChanged)
@@ -48,7 +48,7 @@ public:
     static constexpr char kEngineCustom[] = "custom";
 
     // no default: QML would build its own copy instead of calling create()
-    explicit BrowserSettings(QObject *parent);
+    explicit BrowserSettings(QObject *parent, const QString &settingsFilePath = {});
 
     QString startupBehavior() const;
     void setStartupBehavior(const QString &behavior);
@@ -69,10 +69,10 @@ public:
     bool thirdPartyCookiesEnabled() const;
     void setThirdPartyCookiesEnabled(bool enabled);
 
-    bool autoUnloadEnabled() const;
-    void setAutoUnloadEnabled(bool enabled);
-    int autoUnloadMinutes() const;
-    void setAutoUnloadMinutes(int minutes);
+    bool memorySaverEnabled() const;
+    void setMemorySaverEnabled(bool enabled);
+    int memorySaverMode() const;
+    void setMemorySaverMode(int mode);
 
     bool confirmCloseMultipleTabs() const;
     void setConfirmCloseMultipleTabs(bool enabled);
@@ -97,7 +97,7 @@ signals:
     void searchEngineChanged();
     void searchSuggestionsEnabledChanged();
     void thirdPartyCookiesEnabledChanged();
-    void autoUnloadChanged();
+    void memorySaverChanged();
     void confirmCloseMultipleTabsChanged();
     void sidebarWidthChanged();
     void sidebarCollapsedChanged();
@@ -118,8 +118,8 @@ private:
     QString m_customSearchUrl;
     bool m_searchSuggestions = true;
     bool m_thirdPartyCookies = true;
-    bool m_autoUnload = true;
-    int m_autoUnloadMinutes = 5;
+    bool m_memorySaverEnabled = true;
+    int m_memorySaverMode = 1;
     bool m_confirmCloseMultipleTabs = true;
     int m_sidebarWidth = kSidebarDefaultWidth;
     bool m_sidebarCollapsed = false;

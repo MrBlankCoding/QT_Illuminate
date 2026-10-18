@@ -18,8 +18,9 @@ namespace
     constexpr char kSearchCustomUrlKey[] = "search/customUrl";
     constexpr char kSearchSuggestionsKey[] = "search/suggestions";
     constexpr char kThirdPartyCookiesKey[] = "privacy/thirdPartyCookies";
-    constexpr char kAutoUnloadKey[] = "tabs/autoUnload";
-    constexpr char kAutoUnloadMinutesKey[] = "tabs/autoUnloadMinutes";
+    constexpr char kMemorySaverEnabledKey[] = "tabs/memorySaverEnabled";
+    constexpr char kLegacyAutoUnloadKey[] = "tabs/autoUnload";
+    constexpr char kMemorySaverModeKey[] = "tabs/memorySaverMode";
     constexpr char kConfirmCloseKey[] = "tabs/confirmCloseMultipleTabs";
     constexpr char kSidebarWidthKey[] = "sidebar/width";
     constexpr char kSidebarCollapsedKey[] = "sidebar/collapsed";
@@ -74,16 +75,16 @@ namespace
             settings->setValue(QLatin1String(key), value);
     }
 
-    // an auto-unload delay of zero would mean "constantly discard"
-    constexpr int kMinAutoUnloadMinutes = 1;
-    constexpr int kMaxAutoUnloadMinutes = 120;
     constexpr char kBrowserLanguageKey[] = "general/language";
 }
 
-BrowserSettings::BrowserSettings(QObject *parent)
+BrowserSettings::BrowserSettings(QObject *parent, const QString &settingsFilePath)
     : QObject(parent)
-    , m_settings(new QSettings(QDir::homePath() + QDir::separator() + ".illuminate"
-                               + QDir::separator() + "settings.ini", QSettings::IniFormat, this))
+    , m_settings(new QSettings(settingsFilePath.isEmpty()
+                                   ? QDir::homePath() + QDir::separator() + ".illuminate"
+                                         + QDir::separator() + "settings.ini"
+                                   : settingsFilePath,
+                               QSettings::IniFormat, this))
     , m_appSettings(new QSettings(this))
 {
     m_confirmCloseMultipleTabs =
@@ -96,6 +97,7 @@ BrowserSettings::BrowserSettings(QObject *parent)
     m_webProfile = CefManager::defaultProfile();
     reloadSettings();
     applyThirdPartyCookies();
+    m_webProfile->setMemorySaverSettings(m_memorySaverEnabled, m_memorySaverMode);
     emit browserLanguageChanged();
 }
 
@@ -116,16 +118,17 @@ void BrowserSettings::reloadSettings()
 
     m_thirdPartyCookies = readValue(m_settings, kThirdPartyCookiesKey, true).toBool();
 
-    m_autoUnload = readValue(m_settings, kAutoUnloadKey, true).toBool();
-    m_autoUnloadMinutes = std::clamp(readValue(m_settings, kAutoUnloadMinutesKey, 5).toInt(),
-                                     kMinAutoUnloadMinutes, kMaxAutoUnloadMinutes);
+    const QVariant memorySaverEnabled = readValue(m_settings, kMemorySaverEnabledKey, {});
+    m_memorySaverEnabled = (memorySaverEnabled.isValid()
+        ? memorySaverEnabled : readValue(m_settings, kLegacyAutoUnloadKey, true)).toBool();
+    m_memorySaverMode = std::clamp(readValue(m_settings, kMemorySaverModeKey, 1).toInt(), 0, 2);
 
     emit startupBehaviorChanged();
     emit homepageUrlChanged();
     emit searchEngineChanged();
     emit searchSuggestionsEnabledChanged();
     emit thirdPartyCookiesEnabledChanged();
-    emit autoUnloadChanged();
+    emit memorySaverChanged();
 }
 
 // startup and session
@@ -259,33 +262,37 @@ void BrowserSettings::applyThirdPartyCookies()
 
 // tabs
 
-bool BrowserSettings::autoUnloadEnabled() const
+bool BrowserSettings::memorySaverEnabled() const
 {
-    return m_autoUnload;
+    return m_memorySaverEnabled;
 }
 
-void BrowserSettings::setAutoUnloadEnabled(bool enabled)
+void BrowserSettings::setMemorySaverEnabled(bool enabled)
 {
-    if (m_autoUnload == enabled)
+    if (m_memorySaverEnabled == enabled)
         return;
-    m_autoUnload = enabled;
-    writeValue(m_settings, kAutoUnloadKey, enabled);
-    emit autoUnloadChanged();
+    m_memorySaverEnabled = enabled;
+    writeValue(m_settings, kMemorySaverEnabledKey, enabled);
+    if (m_webProfile)
+        m_webProfile->setMemorySaverSettings(m_memorySaverEnabled, m_memorySaverMode);
+    emit memorySaverChanged();
 }
 
-int BrowserSettings::autoUnloadMinutes() const
+int BrowserSettings::memorySaverMode() const
 {
-    return m_autoUnloadMinutes;
+    return m_memorySaverMode;
 }
 
-void BrowserSettings::setAutoUnloadMinutes(int minutes)
+void BrowserSettings::setMemorySaverMode(int mode)
 {
-    const int clamped = std::clamp(minutes, kMinAutoUnloadMinutes, kMaxAutoUnloadMinutes);
-    if (m_autoUnloadMinutes == clamped)
+    const int clamped = std::clamp(mode, 0, 2);
+    if (m_memorySaverMode == clamped)
         return;
-    m_autoUnloadMinutes = clamped;
-    writeValue(m_settings, kAutoUnloadMinutesKey, clamped);
-    emit autoUnloadChanged();
+    m_memorySaverMode = clamped;
+    writeValue(m_settings, kMemorySaverModeKey, clamped);
+    if (m_webProfile)
+        m_webProfile->setMemorySaverSettings(m_memorySaverEnabled, m_memorySaverMode);
+    emit memorySaverChanged();
 }
 
 bool BrowserSettings::confirmCloseMultipleTabs() const

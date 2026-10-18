@@ -1,15 +1,12 @@
-# QT_Illuminate
+# Illuminate
 
-I need another hobby
+## Requirements
 
-## Todo
+- CMake 3.16 or newer
+- Qt 6.8 or newer, including Core, Gui, Network, Qml, Quick, Quick Controls 2, Widgets, PrintSupport, and Sql
+- A CEF binary distribution matching the host OS and architecture
+- A C++20 compiler and the platform build tools (Xcode on macOS, Visual Studio on Windows, or a C++ toolchain on Linux)
 
-1. Sign into chrome
-2. Memory saver
-5. Hide mac title bar
-7. Privacy dashboard
-8. https://github.com/nicoverbruggen/libron/releases -> fonts
-11. Chrome password manager
+## License
 
-## Bugs:
-2. Internal pages not loading
+Illuminate is distributed under the [MIT License](LICENSE).

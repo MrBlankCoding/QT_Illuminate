@@ -118,12 +118,13 @@ void CefHostWindow::setVisible(bool visible)
     }
 }
 
-void CefHostWindow::restore()
+void CefHostWindow::restore(std::function<void()> afterRestore)
 {
     if (!CefCurrentlyOn(TID_UI))
     {
         CefRefPtr<CefHostWindow> self(this);
-        CefPostTask(TID_UI, CefCreateClosureTask(base::BindOnce(&CefHostWindow::restore, self)));
+        CefPostTask(TID_UI, CefCreateClosureTask(base::BindOnce(
+            &CefHostWindow::restore, self, std::move(afterRestore))));
         return;
     }
 
@@ -131,6 +132,19 @@ void CefHostWindow::restore()
         return;
     m_visible = true;
     m_window->Show();
+
+    // CEF may process Show() on its UI thread while the Qt/NSWindow ordering
+    // work must run on the application thread. Queue the callback only after
+    // Show() has executed so callers can safely raise the restored native
+    // window without racing the asynchronous CEF task.
+    if (afterRestore)
+    {
+        if (QCoreApplication *app = QCoreApplication::instance())
+            QMetaObject::invokeMethod(app, [callback = std::move(afterRestore)]() { callback(); },
+                                      Qt::QueuedConnection);
+        else
+            afterRestore();
+    }
 }
 
 void CefHostWindow::close()

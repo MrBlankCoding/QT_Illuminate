@@ -15,12 +15,14 @@ Item {
 
     WindowDragRegion {
         anchors.fill: parent
+        z: -1
         // it would move the overlay's own window
         enabled: !root.sidebar.overlay
     }
 
     RowLayout {
         anchors.fill: parent
+        z: 1
         spacing: 2
 
         Item {

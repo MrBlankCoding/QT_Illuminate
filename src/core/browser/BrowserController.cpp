@@ -71,10 +71,14 @@ bool isValidThemeColors(const QVariantMap &colors)
 }
 }
 
-BrowserController::BrowserController(Space *space, QObject *parent)
+BrowserController::BrowserController(Space *space, QObject *parent, const QString &settingsFilePath)
     : QObject(parent)
     , m_space(space)
-    , m_settings(new QSettings(QDir::homePath() + QDir::separator() + ".illuminate" + QDir::separator() + "settings.ini", QSettings::IniFormat, this))
+    , m_settings(new QSettings(settingsFilePath.isEmpty()
+                                   ? QDir::homePath() + QDir::separator() + ".illuminate"
+                                         + QDir::separator() + "settings.ini"
+                                   : settingsFilePath,
+                               QSettings::IniFormat, this))
     , m_model(new TabModel(this))
     , m_sidebar(new SidebarModel(m_model, this))
     , m_appSettings(new QSettings(this))
@@ -714,6 +718,9 @@ void BrowserController::closeTab(int index)
             tab->setUrl(QUrl(NEW_TAB_URL));
             tab->requestLoad(QUrl(NEW_TAB_URL));
         }
+
+        if (isActive)
+            emit newTabOpened();
         QMetaObject::invokeMethod(this, [this]() { m_closeInProgress = false; }, Qt::QueuedConnection);
         return;
     }
@@ -731,8 +738,8 @@ void BrowserController::activateTab(int index)
 {
     if (index < 0 || index >= m_model->rowCount())
         return;
-    if (index == m_model->activeIndex())
-        return;
+    // setActiveIndex also wakes an already-selected tab that is still
+    // suspended (for example, a restored folder tab at index zero).
     m_model->setActiveIndex(index);
 }
 
@@ -778,6 +785,8 @@ void BrowserController::navigate(const QString &input)
         tab->setUrl(url);
         tab->requestLoad(url);
         emit loadRequested(tab->id(), url);
+        if (url == QUrl(NEW_TAB_URL))
+            emit newTabOpened();
     }
 }
 
@@ -866,6 +875,8 @@ void BrowserController::updateTabUrl(const QString &tabId, const QString &url)
     if (!tab)
         return;
     tab->setUrl(QUrl(url));
+    if (tab == m_model->tabAt(m_model->activeIndex()) && tab->url() == QUrl(NEW_TAB_URL))
+        emit newTabOpened();
 }
 
 void BrowserController::updateTabLoading(const QString &tabId, bool loading)
