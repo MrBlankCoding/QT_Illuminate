@@ -11,10 +11,7 @@ Window {
     // the root object is not shown for us; this is the app's only window at
     // startup, so it opens itself
     visible: true
-    // Let the native window system choose the usable screen bounds on macOS.
-    // A fixed content size can leave the window short of the available frame,
-    // especially with the transparent full-size title bar enabled below.
-    visibility: Theme.isMac ? Window.Maximized : Window.Windowed
+    visibility: Window.Maximized
     width: 1280
     height: 840
     minimumWidth: 640

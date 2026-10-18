@@ -96,6 +96,16 @@ qt_add_executable(QT_Illuminate
     src/main.cpp
 )
 
+if(WIN32)
+    set(QT_ILLUMINATE_ICON "${CMAKE_CURRENT_SOURCE_DIR}/packaging/icons/AppIcon.ico")
+    if(NOT EXISTS "${QT_ILLUMINATE_ICON}")
+        message(FATAL_ERROR "Missing Windows app icon: ${QT_ILLUMINATE_ICON}")
+    endif()
+    configure_file(packaging/windows/QT_Illuminate.rc.in
+                   "${CMAKE_CURRENT_BINARY_DIR}/QT_Illuminate.rc" @ONLY)
+    target_sources(QT_Illuminate PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/QT_Illuminate.rc")
+endif()
+
 target_include_directories(QT_Illuminate PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_definitions(QT_Illuminate PRIVATE QT_ILLUMINATE_VERSION="${PROJECT_VERSION}")
 
