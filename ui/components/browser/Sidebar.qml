@@ -16,7 +16,6 @@ Item {
     property bool canGoBack: false
     property bool canGoForward: false
 
-    property var findBar: null
     property var zoomIndicator: null
     property var themePicker: null
     property var targetWindow: root.Window.window

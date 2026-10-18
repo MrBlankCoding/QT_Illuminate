@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 #include <include/cef_request_context.h>
 #include <include/cef_request_context_handler.h>
@@ -40,6 +41,7 @@ public:
     QString privacyOperationStatus() const { return m_privacyOperationStatus; }
     Q_INVOKABLE void clearCookies();
     Q_INVOKABLE void clearCache();
+    Q_INVOKABLE QVariantList installedExtensions() const;
     void finishPrivacyOperation(const QString &message);
 
     static QString rootCachePath();

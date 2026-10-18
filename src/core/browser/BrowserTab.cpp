@@ -122,6 +122,12 @@ void BrowserTab::redo()
         m_cefBrowserWrapper->triggerWebAction(CefBrowserWrapper::WebAction::Redo);
 }
 
+void BrowserTab::executeChromeCommand(int commandId)
+{
+    if (m_cefBrowserWrapper)
+        m_cefBrowserWrapper->executeChromeCommand(commandId);
+}
+
 void BrowserTab::setCefBrowserWrapper(CefBrowserWrapper *wrapper)
 {
     m_cefBrowserWrapper = wrapper;

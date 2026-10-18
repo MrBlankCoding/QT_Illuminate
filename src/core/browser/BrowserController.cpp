@@ -45,6 +45,8 @@ BrowserController::BrowserController(Space *space, QObject *parent, const QStrin
         emit activeIndexChanged();
         emitActiveStateChanged();
         rewireActiveTab(); });
+    connect(m_model, &TabModel::tabAboutToBeRemoved, this,
+            [this](BrowserTab *tab) { rememberClosedTab(tab); });
 
     if (m_space)
     {

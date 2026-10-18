@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QList>
+#include <QHash>
 #include <QObject>
 #include <QPointer>
 #include <QUrl>
@@ -75,6 +76,8 @@ public:
     Q_INVOKABLE void newTab(const QString &url = {}, bool background = false);
     Q_INVOKABLE void completeFirstRun();
     Q_INVOKABLE void closeTab(int index);
+    Q_INVOKABLE void reopenLastClosedTab();
+    Q_INVOKABLE void executeChromeCommand(const QString &command);
     Q_INVOKABLE void activateTab(int index);
     // position in sidebar order; -1 is the last tab
     Q_INVOKABLE void activateTabAt(int position);
@@ -139,6 +142,11 @@ signals:
     void closeWindowRequested();
 
 private:
+    struct ClosedTab {
+        QUrl url;
+    };
+
+    void rememberClosedTab(const BrowserTab *tab);
     void rewireActiveTab();
     BrowserTab *tabForId(const QString &tabId) const;
     void emitActiveStateChanged();
@@ -159,6 +167,7 @@ private:
     bool m_isFirstRun = true;
     bool m_sessionRestoredForSpace = false;
     bool m_closeInProgress = false;
+    QHash<QString, QList<ClosedTab>> m_closedTabsBySpace;
 
     static const int MIN_TABS_FOR_CYCLE = 2;
     static const int NO_TAB_CYCLE_DELTA = 0;

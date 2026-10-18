@@ -78,12 +78,6 @@ public:
     };
     Q_ENUM(WebAction)
 
-    enum FindFlag
-    {
-        FindBackward = 1,
-    };
-    Q_ENUM(FindFlag)
-
     explicit CefBrowserWrapper(QQuickItem *parent = nullptr);
     ~CefBrowserWrapper() override;
 
@@ -124,8 +118,7 @@ public:
     Q_INVOKABLE void goForward();
     Q_INVOKABLE void reload();
     Q_INVOKABLE void stop();
-    Q_INVOKABLE void findText(const QString &text, int flags = 0);
-    Q_INVOKABLE void stopFinding(bool clearSelection = false);
+    Q_INVOKABLE void executeChromeCommand(int commandId);
     Q_INVOKABLE void triggerWebAction(int action, const QUrl &url = QUrl());
     Q_INVOKABLE void runJavaScript(const QString &script, int worldId = 0);
     Q_INVOKABLE void printToPdf(const QString &path);
@@ -148,7 +141,6 @@ public:
     void onIconChanged(const QString &iconUrl);
     void onLoadingStateChanged(bool isLoading, bool canGoBack, bool canGoForward);
     void onLoadProgressChanged(int progress);
-    void onFindResult(int count, int activeIndex, bool finalUpdate);
     void onPdfPrintFinished(const QString &path, bool ok);
     void onFullscreenModeChanged(bool fullscreen);
 
@@ -197,7 +189,6 @@ signals:
     void pdfPrintingFinished(const QString &filePath, bool success);
     void contextMenuRequested(QObject *request);
     void permissionRequested(QObject *permission);
-    void findTextFinished(int numberOfMatches, int activeMatchOrdinal, bool finalUpdate);
     void javaScriptConsoleMessage(int level, const QString &message, int lineNumber, const QString &sourceId);
 
 private:
@@ -239,5 +230,4 @@ private:
     QMetaObject::Connection m_windowActivationConnection;
     QMetaObject::Connection m_windowActiveConnection;
     QUrl m_createdUrl;
-    QString m_lastFindText;
 };

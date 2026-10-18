@@ -253,6 +253,8 @@ MenuItem AppMenu::viewMenu() const
         MenuItem::action(QStringLiteral("view.focusAddressBar"), QStringLiteral("Go to Address Bar"),
                          shortcut("focusAddressBar")),
         MenuItem::separator(),
+        MenuItem::action(QStringLiteral("extensions.show"), QStringLiteral("Manage Extensions…")),
+        MenuItem::separator(),
         MenuItem::action(QStringLiteral("dev.devTools"), QStringLiteral("Toggle Developer Tools"),
                          shortcut("toggleDevTools")),
         MenuItem::action(QStringLiteral("dev.memory"), QStringLiteral("Memory Usage")),

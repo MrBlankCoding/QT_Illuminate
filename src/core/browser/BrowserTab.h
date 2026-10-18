@@ -43,6 +43,7 @@ public:
     void selectAll();
     void undo();
     void redo();
+    void executeChromeCommand(int commandId);
 
     Q_INVOKABLE void setCefBrowserWrapper(CefBrowserWrapper *wrapper);
 

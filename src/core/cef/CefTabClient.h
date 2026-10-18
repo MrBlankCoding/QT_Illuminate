@@ -14,7 +14,6 @@ class CefLoadHandlerImpl;
 class CefDisplayHandlerImpl;
 class CefContextMenuHandlerImpl;
 class CefDownloadHandlerImpl;
-class CefFindHandlerImpl;
 class CefPermissionHandlerImpl;
 class CefRequestHandlerImpl;
 
@@ -37,7 +36,6 @@ public:
     CefRefPtr<CefDisplayHandler> GetDisplayHandler() override;
     CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override;
     CefRefPtr<CefDownloadHandler> GetDownloadHandler() override;
-    CefRefPtr<CefFindHandler> GetFindHandler() override;
     CefRefPtr<CefPermissionHandler> GetPermissionHandler() override;
     CefRefPtr<CefRequestHandler> GetRequestHandler() override;
 
@@ -89,7 +87,6 @@ private:
     CefRefPtr<CefDisplayHandlerImpl> m_displayHandler;
     CefRefPtr<CefContextMenuHandlerImpl> m_contextMenuHandler;
     CefRefPtr<CefDownloadHandlerImpl> m_downloadHandler;
-    CefRefPtr<CefFindHandlerImpl> m_findHandler;
     CefRefPtr<CefPermissionHandlerImpl> m_permissionHandler;
     CefRefPtr<CefRequestHandlerImpl> m_requestHandler;
 

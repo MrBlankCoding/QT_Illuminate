@@ -107,6 +107,7 @@ bool TabModel::removeTab(int index)
 
     beginRemoveRows({}, index, index);
     BrowserTab *tab = m_tabs.takeAt(index);
+    emit tabAboutToBeRemoved(tab);
     tab->deleteLater();
 
     const int oldActive = m_activeIndex;

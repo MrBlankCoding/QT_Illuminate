@@ -8,7 +8,6 @@ Item {
     required property var logger
     required property var appMenu
     required property var shortcuts
-    required property var findBar
     required property var zoomIndicator
 
     signal settingsRequested
@@ -47,6 +46,9 @@ Item {
         case "tab.close":
             root.browser.closeTab(root.browser.tabModel.activeIndex)
             return
+        case "tab.reopenClosed":
+            root.browser.reopenLastClosedTab()
+            return
         case "tab.next":
             root.browser.cycleTab(1)
             return
@@ -78,6 +80,9 @@ Item {
         case "history.show":
             root.browser.newTab("chrome://history/")
             return
+        case "extensions.show":
+            root.browser.newTab("chrome://extensions/")
+            return
 
         case "view.zoomIn":
             root.zoomIndicator.zoomBy(0.1)
@@ -107,15 +112,13 @@ Item {
             return
 
         case "page.find":
-            root.findBar.open()
+            root.browser.executeChromeCommand("find")
             return
         case "page.findNext":
-            if (root.findBar.visible)
-                root.findBar.search(false)
+            root.browser.executeChromeCommand("findNext")
             return
         case "page.findPrevious":
-            if (root.findBar.visible)
-                root.findBar.search(true)
+            root.browser.executeChromeCommand("findPrevious")
             return
         case "page.copyUrl":
             root.browser.copyActiveUrl()
@@ -170,25 +173,25 @@ Item {
             root.windowRequested("zoom")
             return
         case "edit.cut":
-            root.browser.cut()
+            root.browser.executeChromeCommand("cut")
             return
         case "edit.copy":
-            root.browser.copy()
+            root.browser.executeChromeCommand("copy")
             return
         case "edit.paste":
-            root.browser.paste()
+            root.browser.executeChromeCommand("paste")
             return
         case "edit.pastePlainText":
-            root.browser.pastePlainText()
+            root.browser.executeChromeCommand("pastePlainText")
             return
         case "edit.selectAll":
-            root.browser.selectAll()
+            root.browser.executeChromeCommand("selectAll")
             return
         case "edit.undo":
-            root.browser.undo()
+            root.browser.executeChromeCommand("undo")
             return
         case "edit.redo":
-            root.browser.redo()
+            root.browser.executeChromeCommand("redo")
             return
         }
 
@@ -213,6 +216,11 @@ Item {
         enabled: !root.appMenu.native
         sequences: root.shortcuts.bindings.closeTab
         onActivated: root.perform("tab.close")
+    }
+    Shortcut {
+        context: Qt.WindowShortcut
+        sequences: root.shortcuts.bindings.reopenClosedTab
+        onActivated: root.perform("tab.reopenClosed")
     }
     Shortcut {
         context: Qt.WindowShortcut
@@ -296,62 +304,55 @@ Item {
     // find
     Shortcut {
         context: Qt.WindowShortcut
+        enabled: !root.appMenu.native
         sequences: root.shortcuts.bindings.find
         onActivated: root.perform("page.find")
     }
     Shortcut {
         context: Qt.WindowShortcut
+        enabled: !root.appMenu.native
         sequences: root.shortcuts.bindings.findNext
-        enabled: root.findBar.visible
         onActivated: root.perform("page.findNext")
     }
     Shortcut {
         context: Qt.WindowShortcut
+        enabled: !root.appMenu.native
         sequences: root.shortcuts.bindings.findPrevious
-        enabled: root.findBar.visible
         onActivated: root.perform("page.findPrevious")
     }
 
-    // editing acts on the page, so the find bar keeps the usual copy/paste keys
     Shortcut {
         context: Qt.WindowShortcut
-        enabled: !root.findBar.visible
         sequences: root.shortcuts.bindings.cut
         onActivated: root.performEdit("edit.cut")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        enabled: !root.findBar.visible
         sequences: root.shortcuts.bindings.copy
         onActivated: root.performEdit("edit.copy")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        enabled: !root.findBar.visible
         sequences: root.shortcuts.bindings.paste
         onActivated: root.performEdit("edit.paste")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        enabled: !root.findBar.visible
         sequences: root.shortcuts.bindings.pastePlainText
         onActivated: root.performEdit("edit.pastePlainText")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        enabled: !root.findBar.visible
         sequences: root.shortcuts.bindings.selectAll
         onActivated: root.performEdit("edit.selectAll")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        enabled: !root.findBar.visible
         sequences: root.shortcuts.bindings.undo
         onActivated: root.performEdit("edit.undo")
     }
     Shortcut {
         context: Qt.WindowShortcut
-        enabled: !root.findBar.visible
         sequences: root.shortcuts.bindings.redo
         onActivated: root.performEdit("edit.redo")
     }

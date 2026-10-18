@@ -23,6 +23,8 @@
 
 #include <utility>
 
+#include <include/cef_command_ids.h>
+
 
 void BrowserController::newTab(const QString &urlStr, bool background)
 {
@@ -79,6 +81,7 @@ void BrowserController::closeTab(int index)
         m_closeInProgress = true;
         if (tab->url() != QUrl(NEW_TAB_URL))
         {
+            rememberClosedTab(tab);
             tab->setUrl(QUrl(NEW_TAB_URL));
             tab->requestLoad(QUrl(NEW_TAB_URL));
         }
@@ -96,6 +99,76 @@ void BrowserController::closeTab(int index)
         newTab();
     m_model->removeTab(m_model->indexOf(tab));
     QMetaObject::invokeMethod(this, [this]() { m_closeInProgress = false; }, Qt::QueuedConnection);
+}
+
+void BrowserController::rememberClosedTab(const BrowserTab *tab)
+{
+    if (!tab || !tab->url().isValid() || tab->url().isEmpty()
+        || tab->url() == QUrl(NEW_TAB_URL))
+        return;
+
+    const QString spaceId = m_space ? m_space->id() : QString();
+    QList<ClosedTab> &closedTabs = m_closedTabsBySpace[spaceId];
+    closedTabs.append({tab->url()});
+    constexpr qsizetype maxRecentlyClosedTabs = 25;
+    while (closedTabs.size() > maxRecentlyClosedTabs)
+        closedTabs.removeFirst();
+}
+
+void BrowserController::reopenLastClosedTab()
+{
+    if (m_model->rowCount() >= TabModel::kMaxTabs)
+        return;
+
+    const QString spaceId = m_space ? m_space->id() : QString();
+    auto it = m_closedTabsBySpace.find(spaceId);
+    if (it == m_closedTabsBySpace.end() || it->isEmpty())
+        return;
+
+    const ClosedTab closedTab = it->takeLast();
+    if (it->isEmpty())
+        m_closedTabsBySpace.erase(it);
+
+    if (m_model->rowCount() == 1) {
+        BrowserTab *currentTab = m_model->tabAt(0);
+        if (currentTab && currentTab->url() == QUrl(NEW_TAB_URL)) {
+            currentTab->setUrl(closedTab.url);
+            currentTab->requestLoad(closedTab.url);
+            return;
+        }
+    }
+
+    newTab(closedTab.url.toString());
+}
+
+void BrowserController::executeChromeCommand(const QString &command)
+{
+    int commandId = 0;
+    if (command == QStringLiteral("find"))
+        commandId = IDC_FIND;
+    else if (command == QStringLiteral("findNext"))
+        commandId = IDC_FIND_NEXT;
+    else if (command == QStringLiteral("findPrevious"))
+        commandId = IDC_FIND_PREVIOUS;
+    else if (command == QStringLiteral("cut"))
+        commandId = IDC_CUT;
+    else if (command == QStringLiteral("copy"))
+        commandId = IDC_COPY;
+    else if (command == QStringLiteral("paste"))
+        commandId = IDC_PASTE;
+    else if (command == QStringLiteral("pastePlainText"))
+        commandId = IDC_CONTENT_CONTEXT_PASTE_AND_MATCH_STYLE;
+    else if (command == QStringLiteral("selectAll"))
+        commandId = IDC_CONTENT_CONTEXT_SELECTALL;
+    else if (command == QStringLiteral("undo"))
+        commandId = IDC_CONTENT_CONTEXT_UNDO;
+    else if (command == QStringLiteral("redo"))
+        commandId = IDC_CONTENT_CONTEXT_REDO;
+    else
+        return;
+
+    if (BrowserTab *tab = m_model->tabAt(m_model->activeIndex()))
+        tab->executeChromeCommand(commandId);
 }
 
 void BrowserController::activateTab(int index)

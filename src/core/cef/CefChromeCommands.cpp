@@ -41,13 +41,7 @@ ChromeCommandRoute routeChromeCommand(int commandId)
     case IDC_EXIT:
         return action(QStringLiteral("app.quit"));
 
-    // our own UI for things Chrome would draw in its window
-    case IDC_FIND:
-        return action(QStringLiteral("page.find"));
-    case IDC_FIND_NEXT:
-        return action(QStringLiteral("page.findNext"));
-    case IDC_FIND_PREVIOUS:
-        return action(QStringLiteral("page.findPrevious"));
+    // Find commands fall through to CEF's Chrome runtime UI.
     case IDC_FOCUS_LOCATION:
     case IDC_FOCUS_SEARCH:
         return action(QStringLiteral("view.focusAddressBar"));

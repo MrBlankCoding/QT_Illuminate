@@ -16,6 +16,11 @@ Item {
     signal hoverDetected(int index, point position)
     signal commitRequested(int index)
 
+    function ensureIndexVisible(index) {
+        if (index >= 0 && index < resultList.count)
+            resultList.positionViewAtIndex(index, ListView.Contain);
+    }
+
                 Item {
                     anchors.fill: parent
                     opacity: results.visibleRows > 0 ? 1 : 0

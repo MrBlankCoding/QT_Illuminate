@@ -65,6 +65,7 @@ public:
 signals:
     void activeIndexChanged();
     void countChanged();
+    void tabAboutToBeRemoved(BrowserTab *tab);
 
 private:
     QVector<BrowserTab *> m_tabs;

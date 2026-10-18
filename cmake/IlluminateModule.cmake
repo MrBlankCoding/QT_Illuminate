@@ -82,8 +82,6 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/cef/CefContextMenuHandler.cpp
     src/core/cef/CefDownloadHandler.h
     src/core/cef/CefDownloadHandler.cpp
-    src/core/cef/CefFindHandler.h
-    src/core/cef/CefFindHandler.cpp
     src/core/cef/CefPermissionHandler.h
     src/core/cef/CefPermissionHandler.cpp
     src/core/cef/CefRequestHandler.h
@@ -216,7 +214,6 @@ set(ILLUMINATE_QML_FILES
     ui/components/overlays/CommandBarResults.qml
     ui/components/overlays/ThemePicker.qml
     ui/components/overlays/WebContextMenu.qml
-    ui/components/overlays/FindBar.qml
     ui/components/overlays/ZoomIndicator.qml
     ui/components/spaces/SpaceEditor.qml
     ui/components/spaces/SpaceSwitcher.qml

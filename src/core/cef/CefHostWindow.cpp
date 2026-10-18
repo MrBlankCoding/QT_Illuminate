@@ -8,6 +8,7 @@
 #include <include/cef_task.h>
 #include <include/base/cef_callback.h>
 #include <include/wrapper/cef_closure_task.h>
+#include <include/views/cef_view.h>
 
 #include <utility>
 
@@ -49,7 +50,11 @@ void CefHostWindow::OnWindowCreated(CefRefPtr<CefWindow> window)
     }
     m_window = window;
     m_nativeHandle.store(window->GetWindowHandle(), std::memory_order_release);
+    CefBoxLayoutSettings layoutSettings;
+    layoutSettings.horizontal = false;
+    m_windowLayout = window->SetToBoxLayout(layoutSettings);
     window->AddChildView(m_browserView);
+    m_windowLayout->SetFlexForView(m_browserView, 1);
     if (m_ready)
     {
         auto callback = std::exchange(m_ready, nullptr);
@@ -64,11 +69,30 @@ void CefHostWindow::OnWindowCreated(CefRefPtr<CefWindow> window)
     }
 }
 
+void CefHostWindow::OnWindowChanged(CefRefPtr<CefView> view, bool added)
+{
+    if (!added || view != m_browserView || !m_window || m_chromeToolbar)
+        return;
+
+    m_chromeToolbar = m_browserView->GetChromeToolbar();
+    if (!m_chromeToolbar) {
+        BrowserLogger::instance().error("CEF", "Chrome toolbar was unavailable for browser view");
+        return;
+    }
+
+    m_window->AddChildViewAt(m_chromeToolbar, 0);
+    // Chrome toolbar sizing is finalized when the window is laid out. Without
+    // this pass the toolbar can remain at zero height in an embedded window.
+    m_window->Layout();
+}
+
 void CefHostWindow::OnWindowDestroyed(CefRefPtr<CefWindow> window)
 {
     Q_UNUSED(window);
     m_nativeHandle.store(nullptr, std::memory_order_release);
     m_browserView = nullptr;
+    m_chromeToolbar = nullptr;
+    m_windowLayout = nullptr;
     m_window = nullptr;
 }
 

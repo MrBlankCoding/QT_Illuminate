@@ -7,6 +7,7 @@
 #include <QCoreApplication>
 #include <QMetaObject>
 #include <QMutexLocker>
+#include <QUrl>
 
 #ifdef __APPLE__
 void cefHideNativeWindow(void *view); // CefManager_mac.mm
@@ -66,10 +67,24 @@ void CefStrayBrowserClient::adopt(CefRefPtr<CefBrowser> browser, const QString &
         m_adopted.insert(browser->GetIdentifier());
     }
 
+    QString destination = url;
+    const QUrl parsedUrl(url);
+    const QString scheme = parsedUrl.scheme().toLower();
+    const QString host = parsedUrl.host().toLower();
+    if (scheme == QLatin1String("chrome")
+        && (host == QLatin1String("newtab") || host == QLatin1String("new-tab-page")))
+    {
+        // An empty tab.open payload uses BrowserController::newTab()'s normal
+        // new-tab path, which opens the app's command bar. Passing the internal
+        // newtab:// URL explicitly creates the page without that interaction.
+        destination.clear();
+        BrowserLogger::instance().debug("CEF", "Routing Chromium's new-tab page to the app new-tab flow");
+    }
+
     BrowserLogger::instance().info("CEF", "Chrome opened a window of its own; moving it to a tab: " + url);
-    QMetaObject::invokeMethod(QCoreApplication::instance(), [url]() {
+    QMetaObject::invokeMethod(QCoreApplication::instance(), [destination]() {
         if (AppMenu *menu = AppMenu::instance())
-            menu->trigger(QStringLiteral("tab.open"), url);
+            menu->trigger(QStringLiteral("tab.open"), destination);
     }, Qt::QueuedConnection);
 
     QMetaObject::invokeMethod(QCoreApplication::instance(), [browser]() {

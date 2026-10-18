@@ -5,7 +5,6 @@
 #include "CefDisplayHandler.h"
 #include "CefContextMenuHandler.h"
 #include "CefDownloadHandler.h"
-#include "CefFindHandler.h"
 #include "CefPermissionHandler.h"
 #include "CefRequestHandler.h"
 #include "CefProfile.h"
@@ -91,11 +90,6 @@ void CefBrowserWrapper::onLoadProgressChanged(int progress)
         m_loadProgress = progress;
         emit loadProgressChanged(progress);
     }
-}
-
-void CefBrowserWrapper::onFindResult(int count, int activeIndex, bool finalUpdate)
-{
-    emit findTextFinished(count, activeIndex, finalUpdate);
 }
 
 void CefBrowserWrapper::onPdfPrintFinished(const QString &path, bool ok)

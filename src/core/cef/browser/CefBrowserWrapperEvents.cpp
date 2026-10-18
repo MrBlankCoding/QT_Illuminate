@@ -5,7 +5,6 @@
 #include "CefDisplayHandler.h"
 #include "CefContextMenuHandler.h"
 #include "CefDownloadHandler.h"
-#include "CefFindHandler.h"
 #include "CefPermissionHandler.h"
 #include "CefRequestHandler.h"
 #include "CefProfile.h"

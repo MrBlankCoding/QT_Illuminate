@@ -5,7 +5,6 @@
 #include "CefDisplayHandler.h"
 #include "CefContextMenuHandler.h"
 #include "CefDownloadHandler.h"
-#include "CefFindHandler.h"
 #include "CefPermissionHandler.h"
 #include "CefRequestHandler.h"
 #include "CefProfile.h"
@@ -58,35 +57,10 @@ void CefBrowserWrapper::stop()
     if (m_browser)
         m_browser->StopLoad();
 }
-// find
-void CefBrowserWrapper::findText(const QString &text, int flags)
+void CefBrowserWrapper::executeChromeCommand(int commandId)
 {
-    auto host = hostOf(m_browser);
-    if (!host)
-        return;
-
-    // CefBrowserHost::Find() DCHECKs on empty text; clearing is done via
-    // StopFinding(true).
-    if (text.isEmpty())
-    {
-        m_lastFindText.clear();
-        host->StopFinding(true);
-        return;
-    }
-
-    const bool forward = !(flags & FindBackward);
-    const bool findNext = (text == m_lastFindText);
-    m_lastFindText = text;
-
-    // Case-insensitive; extend here if the header gains a case-sensitivity flag.
-    host->Find(qStringToCef(text), forward, false, findNext);
-}
-
-void CefBrowserWrapper::stopFinding(bool clearSelection)
-{
-    m_lastFindText.clear();
     if (auto host = hostOf(m_browser))
-        host->StopFinding(clearSelection);
+        host->ExecuteChromeCommand(commandId, CEF_WOD_CURRENT_TAB);
 }
 
 void CefBrowserWrapper::triggerWebAction(int action, const QUrl &url)

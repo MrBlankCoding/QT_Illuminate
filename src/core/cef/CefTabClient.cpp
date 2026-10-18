@@ -5,7 +5,6 @@
 #include "CefDisplayHandler.h"
 #include "CefContextMenuHandler.h"
 #include "CefDownloadHandler.h"
-#include "CefFindHandler.h"
 #include "CefPermissionHandler.h"
 #include "CefRequestHandler.h"
 #include "CefChromeCommands.h"
@@ -24,8 +23,7 @@ CefTabClient::CefTabClient(CefBrowserWrapper *wrapper)
       m_loadHandler(new CefLoadHandlerImpl(wrapper, &m_mainBrowser)),
       m_displayHandler(new CefDisplayHandlerImpl(wrapper, &m_mainBrowser)),
       m_contextMenuHandler(new CefContextMenuHandlerImpl(wrapper, &m_mainBrowser)),
-       m_downloadHandler(new CefDownloadHandlerImpl()),
-      m_findHandler(new CefFindHandlerImpl(wrapper)),
+      m_downloadHandler(new CefDownloadHandlerImpl()),
       m_permissionHandler(new CefPermissionHandlerImpl(wrapper)),
       m_requestHandler(new CefRequestHandlerImpl(wrapper))
 {
@@ -35,7 +33,6 @@ CefRefPtr<CefLoadHandler> CefTabClient::GetLoadHandler() { return m_loadHandler;
 CefRefPtr<CefDisplayHandler> CefTabClient::GetDisplayHandler() { return m_displayHandler; }
 CefRefPtr<CefContextMenuHandler> CefTabClient::GetContextMenuHandler() { return m_contextMenuHandler; }
 CefRefPtr<CefDownloadHandler> CefTabClient::GetDownloadHandler() { return m_downloadHandler; }
-CefRefPtr<CefFindHandler> CefTabClient::GetFindHandler() { return m_findHandler; }
 CefRefPtr<CefPermissionHandler> CefTabClient::GetPermissionHandler() { return m_permissionHandler; }
 CefRefPtr<CefRequestHandler> CefTabClient::GetRequestHandler() { return m_requestHandler; }
 

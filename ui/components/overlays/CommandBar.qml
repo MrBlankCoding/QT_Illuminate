@@ -103,7 +103,7 @@ Popup {
 
     onHighlightedChanged: {
         if (highlighted >= 0)
-            resultList.positionViewAtIndex(highlighted, ListView.Contain);
+            resultsView.ensureIndexVisible(highlighted);
     }
 
     function focusInput(selectAll) {
@@ -470,6 +470,7 @@ Popup {
                 }
 
                 CommandBarResults {
+                    id: resultsView
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     model: resultsModel

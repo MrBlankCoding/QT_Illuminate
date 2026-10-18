@@ -2,6 +2,7 @@
 
 #include <include/views/cef_browser_view.h>
 #include <include/views/cef_browser_view_delegate.h>
+#include <include/views/cef_box_layout.h>
 #include <include/views/cef_window.h>
 #include <include/views/cef_window_delegate.h>
 #include <QRect>
@@ -26,7 +27,8 @@ public:
 
     // CefBrowserViewDelegate
     cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
-    ChromeToolbarType GetChromeToolbarType(CefRefPtr<CefBrowserView>) override { return CEF_CTT_NONE; }
+    ChromeToolbarType GetChromeToolbarType(CefRefPtr<CefBrowserView>) override { return CEF_CTT_NORMAL; }
+    void OnWindowChanged(CefRefPtr<CefView> view, bool added) override;
 
     // CefWindowDelegate
     cef_runtime_style_t GetWindowRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
@@ -46,6 +48,8 @@ private:
     std::function<void()> m_ready;
     CefRefPtr<CefBrowserView> m_browserView;
     CefRefPtr<CefWindow> m_window;
+    CefRefPtr<CefBoxLayout> m_windowLayout;
+    CefRefPtr<CefView> m_chromeToolbar;
     std::atomic<cef_window_handle_t> m_nativeHandle{nullptr};
     bool m_visible = false;
     bool m_closing = false;

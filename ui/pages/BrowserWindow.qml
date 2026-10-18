@@ -29,13 +29,12 @@ Window {
     property int visibilityBeforeWindowFullScreen: Window.Windowed
     property rect geometryBeforeFullScreen: Qt.rect(0, 0, 1280, 840)
     property bool restoreGeometryAfterFullScreen: false
-    property bool findBarOpen: false
     property var uiFocusClaims: []
     property bool inputOverlayOpen: false
 
     function syncInputOverlayOpen() {
         const commandVisible = commandBar && commandBar.visible;
-        root.inputOverlayOpen = commandVisible || root.findBarOpen || root.uiFocusClaims.length > 0;
+        root.inputOverlayOpen = commandVisible || root.uiFocusClaims.length > 0;
     }
 
     function claimUiFocus(owner) {
@@ -52,12 +51,9 @@ Window {
         root.syncInputOverlayOpen();
     }
 
-    onFindBarOpenChanged: root.syncInputOverlayOpen()
     function returnFocusToWeb() {
         root.uiFocusClaims = [];
         root.syncInputOverlayOpen();
-        if (workspace.findBar.visible)
-            workspace.findBar.dismiss();
         if (commandBar.visible)
             commandBar.close();
         if (workspace.viewStack.activeWebView)
@@ -294,9 +290,10 @@ Window {
             { label: "Toggle Sidebar", icon: "qrc:/QT_Illuminate/ui/icons/panel-left.svg", run: () => root.toggleSidebar() },
             { label: "Open Settings", icon: "qrc:/QT_Illuminate/ui/icons/more-vertical.svg", run: () => root.openSettings() },
             { label: "Downloads", icon: "qrc:/QT_Illuminate/ui/icons/download.svg", run: () => Browser.newTab("chrome://downloads/") },
-            { label: "Find in Page", icon: "qrc:/QT_Illuminate/ui/icons/search.svg", run: () => workspace.findBar.open() },
+            { label: "Find in Page", icon: "qrc:/QT_Illuminate/ui/icons/search.svg", run: () => Browser.executeChromeCommand("find") },
             { label: "Copy URL", icon: "qrc:/QT_Illuminate/ui/icons/copy.svg", run: () => Browser.copyActiveUrl() },
             { label: "Developer Tools", icon: "qrc:/QT_Illuminate/ui/icons/activity.svg", run: () => Browser.toggleDevTools() },
+            { label: "Extensions", icon: "qrc:/QT_Illuminate/ui/icons/square.svg", run: () => Browser.newTab("chrome://extensions/") },
             { label: "Memory Usage", icon: "qrc:/QT_Illuminate/ui/icons/activity.svg", run: () => Browser.newTab("illuminate://memory") },
             { label: "History", icon: "qrc:/QT_Illuminate/ui/icons/search.svg", run: () => Browser.newTab("chrome://history/") }
         ]
@@ -326,7 +323,6 @@ Window {
         logger: Logger
         appMenu: AppMenu
         shortcuts: Shortcuts
-            findBar: workspace.findBar
             zoomIndicator: workspace.zoomIndicator
 
         onSettingsRequested: root.openSettings()

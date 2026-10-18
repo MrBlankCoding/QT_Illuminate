@@ -35,6 +35,11 @@ QList<ShortcutRegistry::Command> ShortcutRegistry::buildTable()
 
     add("Tabs", "newTab", "New tab", {standard(QKeySequence::StandardKey::AddTab)});
     add("Tabs", "closeTab", "Close tab", {standard(QKeySequence::StandardKey::Close)});
+#ifdef Q_OS_MACOS
+    add("Tabs", "reopenClosedTab", "Reopen closed tab", {QStringLiteral("Meta+Shift+T")});
+#else
+    add("Tabs", "reopenClosedTab", "Reopen closed tab", {QStringLiteral("Ctrl+Shift+T")});
+#endif
     add("Tabs", "nextTab", "Next tab", {QStringLiteral("Ctrl+Up")});
     add("Tabs", "previousTab", "Previous tab", {QStringLiteral("Ctrl+Down")});
 

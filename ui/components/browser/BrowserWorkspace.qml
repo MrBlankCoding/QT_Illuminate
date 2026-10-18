@@ -11,7 +11,6 @@ Item {
     required property var themePicker
 
     property alias viewStack: viewStack
-    property alias findBar: findBar
     property alias zoomIndicator: zoomIndicator
     property alias dockLoader: dockLoader
     readonly property real dockWidth: dock.fullWidth
@@ -124,13 +123,6 @@ Item {
                             Browser.sidebar.prepareSplit(activeSplitIds[0]);
                     }
 
-                    FindBar {
-                        id: findBar
-                        webView: viewStack.activeWebView
-                        focusRouter: root
-                        onVisibleChanged: browserWindow.findBarOpen = visible
-                    }
-
                     ZoomIndicator {
                         id: zoomIndicator
                         webView: viewStack.activeWebView
@@ -140,7 +132,6 @@ Item {
                         target: Browser
                         enabled: !browserWindow.retiring
                         function onActiveIndexChanged() {
-                            findBar.close();
                             viewStack.refreshActiveWebView();
                         }
                         function onNewTabOpened() {
@@ -206,7 +197,6 @@ Item {
             loadProgress: Browser.activeProgress
             canGoBack: viewStack.activeWebView ? viewStack.activeWebView.canGoBack : false
             canGoForward: viewStack.activeWebView ? viewStack.activeWebView.canGoForward : false
-            findBar: findBar
             zoomIndicator: zoomIndicator
 
             onOpenSettings: browserWindow.openSettings()
