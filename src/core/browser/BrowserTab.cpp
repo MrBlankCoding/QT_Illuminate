@@ -83,7 +83,7 @@ void BrowserTab::requestLoad(const QUrl &url)
 void BrowserTab::cut()
 {
     if (m_cefBrowserWrapper)
-        m_cefBrowserWrapper->runJavaScript("document.execCommand('cut')");
+        m_cefBrowserWrapper->triggerWebAction(CefBrowserWrapper::WebAction::Cut);
 }
 
 void BrowserTab::copy()
@@ -98,10 +98,28 @@ void BrowserTab::paste()
         m_cefBrowserWrapper->triggerWebAction(CefBrowserWrapper::WebAction::Paste);
 }
 
+void BrowserTab::pastePlainText()
+{
+    if (m_cefBrowserWrapper)
+        m_cefBrowserWrapper->triggerWebAction(CefBrowserWrapper::WebAction::PasteAndMatchStyle);
+}
+
 void BrowserTab::selectAll()
 {
     if (m_cefBrowserWrapper)
-        m_cefBrowserWrapper->runJavaScript("document.execCommand('selectAll')");
+        m_cefBrowserWrapper->triggerWebAction(CefBrowserWrapper::WebAction::SelectAll);
+}
+
+void BrowserTab::undo()
+{
+    if (m_cefBrowserWrapper)
+        m_cefBrowserWrapper->triggerWebAction(CefBrowserWrapper::WebAction::Undo);
+}
+
+void BrowserTab::redo()
+{
+    if (m_cefBrowserWrapper)
+        m_cefBrowserWrapper->triggerWebAction(CefBrowserWrapper::WebAction::Redo);
 }
 
 void BrowserTab::setCefBrowserWrapper(CefBrowserWrapper *wrapper)

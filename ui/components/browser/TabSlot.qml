@@ -259,7 +259,7 @@ Item {
                 }
 
                 onPermissionRequested: function (permission) {
-                    tabSlot.handlePermission(permission)
+                    permissionPrompt.handlePermission(permission)
                 }
 
                 WebContextMenu {
@@ -372,153 +372,10 @@ Item {
         }
     }
 
-    property var pendingPermission: null
-    property string pendingPermissionLabel: ""
-    property int pendingBlockedResource: -1
-    property var permissionQueue: []
-
-    function handlePermission(permission) {
-        if (Permissions.resolve(permission))
-            return
-        if (tabSlot.pendingPermission || permissionPopup.visible) {
-            tabSlot.permissionQueue.push(permission)
-            return
-        }
-        tabSlot.showPermission(permission)
+    PermissionPrompt {
+        id: permissionPrompt
+        anchors.fill: parent
+        tabSlot: tabSlot
     }
 
-    function showPermission(permission) {
-        const type = permission.permissionType
-        tabSlot.pendingPermission = permission
-        tabSlot.pendingPermissionLabel = Permissions.labelForType(type)
-        tabSlot.pendingBlockedResource = Permissions.blockedResourceForType(type)
-        rememberChk.checked = false
-        permissionPopup.open()
-    }
-
-    function showNextPermission() {
-        if (tabSlot.pendingPermission || permissionPopup.visible)
-            return
-        while (tabSlot.permissionQueue.length > 0) {
-            const p = tabSlot.permissionQueue.shift()
-            if (!p || p.permissionType === undefined || Permissions.resolve(p))
-                continue
-            tabSlot.showPermission(p)
-            return
-        }
-    }
-
-    function applyPermission(allow) {
-        const p = tabSlot.pendingPermission
-        if (!p)
-            return
-        Permissions.respond(p, allow, rememberChk.checked)
-        tabSlot.pendingPermission = null
-        permissionPopup.close()
-    }
-
-    onPendingPermissionChanged: {
-        if (!tabSlot.pendingPermission && permissionPopup.visible)
-            permissionPopup.close()
-    }
-
-    Connections {
-        target: Permissions
-        enabled: tabSlot.pendingPermission !== null
-        function onSystemAccessChanged() {
-            tabSlot.pendingBlockedResource =
-                Permissions.blockedResourceForType(tabSlot.pendingPermission.permissionType)
-        }
-    }
-
-    Popup {
-        id: permissionPopup
-        popupType: Popup.Window
-        modal: true
-        focus: true
-        padding: 20
-        width: 320
-        x: Math.round((tabSlot.width - width) / 2)
-        y: Math.round((tabSlot.height - height) / 2)
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        onClosed: {
-            const p = tabSlot.pendingPermission
-            tabSlot.pendingPermission = null
-            if (p)
-                p.deny()
-            Qt.callLater(tabSlot.showNextPermission)
-        }
-        Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.35) }
-        background: Rectangle {
-            radius: 16
-            color: Theme.bg
-            border.color: Theme.border
-            border.width: 1
-        }
-
-        contentItem: ColumnLayout {
-            spacing: 16
-
-            Text {
-                Layout.fillWidth: true
-                text: (tabSlot.pendingPermission ? tabSlot.pendingPermission.origin.host : "") + " " + tabSlot.pendingPermissionLabel + "?"
-                textFormat: Text.PlainText
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeM
-                color: Theme.text
-                wrapMode: Text.WordWrap
-            }
-
-            Text {
-                Layout.fillWidth: true
-                visible: tabSlot.pendingBlockedResource >= 0
-                text: Permissions.labelForResource(tabSlot.pendingBlockedResource)
-                      + " access is turned off for Illuminate in your system settings."
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeS
-                color: Theme.danger
-                wrapMode: Text.WordWrap
-            }
-
-            PillButton {
-                visible: tabSlot.pendingBlockedResource >= 0
-                text: "Open System Settings"
-                textColor: Theme.text
-                fillColor: Theme.surfaceHigh
-                hoverFillColor: Theme.surface
-                onClicked: Permissions.openSystemSettings(tabSlot.pendingBlockedResource)
-            }
-
-            CheckBox {
-                id: rememberChk
-                text: "Remember this choice"
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeS
-                palette.windowText: Theme.textMuted
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 12
-
-                Item { Layout.fillWidth: true }
-
-                PillButton {
-                    text: "Allow"
-                    enabled: tabSlot.pendingBlockedResource < 0
-                    textColor: "white"
-                    fillColor: Theme.accent
-                    hoverFillColor: Qt.darker(Theme.accent, 1.1)
-                    onClicked: tabSlot.applyPermission(true)
-                }
-                PillButton {
-                    text: "Deny"
-                    textColor: Theme.textMuted
-                    fillColor: Theme.surfaceHigh
-                    hoverFillColor: Theme.surface
-                    onClicked: tabSlot.applyPermission(false)
-                }
-            }
-        }
-    }
 }

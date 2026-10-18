@@ -39,7 +39,10 @@ public:
     void cut();
     void copy();
     void paste();
+    void pastePlainText();
     void selectAll();
+    void undo();
+    void redo();
 
     Q_INVOKABLE void setCefBrowserWrapper(CefBrowserWrapper *wrapper);
 

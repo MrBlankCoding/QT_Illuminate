@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Effects
 import QtQuick.Layouts
 import QT_Illuminate.ui
+import "CommandBarLogic.js" as CommandBarLogic
 
 pragma ComponentBehavior: Bound
 
@@ -135,64 +136,9 @@ Popup {
         onActivated: root.close()
     }
 
-    QtObject {
-        id: regexCache
-        readonly property var schemeRegex: /^[a-z][a-z0-9+.-]*:\/\//i
-        readonly property var whitespaceRegex: /\s/
-        readonly property var domainRegex: /^[^.\s]+\.[^\s]+$/
-        readonly property var localhostRegex: /^localhost(:\d+)?(\/|$)/i
-        readonly property var schemePrefixRegex: /^([a-z][a-z0-9+.-]*):/i
-        readonly property var stripSchemeRegex: /^[a-z][a-z0-9+.-]*:\/\/(www\.)?/i
-        readonly property var wordBoundaryRegex: /[\s\/._\-:]/
-    }
-
-    function looksLikeUrl(text) {
-        if (regexCache.schemeRegex.test(text))
-            return true;
-        return !regexCache.whitespaceRegex.test(text) && (regexCache.domainRegex.test(text) || regexCache.localhostRegex.test(text));
-    }
-
-    function isInternalUrl(url) {
-        if (regexCache.whitespaceRegex.test(url))
-            return false;
-        const m = regexCache.schemePrefixRegex.exec(url);
-        return m !== null && root.internalSchemes.indexOf(m[1].toLowerCase()) !== -1;
-    }
-
-    function stripScheme(url) {
-        return url.replace(regexCache.stripSchemeRegex, "");
-    }
-
-    function matchScore(haystack, q) {
-        const h = String(haystack).toLowerCase();
-        const i = h.indexOf(q);
-        if (i < 0)
-            return 0;
-        if (i === 0)
-            return 3;
-        return regexCache.wordBoundaryRegex.test(h.charAt(i - 1)) ? 2 : 1;
-    }
-
-    function makeRow(kind, key, fields) {
-        return Object.assign({
-            key: key,
-            kind: kind,
-            title: "",
-            subtitle: "",
-            dest: "",
-            url: "",
-            iconUrl: "",
-            icon: "",
-            tabIndex: -1,
-            actionIndex: -1
-        }, fields);
-    }
-
-    function sameRow(a, b) {
-        return a.kind === b.kind && a.title === b.title && a.subtitle === b.subtitle
-            && a.dest === b.dest && a.url === b.url && a.iconUrl === b.iconUrl
-            && a.icon === b.icon && a.tabIndex === b.tabIndex && a.actionIndex === b.actionIndex;
-    }
+    function looksLikeUrl(text) { return CommandBarLogic.looksLikeUrl(text) }
+    function isInternalUrl(url) { return CommandBarLogic.isInternalUrl(url, root.internalSchemes) }
+    function stripScheme(url) { return CommandBarLogic.stripScheme(url) }
 
     function requestSuggestions() {
         const text = input.text;
@@ -202,11 +148,6 @@ Popup {
         root.settling = true;
         settleTimer.restart();
         suggestions.update(text);
-    }
-
-    function compatible(list, q) {
-        return list.filter(s => s.text.toLowerCase().includes(q)
-                                || (s.url !== "" && s.url.toLowerCase().includes(q)));
     }
 
     function readSuggestions(q) {
@@ -225,102 +166,25 @@ Popup {
         const stale = root.suggestionsQuery !== q;
         if (fresh.length > 0) {
             root.heldSuggestions = fresh;
-            return stale ? root.compatible(fresh, q) : fresh;
+            return stale ? CommandBarLogic.compatible(fresh, q) : fresh;
         }
         if (stale || root.settling)
-            return root.compatible(root.heldSuggestions, q);
+            return CommandBarLogic.compatible(root.heldSuggestions, q);
         return [];
     }
 
     function buildResults() {
-        const text = input.text.trim();
-        if (text === "" || !root.queryActive)
-            return [];
-
-        const q = text.toLowerCase();
-
-        const go = root.makeRow("go", "go", {
-            title: text,
-            subtitle: root.looksLikeUrl(text) ? "Open" : "Search " + Prefs.searchEngineName,
-            dest: text
+        return CommandBarLogic.buildResults({
+            text: input.text,
+            queryActive: root.queryActive,
+            searchEngineName: Prefs.searchEngineName,
+            quickActions: root.quickActions,
+            mode: root.mode,
+            tabs: Browser.tabModel,
+            internalSchemes: root.internalSchemes,
+            suggestions: root.readSuggestions(input.text.trim().toLowerCase()),
+            maxRows: root.maxRows
         });
-
-        const actionHits = [];
-        for (let i = 0; i < root.quickActions.length; ++i) {
-            const score = root.matchScore(root.quickActions[i].label, q);
-            if (score > 0)
-                actionHits.push({ score: score, order: i });
-        }
-        actionHits.sort((a, b) => b.score - a.score || a.order - b.order);
-        const actionRows = actionHits.slice(0, 2).map(h => {
-            const a = root.quickActions[h.order];
-            return root.makeRow("action", "action:" + a.label, {
-                title: String(a.label),
-                subtitle: "Action",
-                icon: String(a.icon || ""),
-                actionIndex: h.order
-            });
-        });
-
-        const tabs = Browser.tabModel;
-        const tabHits = [];
-        const tabUrls = {};
-        for (let i = tabs.count - 1; i >= 0; --i) {
-            if (root.mode === "edit" && i === tabs.activeIndex)
-                continue;
-            const t = tabs.itemAt(i);
-            if (!t)
-                continue;
-            const url = t.url.toString();
-            if (root.isInternalUrl(url))
-                continue;
-            const title = String(t.title || "");
-            const score = Math.max(root.matchScore(title, q), root.matchScore(root.stripScheme(url), q));
-            if (score > 0)
-                tabHits.push({ score: score, order: tabHits.length, index: i, title: title, url: url, iconUrl: t.iconUrl.toString() });
-        }
-        tabHits.sort((a, b) => b.score - a.score || a.order - b.order);
-        const tabRows = tabHits.slice(0, 3).map(h => {
-            tabUrls[h.url] = true;
-            return root.makeRow("tab", "tab:" + h.index + ":" + h.url, {
-                title: h.title,
-                subtitle: "Switch to Tab",
-                url: h.url,
-                iconUrl: h.iconUrl,
-                tabIndex: h.index
-            });
-        });
-
-        const bookmarkRows = [];
-        const searchRows = [];
-        const seen = {};
-        const fromProvider = root.readSuggestions(q);
-        for (let i = 0; i < fromProvider.length; ++i) {
-            const s = fromProvider[i];
-            if (s.isBookmark) {
-                if (root.isInternalUrl(s.url) || tabUrls[s.url])
-                    continue;
-                bookmarkRows.push(root.makeRow("bookmark", "bookmark:" + s.url, {
-                    title: s.text,
-                    subtitle: s.url,
-                    dest: s.url,
-                    url: s.url
-                }));
-            } else {
-                const k = s.text.toLowerCase();
-                if (k === q || seen[k] || root.isInternalUrl(s.text))
-                    continue;
-                seen[k] = true;
-                searchRows.push(root.makeRow("suggest", "suggest:" + k, {
-                    title: s.text,
-                    dest: s.text
-                }));
-            }
-        }
-
-        const local = actionRows.concat(tabRows, bookmarkRows.slice(0, 2)).slice(0, root.maxRows - 3);
-        const suggs = searchRows.slice(0, root.maxRows - 1 - local.length);
-        return [go].concat(local, suggs);
     }
 
     function syncModel(next) {
@@ -338,7 +202,7 @@ Popup {
             } else {
                 if (at !== i)
                     resultsModel.move(at, i, 1);
-                if (!root.sameRow(resultsModel.get(i), row))
+                if (!CommandBarLogic.sameRow(resultsModel.get(i), row))
                     resultsModel.set(i, row);
             }
         }
@@ -609,143 +473,22 @@ Popup {
                     }
                 }
 
-                Item {
+                CommandBarResults {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    opacity: root.visibleRows > 0 ? 1 : 0
-                    Behavior on opacity {
-                        NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+                    model: resultsModel
+                    visibleRows: root.visibleRows
+                    maxRows: root.maxRows
+                    rowHeight: root.rowHeight
+                    highlightedIndex: root.highlighted
+                    urlCheck: root.looksLikeUrl
+                    onHoverDetected: (index, position) => {
+                        if (position.x === root.lastPointer.x && position.y === root.lastPointer.y)
+                            return;
+                        root.lastPointer = position;
+                        root.hoverHighlight(index);
                     }
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        spacing: 0
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 1
-                            color: Theme.cardBorder
-                        }
-
-                        ListView {
-                            id: resultList
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            topMargin: Theme.space2
-                            bottomMargin: Theme.space2
-                            clip: true
-                            interactive: contentHeight > height
-                            boundsBehavior: Flickable.StopAtBounds
-                            model: resultsModel
-
-                            delegate: Item {
-                                id: row
-
-                                required property int index
-                                required property string kind
-                                required property string title
-                                required property string subtitle
-                                required property string url
-                                required property string iconUrl
-                                required property string icon
-                                readonly property bool selected: index === root.highlighted
-
-                                width: resultList.width
-                                height: root.rowHeight
-
-                                Rectangle {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Theme.space2
-                                    anchors.rightMargin: Theme.space2
-                                    radius: Theme.radiusItem
-                                    color: row.selected ? Theme.accentDim : "transparent"
-                                    Behavior on color { ColorAnimation { duration: Theme.durationFast } }
-                                }
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Theme.space4 + 2
-                                    anchors.rightMargin: Theme.space4 + 2
-                                    spacing: Theme.space3
-
-                                    Item {
-                                        Layout.preferredWidth: 16
-                                        Layout.preferredHeight: 16
-
-                                        Image {
-                                            id: favicon
-                                            anchors.fill: parent
-                                            sourceSize.width: 32
-                                            sourceSize.height: 32
-                                            source: row.kind === "tab" ? row.iconUrl : ""
-                                            visible: status === Image.Ready
-                                            asynchronous: true
-                                            onStatusChanged: {
-                                                if (status === Image.Error)
-                                                    source = "";
-                                            }
-                                        }
-                                        LetterAvatar {
-                                            anchors.fill: parent
-                                            visible: !favicon.visible && (row.kind === "tab" || row.kind === "bookmark")
-                                            url: row.url
-                                            title: row.title
-                                        }
-                                        LucideIcon {
-                                            anchors.centerIn: parent
-                                            size: 15
-                                            visible: row.kind === "go" || row.kind === "suggest" || row.kind === "action"
-                                            source: row.kind === "action" ? row.icon
-                                                  : row.kind === "go" && root.looksLikeUrl(row.title) ? "qrc:/QT_Illuminate/ui/icons/globe.svg"
-                                                  : "qrc:/QT_Illuminate/ui/icons/search.svg"
-                                            color: Theme.textMuted
-                                        }
-                                    }
-
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: row.title
-                                        textFormat: Text.PlainText
-                                        elide: Text.ElideRight
-                                        color: Theme.text
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeM
-                                    }
-
-                                    Text {
-                                        Layout.maximumWidth: resultList.width * 0.4
-                                        visible: text !== ""
-                                        text: row.subtitle
-                                        textFormat: Text.PlainText
-                                        elide: Text.ElideMiddle
-                                        color: Theme.textMuted
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.fontSizeS
-                                    }
-
-                                    LucideIcon {
-                                        visible: row.selected
-                                        size: 13
-                                        source: "qrc:/QT_Illuminate/ui/icons/arrow-right.svg"
-                                        color: Theme.textMuted
-                                    }
-                                }
-
-                                HoverHandler {
-                                    onPointChanged: {
-                                        const p = point.scenePosition;
-                                        if (p.x === root.lastPointer.x && p.y === root.lastPointer.y)
-                                            return;
-                                        root.lastPointer = Qt.point(p.x, p.y);
-                                        root.hoverHighlight(row.index);
-                                    }
-                                }
-                                TapHandler {
-                                    onTapped: root.commit(row.index, false)
-                                }
-                            }
-                        }
-                    }
+                    onCommitRequested: index => root.commit(index, false)
                 }
             }
         }

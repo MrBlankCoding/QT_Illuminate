@@ -4,11 +4,9 @@
 #include <include/internal/cef_types.h>
 
 #include <QKeySequence>
-
 #include <QWindow>
 
 #include <QCoreApplication>
-#include <QKeyEvent>
 #include <QList>
 #include <QMetaObject>
 #include <QObject>
@@ -93,17 +91,6 @@ bool isQmlShortcut(const QObject *object)
     return object && qstrcmp(object->metaObject()->className(), kQmlShortcutClassName) == 0;
 }
 
-class ShortcutActivationSpy : public QObject
-{
-    Q_OBJECT
-
-public:
-    bool fired = false;
-
-public slots:
-    void onActivated() { fired = true; }
-};
-
 bool replayIntoWindowShortcuts(QWindow *window, Qt::Key key, Qt::KeyboardModifiers modifiers)
 {
     if (!window)
@@ -125,6 +112,8 @@ bool replayIntoWindowShortcuts(QWindow *window, Qt::Key key, Qt::KeyboardModifie
     for (QObject *object : descendants)
     {
         if (!isQmlShortcut(object))
+            continue;
+        if (!object->property("enabled").toBool())
             continue;
 
         const QVariant seqProp = object->property("sequence");
@@ -154,14 +143,20 @@ bool replayIntoWindowShortcuts(QWindow *window, Qt::Key key, Qt::KeyboardModifie
     if (candidates.isEmpty())
         return false;
 
-    ShortcutActivationSpy spy;
+    // CEF's native child view can own the macOS key window while Qt's parent
+    // QQuickWindow is still the shortcut owner. Replaying a key event through
+    // QWindow then fails Qt's active-window context check. We've already
+    // matched an enabled shortcut belonging to this window, so activate it
+    // directly and let its QML onActivated handler perform the action.
     for (QObject *object : candidates)
-        object->connect(object, SIGNAL(activated()), &spy, SLOT(onActivated()));
+    {
+        if (QMetaObject::invokeMethod(object, "activated", Qt::DirectConnection))
+        {
+            return true;
+        }
+    }
 
-    QKeyEvent press(QEvent::KeyPress, key, modifiers);
-    QCoreApplication::sendEvent(window, &press);
-
-    return spy.fired;
+    return false;
 }
 
 } // namespace
@@ -186,5 +181,3 @@ bool ShortcutBridge::dispatchKeyPress(QWindow *window, int windowsKeyCode, uint3
 
     return replayIntoWindowShortcuts(window, key, modifiers);
 }
-
-#include "ShortcutBridge.moc"

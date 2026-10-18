@@ -91,7 +91,10 @@ public:
     Q_INVOKABLE void cut();
     Q_INVOKABLE void copy();
     Q_INVOKABLE void paste();
+    Q_INVOKABLE void pastePlainText();
     Q_INVOKABLE void selectAll();
+    Q_INVOKABLE void undo();
+    Q_INVOKABLE void redo();
     Q_INVOKABLE void saveSession() const;
     Q_INVOKABLE QString createCustomTheme(const QString &name, const QVariantMap &colors);
     Q_INVOKABLE bool updateCustomTheme(const QString &id, const QString &name, const QVariantMap &colors);

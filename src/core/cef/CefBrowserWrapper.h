@@ -69,6 +69,11 @@ public:
         DownloadMediaToDisk = 4,
         DownloadLinkToDisk = 5,
         InspectElement = 6,
+        Cut = 7,
+        SelectAll = 8,
+        PasteAndMatchStyle = 9,
+        Undo = 10,
+        Redo = 11,
     };
     Q_ENUM(WebAction)
 

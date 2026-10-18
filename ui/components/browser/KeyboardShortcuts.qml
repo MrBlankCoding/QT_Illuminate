@@ -25,6 +25,20 @@ Item {
     signal newSpaceRequested
     signal windowRequested(string action)
 
+    function performEdit(id) {
+        const focusedItem = root.Window.window ? root.Window.window.activeFocusItem : null
+        const methods = { "edit.pastePlainText": "paste", "edit.selectAll": "selectAll" }
+        const method = methods[id] || id.slice("edit.".length)
+        // Window shortcuts take precedence over text controls' built-in editing
+        // keys. Forward those commands to the focused QML editor when possible.
+        if (focusedItem && typeof focusedItem[method] === "function") {
+            focusedItem[method]()
+            return
+        }
+
+        root.perform(id)
+    }
+
     function perform(id, payload) {
         switch (id) {
         case "tab.new":
@@ -164,8 +178,17 @@ Item {
         case "edit.paste":
             root.browser.paste()
             return
+        case "edit.pastePlainText":
+            root.browser.pastePlainText()
+            return
         case "edit.selectAll":
             root.browser.selectAll()
+            return
+        case "edit.undo":
+            root.browser.undo()
+            return
+        case "edit.redo":
+            root.browser.redo()
             return
         }
 
@@ -294,25 +317,43 @@ Item {
         context: Qt.WindowShortcut
         enabled: !root.findBar.visible
         sequences: root.shortcuts.bindings.cut
-        onActivated: root.perform("edit.cut")
+        onActivated: root.performEdit("edit.cut")
     }
     Shortcut {
         context: Qt.WindowShortcut
         enabled: !root.findBar.visible
         sequences: root.shortcuts.bindings.copy
-        onActivated: root.perform("edit.copy")
+        onActivated: root.performEdit("edit.copy")
     }
     Shortcut {
         context: Qt.WindowShortcut
         enabled: !root.findBar.visible
         sequences: root.shortcuts.bindings.paste
-        onActivated: root.perform("edit.paste")
+        onActivated: root.performEdit("edit.paste")
+    }
+    Shortcut {
+        context: Qt.WindowShortcut
+        enabled: !root.findBar.visible
+        sequences: root.shortcuts.bindings.pastePlainText
+        onActivated: root.performEdit("edit.pastePlainText")
     }
     Shortcut {
         context: Qt.WindowShortcut
         enabled: !root.findBar.visible
         sequences: root.shortcuts.bindings.selectAll
-        onActivated: root.perform("edit.selectAll")
+        onActivated: root.performEdit("edit.selectAll")
+    }
+    Shortcut {
+        context: Qt.WindowShortcut
+        enabled: !root.findBar.visible
+        sequences: root.shortcuts.bindings.undo
+        onActivated: root.performEdit("edit.undo")
+    }
+    Shortcut {
+        context: Qt.WindowShortcut
+        enabled: !root.findBar.visible
+        sequences: root.shortcuts.bindings.redo
+        onActivated: root.performEdit("edit.redo")
     }
 
     // inspect element

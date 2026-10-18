@@ -161,14 +161,17 @@ void cefAttachChildWindow(void *parentView, void *childHandle)
     [parent addChildWindow:child ordered:NSWindowAbove];
 }
 
-void cefSetChildWindowGeometry(void *parentViewHandle, void *childHandle, const QRect &rect)
+void cefSetChildWindowGeometry(void *parentViewHandle, void *childHandle, const QRect &rect, bool visible)
 {
     NSView *parentView = (__bridge NSView *)parentViewHandle;
     NSWindow *child = cefWindowFromHandle(childHandle);
-    if (!parentView || !child || !child.parentWindow || rect.isEmpty())
+    if (!parentView || !child || !child.parentWindow || rect.isEmpty() || !visible)
     {
         if (child)
+        {
             child.alphaValue = 0.0;
+            [child orderOut:nil];
+        }
         return;
     }
 
@@ -178,6 +181,7 @@ void cefSetChildWindowGeometry(void *parentViewHandle, void *childHandle, const 
     if (NSIsEmptyRect(bounds))
     {
         child.alphaValue = 0.0;
+        [child orderOut:nil];
         return;
     }
 

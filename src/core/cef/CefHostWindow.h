@@ -18,7 +18,7 @@ public:
                 const CefString &url,
                 const CefBrowserSettings &settings,
                 CefRefPtr<CefRequestContext> requestContext);
-    void setBounds(const CefRect &bounds, void *parentView = nullptr, const QRect &geometry = QRect());
+    void setBounds(const CefRect &bounds, void *parentView = nullptr, const QRect &geometry = QRect(), bool visible = true);
     void setVisible(bool visible);
     void restore(std::function<void()> afterRestore = {});
     void close();

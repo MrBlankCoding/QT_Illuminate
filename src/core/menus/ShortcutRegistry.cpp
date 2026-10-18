@@ -82,7 +82,10 @@ QList<ShortcutRegistry::Command> ShortcutRegistry::buildTable()
     add("Edit", "cut", "Cut", {standard(QKeySequence::StandardKey::Cut)});
     add("Edit", "copy", "Copy", {standard(QKeySequence::StandardKey::Copy)});
     add("Edit", "paste", "Paste", {standard(QKeySequence::StandardKey::Paste)});
+    add("Edit", "pastePlainText", "Paste and Match Style", {QStringLiteral("Ctrl+Shift+V")});
     add("Edit", "selectAll", "Select All", {standard(QKeySequence::StandardKey::SelectAll)});
+    add("Edit", "undo", "Undo", {standard(QKeySequence::StandardKey::Undo)});
+    add("Edit", "redo", "Redo", {standard(QKeySequence::StandardKey::Redo)});
 
     return table;
 }

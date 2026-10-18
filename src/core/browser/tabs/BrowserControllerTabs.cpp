@@ -1,0 +1,312 @@
+#include "BrowserController.h"
+#include "BrowserSettings.h"
+#include "BrowserTab.h"
+#include "CefManager.h"
+#include "../utils/BrowserLogger.h"
+#include "../utils/UrlResolver.h"
+
+#include <QGuiApplication>
+#include <QClipboard>
+#include <QColor>
+#include <QSettings>
+#include <QDir>
+#include <QFile>
+#include <QJSEngine>
+#include <QMetaObject>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QVector>
+#include <QStringList>
+#include <QUuid>
+#include <algorithm>
+
+#include <utility>
+
+
+void BrowserController::newTab(const QString &urlStr, bool background)
+{
+    if (urlStr.isEmpty() && !background)
+    {
+        for (int i = 0; i < m_model->rowCount(); ++i)
+        {
+            BrowserTab *existing = m_model->tabAt(i);
+            if (existing && existing->url() == QUrl(NEW_TAB_URL) && !m_sidebar->isInFolder(existing))
+            {
+                m_model->setActiveIndex(i);
+                emit newTabOpened();
+                return;
+            }
+        }
+    }
+
+    if (m_model->rowCount() >= TabModel::kMaxTabs)
+        return;
+
+    const BrowserSettings *prefs = BrowserSettings::instance();
+    const QUrl url = urlStr.isEmpty()
+                         ? QUrl(NEW_TAB_URL)
+                         : UrlResolver::resolve(urlStr, prefs ? prefs->searchUrlTemplate() : QString());
+
+    // a background tab loads when first shown, like a restored one
+    BrowserTab *tab = m_model->addTab(url, /*suspended=*/background);
+    if (!tab)
+        return;
+    if (background)
+    {
+        tab->setTitle(url.host().isEmpty() ? url.toString() : url.host());
+        return;
+    }
+    m_model->setActiveIndex(m_model->rowCount() - 1);
+    if (urlStr.isEmpty())
+        emit newTabOpened();
+}
+
+void BrowserController::closeTab(int index)
+{
+    if (m_closeInProgress)
+        return;
+
+    BrowserTab *tab = m_model->tabAt(index);
+    if (!tab)
+        return;
+
+    const bool isActive = index == m_model->activeIndex();
+    const int next = isActive ? m_model->nearestLiveIndex(index) : index;
+    const bool lastPage = isActive && next < 0 && tab->url() == QUrl(NEW_TAB_URL);
+    if (m_model->rowCount() <= 1 || lastPage)
+    {
+        m_closeInProgress = true;
+        if (tab->url() != QUrl(NEW_TAB_URL))
+        {
+            tab->setUrl(QUrl(NEW_TAB_URL));
+            tab->requestLoad(QUrl(NEW_TAB_URL));
+        }
+
+        if (isActive)
+            emit newTabOpened();
+        QMetaObject::invokeMethod(this, [this]() { m_closeInProgress = false; }, Qt::QueuedConnection);
+        return;
+    }
+
+    m_closeInProgress = true;
+    if (isActive && next >= 0)
+        m_model->setActiveIndex(next);
+    else if (isActive)
+        newTab();
+    m_model->removeTab(m_model->indexOf(tab));
+    QMetaObject::invokeMethod(this, [this]() { m_closeInProgress = false; }, Qt::QueuedConnection);
+}
+
+void BrowserController::activateTab(int index)
+{
+    if (index < 0 || index >= m_model->rowCount())
+        return;
+    // setActiveIndex also wakes an already-selected tab that is still
+    // suspended (for example, a restored folder tab at index zero).
+    m_model->setActiveIndex(index);
+}
+
+void BrowserController::activateTabAt(int position)
+{
+    const QList<int> order = m_sidebar->visualTabOrder();
+    if (order.isEmpty())
+        return;
+    if (position < 0 || position >= order.size())
+        position = order.size() - 1;
+    activateTab(order.at(position));
+}
+
+void BrowserController::cycleTab(int delta)
+{
+    const QList<int> order = m_sidebar->visualTabOrder();
+    const int count = order.size();
+    if (delta == NO_TAB_CYCLE_DELTA || count == 0)
+        return;
+
+    const int current = order.indexOf(m_model->activeIndex());
+    if (current >= 0 && count < MIN_TABS_FOR_CYCLE)
+        return;
+    int position = current < 0 ? (delta > 0 ? delta - 1 : count + delta) : current + delta;
+    position %= count;
+    if (position < 0)
+        position += count;
+    activateTab(order.at(position));
+}
+
+// navigation
+
+void BrowserController::navigate(const QString &input)
+{
+    const BrowserSettings *prefs = BrowserSettings::instance();
+    const QUrl url = UrlResolver::resolve(input, prefs ? prefs->searchUrlTemplate() : QString());
+    if (url.isEmpty())
+        return;
+    const int idx = m_model->activeIndex();
+    if (BrowserTab *tab = m_model->tabAt(idx))
+    {
+        // update URL imediatly before page is loaded
+        tab->setUrl(url);
+        tab->requestLoad(url);
+        emit loadRequested(tab->id(), url);
+        if (url == QUrl(NEW_TAB_URL))
+            emit newTabOpened();
+    }
+}
+
+void BrowserController::reload()
+{
+    if (BrowserTab *tab = m_model->tabAt(m_model->activeIndex()))
+        emit navigationRequested(tab->id(), QStringLiteral("reload"));
+}
+void BrowserController::goBack()
+{
+    if (BrowserTab *tab = m_model->tabAt(m_model->activeIndex()))
+        emit navigationRequested(tab->id(), QStringLiteral("back"));
+}
+void BrowserController::goForward()
+{
+    if (BrowserTab *tab = m_model->tabAt(m_model->activeIndex()))
+        emit navigationRequested(tab->id(), QStringLiteral("forward"));
+}
+
+void BrowserController::toggleDevTools()
+{
+    if (BrowserTab *tab = m_model->tabAt(m_model->activeIndex()))
+        emit navigationRequested(tab->id(), QStringLiteral("devtools"));
+}
+
+// qml to cpp
+// rust later?
+
+void BrowserController::onTitleChanged(int i, const QString &v)
+{
+    if (auto *t = m_model->tabAt(i))
+    {
+        t->setTitle(v);
+    }
+}
+
+void BrowserController::onUrlChanged(int i, const QString &v)
+{
+    if (auto *t = m_model->tabAt(i))
+    {
+        t->setUrl(QUrl(v));
+    }
+}
+
+void BrowserController::onLoadingChanged(int i, bool v)
+{
+    if (auto *t = m_model->tabAt(i))
+        t->setLoading(v);
+}
+
+void BrowserController::onLoadProgressChanged(int i, int v)
+{
+    if (auto *t = m_model->tabAt(i))
+        t->setProgress(v);
+}
+
+void BrowserController::onIconUrlChanged(int i, const QString &v)
+{
+    if (auto *t = m_model->tabAt(i))
+        t->setIconUrl(v);
+}
+
+void BrowserController::onRenderProcessPidChanged(int i, qint64 v)
+{
+    if (auto *t = m_model->tabAt(i))
+        t->setRenderProcessPid(v);
+}
+
+void BrowserController::onNewWindowRequested(int i, const QString &url)
+{
+    Q_UNUSED(i);
+        newTab(url);
+    }
+
+void BrowserController::updateTabTitle(const QString &tabId, const QString &title)
+{
+    BrowserTab *tab = tabForId(tabId);
+    if (!tab)
+        return;
+    tab->setTitle(title);
+}
+
+void BrowserController::updateTabUrl(const QString &tabId, const QString &url)
+{
+    BrowserTab *tab = tabForId(tabId);
+    if (!tab)
+        return;
+    tab->setUrl(QUrl(url));
+    if (tab == m_model->tabAt(m_model->activeIndex()) && tab->url() == QUrl(NEW_TAB_URL))
+        emit newTabOpened();
+}
+
+void BrowserController::updateTabLoading(const QString &tabId, bool loading)
+{
+    if (BrowserTab *tab = tabForId(tabId))
+        tab->setLoading(loading);
+}
+
+void BrowserController::updateTabProgress(const QString &tabId, int progress)
+{
+    if (BrowserTab *tab = tabForId(tabId))
+        tab->setProgress(progress);
+}
+
+void BrowserController::updateTabIcon(const QString &tabId, const QString &iconUrl)
+{
+    if (BrowserTab *tab = tabForId(tabId))
+        tab->setIconUrl(iconUrl);
+}
+
+void BrowserController::updateTabRenderProcessPid(const QString &tabId, qint64 pid)
+{
+    if (BrowserTab *tab = tabForId(tabId))
+        tab->setRenderProcessPid(pid);
+}
+
+void BrowserController::openTabFrom(const QString &sourceTabId, const QString &url)
+{
+    if (tabForId(sourceTabId))
+        newTab(url);
+}
+
+
+// top-level windows
+
+void BrowserController::adoptWindow(QObject *window)
+{
+    if (!window)
+        return;
+    m_adoptedWindows.removeIf([](const QPointer<QObject> &w) { return w.isNull(); });
+    if (m_adoptedWindows.contains(window))
+        return;
+    QJSEngine::setObjectOwnership(window, QJSEngine::CppOwnership);
+    m_adoptedWindows.append(window);
+}
+
+void BrowserController::releaseWindow(QObject *window)
+{
+    if (!window)
+        return;
+    const bool adopted = m_adoptedWindows.contains(window);
+    if (adopted)
+        m_adoptedWindows.removeIf([window](const QPointer<QObject> &candidate) {
+            return candidate.isNull() || candidate.data() == window;
+        });
+    if (adopted || QJSEngine::objectOwnership(window) == QJSEngine::JavaScriptOwnership)
+        window->deleteLater();
+}
+
+void BrowserController::destroyAdoptedWindows()
+{
+    const QList<QPointer<QObject>> windows = std::exchange(m_adoptedWindows, {});
+    for (const QPointer<QObject> &window : windows)
+        delete window.data();
+}
+
+const QString BrowserController::NEW_TAB_URL = "newtab://newtab";
+const QString BrowserController::SETUP_URL = "illuminate://setup";
+
