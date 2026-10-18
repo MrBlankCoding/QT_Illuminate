@@ -119,6 +119,7 @@ void CefBrowserWrapper::itemChange(ItemChange change, const ItemChangeData &data
     else if (change == ItemVisibleHasChanged)
     {
         updateNativeGeometry();
+#ifndef __APPLE__
         if (isVisible())
         {
             QPointer<CefBrowserWrapper> guard(this);
@@ -127,6 +128,7 @@ void CefBrowserWrapper::itemChange(ItemChange change, const ItemChangeData &data
                     guard->refreshNativeView(true);
             });
         }
+#endif
     }
 }
 

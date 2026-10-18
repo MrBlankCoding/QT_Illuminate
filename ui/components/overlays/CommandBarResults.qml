@@ -17,8 +17,7 @@ Item {
     signal commitRequested(int index)
 
                 Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    anchors.fill: parent
                     opacity: results.visibleRows > 0 ? 1 : 0
                     Behavior on opacity {
                         NumberAnimation { duration: 140; easing.type: Easing.OutCubic }

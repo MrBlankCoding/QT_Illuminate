@@ -44,18 +44,19 @@ Item {
         Qt.callLater(tabSlot.refreshNativeView);
     }
 
+    Connections {
+        target: tabSlot.browserContext ? tabSlot.browserContext.tabModel : null
+        function onActiveIndexChanged() {
+            if (tabSlot.splitMemberIndex >= 0
+                    && tabSlot.index === tabSlot.browserContext.tabModel.activeIndex)
+                Qt.callLater(tabSlot.refreshNativeView);
+        }
+    }
+
     TapHandler {
         enabled: tabSlot.splitMemberIndex >= 0
         onTapped: if (tabSlot.browserContext)
             tabSlot.browserContext.activateTab(tabSlot.index)
-    }
-
-    Connections {
-        target: tabSlot.browserContext ? tabSlot.browserContext.tabModel : null
-        function onActiveIndexChanged() {
-            if (tabSlot.splitMemberIndex >= 0 || tabSlot.index === tabSlot.browserContext.tabModel.activeIndex)
-                Qt.callLater(tabSlot.refreshNativeView);
-        }
     }
 
     readonly property bool isInternalPage: InternalPages.isInternal(model.url.toString())
@@ -78,11 +79,6 @@ Item {
         if (tabSlot.isInternalPage || !webLoader.item)
             return;
 
-        // Repeater delegates can survive tab row moves. Keep the live CEF
-        // wrapper associated with the tab represented by this delegate every
-        // time its model/view is rebound, rather than only at component
-        // creation. Folder operations commonly move rows while browsers are
-        // being restored or loaded in the background.
         const targetTab = tabSlot.browserContext
             ? tabSlot.browserContext.tabModel.tabAt(tabSlot.index) : null;
         if (!targetTab || String(targetTab.id) !== String(tabSlot.model.id))
@@ -173,7 +169,7 @@ Item {
         y: 0
         width: tabSlot.devToolsOpen && !tabSlot.devToolsVertical ? parent.width - tabSlot.clampedDevToolsSize - tabSlot.splitterSpace : parent.width
         height: tabSlot.devToolsOpen && tabSlot.devToolsVertical ? parent.height - tabSlot.clampedDevToolsSize - tabSlot.splitterSpace : parent.height
-        active: !tabSlot.isInternalPage && !tabSlot.model.suspended
+        active: !tabSlot.isInternalPage && (!tabSlot.model.suspended || tabSlot.splitMemberIndex >= 0)
         visible: !tabSlot.isInternalPage
 
         onLoaded: {

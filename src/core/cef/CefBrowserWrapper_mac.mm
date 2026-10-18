@@ -165,6 +165,12 @@ void cefSetChildWindowGeometry(void *parentViewHandle, void *childHandle, const 
 {
     NSView *parentView = (__bridge NSView *)parentViewHandle;
     NSWindow *child = cefWindowFromHandle(childHandle);
+    NSWindow *expectedParent = parentView.window;
+    if (child && expectedParent && child.parentWindow != expectedParent)
+    {
+        cefAttachChildWindow(parentViewHandle, childHandle);
+    }
+
     if (!parentView || !child || !child.parentWindow || rect.isEmpty() || !visible)
     {
         if (child)

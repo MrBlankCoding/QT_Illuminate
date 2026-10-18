@@ -32,6 +32,9 @@ QString SidebarModel::createSplit(const QString &firstTabId, const QString &seco
         return {};
     if (isSplitTab(firstTabId) || isSplitTab(secondTabId))
         return {};
+
+    first->setSuspended(false);
+    second->setSuspended(false);
     auto group = std::make_unique<Node>();
     group->id = newId();
     group->split = true;
@@ -58,8 +61,6 @@ QString SidebarModel::createSplit(const QString &firstTabId, const QString &seco
     }
     insert(std::move(group), &m_root, INT_MAX);
     commit();
-    first->setSuspended(false);
-    second->setSuspended(false);
     m_tabs->setActiveIndex(m_tabs->indexOf(first));
     return raw->id;
 }
@@ -101,6 +102,9 @@ void SidebarModel::separateSplit(const QString &id)
     Node *group = m_nodes.value(id);
     if (!group || !group->split || !group->parent)
         return;
+    for (const auto &child : group->children)
+        if (child->tab)
+            child->tab->setSuspended(false);
     forget(group);
     detach(group);
     commit();
@@ -113,8 +117,9 @@ bool SidebarModel::separateSplitTab(const QString &tabId)
     if (!member || !group || !member->tab || group->children.size() != 2)
         return false;
 
-    // Splits have exactly two tabs. Pulling either one out dissolves the
-    // group, leaving both tabs as ordinary sidebar entries in tab order.
+    for (const auto &child : group->children)
+        if (child->tab)
+            child->tab->setSuspended(false);
     while (!group->children.empty())
     {
         Node *child = group->children.front().get();

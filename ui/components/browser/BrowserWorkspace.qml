@@ -161,20 +161,6 @@ Item {
                         }
                     }
 
-                    Connections {
-                        // On macOS the CEF page is a child NSWindow. Restore it
-                        // after Qt moves keyboard focus into sidebar controls.
-                        // Sync its frame without reordering native windows on
-                        // every focus change (which flashes the macOS menu bar).
-                        target: root
-                        function onActiveFocusItemChanged() {
-                            Qt.callLater(() => {
-                                if (viewStack.activeWebView)
-                                    viewStack.activeWebView.refreshNativeView(false);
-                            });
-                        }
-                    }
-
                     Repeater {
                         id: viewRepeater
                         model: browserWindow.retiring ? null : Browser.tabModel
