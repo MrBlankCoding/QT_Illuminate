@@ -75,6 +75,10 @@ qt_add_executable(tst_cefprofile tst_CefProfile.cpp)
 target_link_libraries(tst_cefprofile PRIVATE Qt6::Test QT_Illuminatemodule)
 add_test(NAME tst_cefprofile COMMAND tst_cefprofile)
 
+qt_add_executable(tst_extensionregistry tst_ExtensionRegistry.cpp)
+target_link_libraries(tst_extensionregistry PRIVATE Qt6::Test QT_Illuminatemodule)
+add_test(NAME tst_extensionregistry COMMAND tst_extensionregistry)
+
 qt_add_executable(tst_systeminfo tst_SystemInfo.cpp)
 target_link_libraries(tst_systeminfo PRIVATE Qt6::Test QT_Illuminatemodule)
 add_test(NAME tst_systeminfo COMMAND tst_systeminfo)
@@ -106,7 +110,7 @@ if(WIN32)
 endif()
 
 if(APPLE AND CEF_FOUND)
-    foreach(_test_target tst_qmltests tst_browsersettings tst_browsercontroller tst_permissionhandler tst_shortcutbridge tst_shortcutregistry tst_tabmodel tst_sidebarmodel tst_spacemanager tst_chromecommands tst_ceftablifecycle tst_urlresolver tst_bookmarkmodel tst_browsertab tst_internalpagemanager tst_cefprofile tst_systeminfo tst_space)
+    foreach(_test_target tst_qmltests tst_browsersettings tst_browsercontroller tst_permissionhandler tst_shortcutbridge tst_shortcutregistry tst_tabmodel tst_sidebarmodel tst_spacemanager tst_chromecommands tst_ceftablifecycle tst_urlresolver tst_bookmarkmodel tst_browsertab tst_internalpagemanager tst_cefprofile tst_extensionregistry tst_systeminfo tst_space)
         add_custom_command(TARGET ${_test_target} POST_BUILD
             COMMAND install_name_tool -change
                 "@executable_path/../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework"

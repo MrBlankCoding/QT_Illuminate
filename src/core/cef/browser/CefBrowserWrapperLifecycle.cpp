@@ -11,6 +11,7 @@
 #include "CefManager.h"
 #include "CefHostWindow.h"
 #include "CefNativeViewVisibility.h"
+#include "ExtensionPopupProtocol.h"
 #include "../utils/cef_helpers.h"
 #include "../utils/BrowserLogger.h"
 
@@ -27,6 +28,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <utility>
 
 #include <include/cef_app.h>
 #include <include/cef_parser.h>
@@ -50,6 +52,11 @@ void CefBrowserWrapper::setBrowser(CefRefPtr<CefBrowser> browser)
 {
     m_browser = browser;
     m_creatingBrowser = false;
+    if (const int id = browser ? browser->GetIdentifier() : 0; id != m_browserId)
+    {
+        m_browserId = id;
+        emit browserIdChanged();
+    }
     if (!m_hostWindow)
     {
         m_nativeRect = QRect();
@@ -98,9 +105,17 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
     if (m_backgroundColor.isValid())
         settings.background_color = m_backgroundColor.rgba();
 
+    // what the renderer needs to know before the page's first script runs
+    CefRefPtr<CefDictionaryValue> extraInfo;
+    if (m_actionTabId != 0)
+    {
+        extraInfo = CefDictionaryValue::Create();
+        extraInfo->SetInt(ExtensionPopupProtocol::kTabIdKey, m_actionTabId);
+    }
+
     if (CefManager::chromeStyle())
     {
-        createHostWindow(settings);
+        createHostWindow(settings, extraInfo);
         return;
     }
 
@@ -110,7 +125,7 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
     CefRefPtr<CefClient> client = m_client;
     CefProfile *profile = m_profile;
     CefPostTask(TID_UI, new ClosureTask(
-        [guard, client, profile, windowInfo, initialUrl, settings]() {
+        [guard, client, profile, windowInfo, initialUrl, settings, extraInfo]() {
             if (!guard)
                 return;
             const auto requestContext = (profile ? profile : CefManager::defaultProfile())->requestContext();
@@ -119,7 +134,7 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
                 BrowserLogger::instance().error("CEF", "Could not create request context for browser tab");
                 return;
             }
-            if (!CefBrowserHost::CreateBrowser(windowInfo, client, initialUrl, settings, nullptr, requestContext))
+            if (!CefBrowserHost::CreateBrowser(windowInfo, client, initialUrl, settings, extraInfo, requestContext))
             {
                 QMetaObject::invokeMethod(guard.data(), [guard]() {
                     if (!guard)
@@ -131,7 +146,8 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
         }));
 }
 
-void CefBrowserWrapper::createHostWindow(const CefBrowserSettings &settings)
+void CefBrowserWrapper::createHostWindow(const CefBrowserSettings &settings,
+                                         CefRefPtr<CefDictionaryValue> extraInfo)
 {
     m_createdUrl = m_url;
     const QRect screen = toNativeRect(screenRect(), window());
@@ -152,13 +168,13 @@ void CefBrowserWrapper::createHostWindow(const CefBrowserSettings &settings)
     CefProfile *profile = m_profile;
     const CefString initialUrl = m_url.isEmpty() ? CefString() : qUrlToCefString(m_url);
     CefPostTask(TID_UI, new ClosureTask(
-        [hostWindow, client, profile, initialUrl, settings]() {
+        [hostWindow, client, profile, initialUrl, settings, extraInfo]() {
             const auto requestContext = (profile ? profile : CefManager::defaultProfile())->requestContext();
             if (!requestContext) {
                 BrowserLogger::instance().error("CEF", "Could not create request context for host window");
                 return;
             }
-            hostWindow->create(client, initialUrl, settings, requestContext);
+            hostWindow->create(client, initialUrl, settings, extraInfo, requestContext);
         }));
 }
 
@@ -173,6 +189,15 @@ void CefBrowserWrapper::onHostWindowReady()
     m_nativeCornerRadius = m_cornerRadius;
     cefSetChildWindowCornerRadius(m_hostWindow->nativeHandle(), m_cornerRadius);
     m_nativeRect = QRect();
+    // a popup goes away once focus leaves it; let it hear when that happens
+    if (m_actionTabId != 0 && !m_focusObserver)
+    {
+        QPointer<CefBrowserWrapper> guard(this);
+        m_focusObserver = cefObserveKeyLoss(m_hostWindow->nativeHandle(), [guard]() {
+            if (guard)
+                emit guard->nativeFocusLost();
+        });
+    }
     updateHostWindow();
     if (isVisible())
         refreshNativeView(true);
@@ -209,6 +234,15 @@ void CefBrowserWrapper::updateHostWindow()
         m_hostWindow->setVisible(true);
         cefSetChildWindowCanTakeKey(handle, !m_inputSuppressed);
         cefRaiseChildWindow(nativeHandleOf(window()), handle);
+        if (std::exchange(m_focusWhenShown, false))
+        {
+            // after CEF's UI thread has run the Show() queued above
+            QPointer<CefBrowserWrapper> guard(this);
+            QTimer::singleShot(0, this, [guard]() {
+                if (guard)
+                    guard->takeFocus();
+            });
+        }
     }
     else
     {

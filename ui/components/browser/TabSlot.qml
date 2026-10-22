@@ -225,6 +225,12 @@ Item {
                         Logger.warning("WebConsole", text)
                         return
                     }
+                    // the page's own errors surfacing through code an extension
+                    // injected (an ad blocker wrapping fetch, say): not ours
+                    if (String(sourceId).startsWith("chrome-extension://")) {
+                        Logger.debug("ExtensionConsole", text)
+                        return
+                    }
                     if (level >= 3)
                         Logger.error("WebView", text)
                     else

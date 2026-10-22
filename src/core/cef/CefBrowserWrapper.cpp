@@ -11,6 +11,7 @@
 #include "CefManager.h"
 #include "CefHostWindow.h"
 #include "CefNativeViewVisibility.h"
+#include "ExtensionPopupProtocol.h"
 #include "../utils/cef_helpers.h"
 #include "../utils/BrowserLogger.h"
 
@@ -27,6 +28,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <utility>
 
 #include <include/cef_app.h>
 #include <include/cef_parser.h>
@@ -265,6 +267,10 @@ void cefFocusParentWindow(void *) {}
 #endif
 bool cefChildWindowIsKey(void *) { return false; }
 void cefSetChildWindowCanTakeKey(void *, bool) {}
+void cefMakeChildWindowKey(void *) {}
+bool cefChildWindowHasKey(void *) { return false; }
+void *cefObserveKeyLoss(void *, std::function<void()>) { return nullptr; }
+void cefStopObservingKeyLoss(void *) {}
 #endif
 
 namespace {
@@ -326,8 +332,52 @@ void CefBrowserWrapper::setProfile(CefProfile *profile)
     emit profileChanged();
 }
 
+void CefBrowserWrapper::setActionTabId(int tabId)
+{
+    if (m_actionTabId == tabId)
+        return;
+    if (m_browser || m_creatingBrowser || m_hostWindow)
+        qWarning() << "[CEF] actionTabId only applies before the browser is created";
+    m_actionTabId = tabId;
+    emit actionTabIdChanged();
+}
+
+void CefBrowserWrapper::takeFocus()
+{
+    auto host = hostOf(m_browser);
+    if (!host)
+        return;
+    if (m_hostWindow)
+    {
+        // not on screen yet: updateHostWindow() finishes this once it is
+        if (!m_hostWindowReady || !m_nativeVisible)
+        {
+            m_focusWhenShown = true;
+            return;
+        }
+        cefMakeChildWindowKey(m_hostWindow->nativeHandle());
+    }
+    host->SetFocus(true);
+}
+
+bool CefBrowserWrapper::hasNativeFocus() const
+{
+    return m_hostWindowReady && cefChildWindowHasKey(m_hostWindow->nativeHandle());
+}
+
+void CefBrowserWrapper::onActionPopupMessage(const QString &kind, int width, int height)
+{
+    if (m_actionTabId == 0)
+        return;
+    if (kind == QLatin1String(ExtensionPopupProtocol::kResize))
+        emit contentSizeReported(width, height);
+    else if (kind == QLatin1String(ExtensionPopupProtocol::kClose))
+        emit closeRequested();
+}
+
 CefBrowserWrapper::~CefBrowserWrapper()
 {
+    cefStopObservingKeyLoss(std::exchange(m_focusObserver, nullptr));
     auto host = hostOf(m_browser);
     m_browser = nullptr;
     if (m_hostWindow)

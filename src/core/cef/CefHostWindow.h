@@ -18,6 +18,7 @@ public:
     void create(CefRefPtr<CefClient> client,
                 const CefString &url,
                 const CefBrowserSettings &settings,
+                CefRefPtr<CefDictionaryValue> extraInfo,
                 CefRefPtr<CefRequestContext> requestContext);
     void setBounds(const CefRect &bounds, void *parentView = nullptr, const QRect &geometry = QRect(), bool visible = true);
     void setVisible(bool visible);

@@ -30,6 +30,8 @@ Window {
     property rect geometryBeforeFullScreen: Qt.rect(0, 0, 1280, 840)
     property bool restoreGeometryAfterFullScreen: false
     property var uiFocusClaims: []
+    // the page extensions act on
+    readonly property CefBrowser activeWebView: workspace.viewStack.activeWebView
     property bool inputOverlayOpen: false
 
     function syncInputOverlayOpen() {

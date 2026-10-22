@@ -2,10 +2,11 @@
 
 #include <QObject>
 #include <QString>
-#include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 #include <include/cef_request_context.h>
 #include <include/cef_request_context_handler.h>
+
+#include "ExtensionRegistry.h"
 
 class CefProfile : public QObject
 {
@@ -20,6 +21,7 @@ class CefProfile : public QObject
                    WRITE setThirdPartyCookiesAllowed NOTIFY thirdPartyCookiesAllowedChanged)
     Q_PROPERTY(bool privacyOperationBusy READ privacyOperationBusy NOTIFY privacyOperationBusyChanged)
     Q_PROPERTY(QString privacyOperationStatus READ privacyOperationStatus NOTIFY privacyOperationStatusChanged)
+    Q_PROPERTY(ExtensionRegistry *extensions READ extensions CONSTANT)
 
 public:
     explicit CefProfile(const QString &storagePath, const QString &cachePath, QObject *parent = nullptr,
@@ -41,7 +43,7 @@ public:
     QString privacyOperationStatus() const { return m_privacyOperationStatus; }
     Q_INVOKABLE void clearCookies();
     Q_INVOKABLE void clearCache();
-    Q_INVOKABLE QVariantList installedExtensions() const;
+    ExtensionRegistry *extensions();
     void finishPrivacyOperation(const QString &message);
 
     static QString rootCachePath();
@@ -65,6 +67,7 @@ private:
     QString m_cachePath;
     QString m_userAgent;
     CefRefPtr<CefRequestContext> m_requestContext;
+    ExtensionRegistry *m_extensions = nullptr;
     bool m_thirdPartyCookiesAllowed = true;
     bool m_privacyOperationBusy = false;
     QString m_privacyOperationStatus;

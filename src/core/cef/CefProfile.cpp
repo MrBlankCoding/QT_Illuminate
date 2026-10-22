@@ -1,5 +1,6 @@
 #include "CefProfile.h"
 #include "CefManager.h"
+#include "ExtensionRegistry.h"
 #include "../utils/BrowserLogger.h"
 
 #include <include/cef_task.h>
@@ -16,11 +17,6 @@
 #include <QPointer>
 #include <QMetaObject>
 #include <QHash>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonValue>
-#include <QVersionNumber>
-#include <QUrl>
 #include <QtGlobal>
 
 #include <algorithm>
@@ -284,6 +280,8 @@ void CefProfile::releaseAllRequestContexts()
     if (!globalProfile && s_spaceProfiles.isEmpty())
         return;
     if (globalProfile) {
+        if (globalProfile->m_extensions)
+            globalProfile->m_extensions->detach();
         globalProfile->m_requestContext = nullptr;
         globalProfile->deleteLater();
     }
@@ -291,6 +289,8 @@ void CefProfile::releaseAllRequestContexts()
     for (CefProfile *profile : std::as_const(s_spaceProfiles)) {
         if (profile == globalProfile)
             continue;
+        if (profile->m_extensions)
+            profile->m_extensions->detach();
         profile->m_requestContext = nullptr;
         profile->deleteLater();
     }
@@ -396,143 +396,11 @@ void CefProfile::clearCache()
         finishPrivacyOperation(QStringLiteral("The browser engine could not start cache clearing."));
 }
 
-QVariantList CefProfile::installedExtensions() const
+ExtensionRegistry *CefProfile::extensions()
 {
-    QHash<QString, QVariantMap> extensionsById;
-    const QStringList roots{
-        QDir(m_cachePath).filePath(QStringLiteral("Extensions")),
-        QDir(m_cachePath).filePath(QStringLiteral("Default/Extensions")),
-        QDir(m_storagePath).filePath(QStringLiteral("Extensions")),
-        QDir(m_storagePath).filePath(QStringLiteral("Default/Extensions"))
-    };
-
-    for (const QString &rootPath : roots) {
-        const QDir extensionsDir(rootPath);
-        if (!extensionsDir.exists())
-            continue;
-
-        const QFileInfoList extensionDirs = extensionsDir.entryInfoList(
-            QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-        for (const QFileInfo &extensionDir : extensionDirs) {
-            const QString extensionId = extensionDir.fileName();
-            if (extensionsById.contains(extensionId))
-                continue;
-
-            const QDir versionDir(extensionDir.absoluteFilePath());
-            const QFileInfoList versions = versionDir.entryInfoList(
-                QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::Reversed);
-            QString manifestPath;
-            QVersionNumber selectedVersion;
-            for (const QFileInfo &version : versions) {
-                const QString candidate = QDir(version.absoluteFilePath())
-                    .filePath(QStringLiteral("manifest.json"));
-                if (!QFileInfo::exists(candidate))
-                    continue;
-                const QVersionNumber candidateVersion = QVersionNumber::fromString(version.fileName());
-                if (manifestPath.isEmpty() || QVersionNumber::compare(candidateVersion, selectedVersion) > 0) {
-                    manifestPath = candidate;
-                    selectedVersion = candidateVersion;
-                }
-            }
-            if (manifestPath.isEmpty())
-                continue;
-
-            QFile manifestFile(manifestPath);
-            if (!manifestFile.open(QIODevice::ReadOnly))
-                continue;
-            QJsonParseError parseError;
-            const QJsonDocument document = QJsonDocument::fromJson(manifestFile.readAll(), &parseError);
-            if (parseError.error != QJsonParseError::NoError || !document.isObject())
-                continue;
-
-            const QJsonObject manifest = document.object();
-            QString name = manifest.value(QStringLiteral("name")).toString();
-            if (name.startsWith(QStringLiteral("__MSG_")) && name.endsWith(QStringLiteral("__"))) {
-                const QString messageKey = name.mid(6, name.size() - 8).toLower();
-                const QString locale = manifest.value(QStringLiteral("default_locale")).toString();
-                const QStringList localeCandidates{locale, locale.section(QLatin1Char('_'), 0, 0)};
-                for (const QString &candidateLocale : localeCandidates) {
-                    if (candidateLocale.isEmpty())
-                        continue;
-                    QFile messagesFile(QDir(QFileInfo(manifestPath).absolutePath())
-                        .filePath(QStringLiteral("_locales/%1/messages.json").arg(candidateLocale)));
-                    if (!messagesFile.open(QIODevice::ReadOnly))
-                        continue;
-                    const QJsonObject messages = QJsonDocument::fromJson(messagesFile.readAll()).object();
-                    const QJsonObject message = messages.value(messageKey).toObject();
-                    if (!message.value(QStringLiteral("message")).toString().isEmpty()) {
-                        name = message.value(QStringLiteral("message")).toString();
-                        break;
-                    }
-                }
-            }
-            if (name.isEmpty() || name.startsWith(QStringLiteral("__MSG_")))
-                name = extensionId;
-
-            QJsonObject action = manifest.value(QStringLiteral("action")).toObject();
-            if (action.isEmpty())
-                action = manifest.value(QStringLiteral("browser_action")).toObject();
-            if (action.isEmpty())
-                action = manifest.value(QStringLiteral("page_action")).toObject();
-
-            QString iconPath;
-            const QJsonValue actionIcon = action.value(QStringLiteral("default_icon"));
-            if (actionIcon.isString())
-                iconPath = actionIcon.toString();
-            else {
-                QJsonObject icons = actionIcon.toObject();
-                if (icons.isEmpty())
-                    icons = manifest.value(QStringLiteral("icons")).toObject();
-                int largestIcon = -1;
-                for (auto it = icons.constBegin(); it != icons.constEnd(); ++it) {
-                    bool ok = false;
-                    const int size = it.key().toInt(&ok);
-                    if (ok && size > largestIcon && it.value().isString()) {
-                        largestIcon = size;
-                        iconPath = it.value().toString();
-                    }
-                }
-            }
-            if (iconPath.isEmpty())
-                iconPath = QStringLiteral("icon.png");
-            const QString extensionRoot = QFileInfo(manifestPath).absolutePath();
-            const QString iconFilePath = QDir(extensionRoot).filePath(iconPath);
-            const QString canonicalExtensionRoot = QDir(extensionRoot).canonicalPath() + QDir::separator();
-            const QString canonicalIconPath = QFileInfo(iconFilePath).canonicalFilePath();
-            const QString iconUrl = !canonicalIconPath.isEmpty()
-                && canonicalIconPath.startsWith(canonicalExtensionRoot)
-                ? QUrl::fromLocalFile(canonicalIconPath).toString() : QString();
-
-            QString popup = action.value(QStringLiteral("default_popup")).toString();
-            while (popup.startsWith(QLatin1Char('/')))
-                popup.remove(0, 1);
-            const QString popupUrl = popup.isEmpty()
-                ? QString()
-                : QStringLiteral("chrome-extension://%1/%2").arg(extensionId, popup);
-            const QString targetUrl = QStringLiteral("chrome://extensions/?id=%1").arg(extensionId);
-
-            extensionsById.insert(extensionId, {
-                {QStringLiteral("id"), extensionId},
-                {QStringLiteral("name"), name},
-                {QStringLiteral("description"), manifest.value(QStringLiteral("description")).toString()},
-                {QStringLiteral("version"), manifest.value(QStringLiteral("version")).toString()},
-                {QStringLiteral("iconUrl"), iconUrl},
-                {QStringLiteral("popupUrl"), popupUrl},
-                {QStringLiteral("targetUrl"), targetUrl}
-            });
-        }
-    }
-
-    QVariantList result;
-    result.reserve(extensionsById.size());
-    for (const QVariantMap &extension : std::as_const(extensionsById))
-        result.append(extension);
-    std::sort(result.begin(), result.end(), [](const QVariant &left, const QVariant &right) {
-        return QString::localeAwareCompare(
-            left.toMap().value(QStringLiteral("name")).toString(),
-            right.toMap().value(QStringLiteral("name")).toString()) < 0;
-    });
-    return result;
+    if (!m_extensions)
+        m_extensions = new ExtensionRegistry(this);
+    return m_extensions;
 }
 
 void CefProfile::finishPrivacyOperation(const QString &message)

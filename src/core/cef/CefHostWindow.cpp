@@ -24,17 +24,18 @@ CefHostWindow::CefHostWindow(const CefRect &bounds, std::function<void()> ready)
 void CefHostWindow::create(CefRefPtr<CefClient> client,
                            const CefString &url,
                            const CefBrowserSettings &settings,
+                           CefRefPtr<CefDictionaryValue> extraInfo,
                            CefRefPtr<CefRequestContext> requestContext)
 {
     if (!CefCurrentlyOn(TID_UI))
     {
         CefRefPtr<CefHostWindow> self(this);
         CefPostTask(TID_UI, CefCreateClosureTask(base::BindOnce(
-            &CefHostWindow::create, self, client, url, settings, requestContext)));
+            &CefHostWindow::create, self, client, url, settings, extraInfo, requestContext)));
         return;
     }
 
-    m_browserView = CefBrowserView::CreateBrowserView(client, url, settings, nullptr, requestContext, this);
+    m_browserView = CefBrowserView::CreateBrowserView(client, url, settings, extraInfo, requestContext, this);
     if (!m_browserView) {
         BrowserLogger::instance().error("CEF", "Could not create browser view for host window");
         return;

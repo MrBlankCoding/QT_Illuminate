@@ -127,6 +127,7 @@ Item {
             currentUrl: root.currentUrl
             isLoading: root.isLoading
             loadProgress: root.loadProgress
+            targetWindow: root.targetWindow
             onClicked: root.commandBarRequested(root.currentUrl === "" ? "new" : "edit")
             onToggleBookmark: root.toggleBookmark()
         }

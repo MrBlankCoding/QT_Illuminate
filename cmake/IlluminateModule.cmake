@@ -86,6 +86,12 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/cef/CefPermissionHandler.cpp
     src/core/cef/CefRequestHandler.h
     src/core/cef/CefRequestHandler.cpp
+    src/core/cef/CefRenderProcessHandler.h
+    src/core/cef/CefRenderProcessHandler.cpp
+    src/core/cef/ExtensionPopupProtocol.h
+
+    src/core/extensions/ExtensionRegistry.h
+    src/core/extensions/ExtensionRegistry.cpp
 
     src/utils/cef_helpers.h
     src/utils/UrlResolver.h
@@ -122,6 +128,7 @@ target_include_directories(QT_Illuminatemodule PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/browser
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/cef
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/extensions
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/menus
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/models
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/system
@@ -192,6 +199,9 @@ set(ILLUMINATE_QML_FILES
     ui/components/browser/AddressPill.qml
     ui/components/browser/BrowserWorkspace.qml
     ui/components/browser/EssentialsGrid.qml
+    ui/components/browser/ExtensionActionPopup.qml
+    ui/components/browser/ExtensionsButton.qml
+    ui/components/browser/ExtensionsMenu.qml
     ui/components/browser/FolderRow.qml
     ui/components/browser/KeyboardShortcuts.qml
     ui/components/browser/PrintController.qml
@@ -250,6 +260,7 @@ set(ILLUMINATE_RESOURCES
     ui/icons/panel-left.svg
     ui/icons/pin.svg
     ui/icons/plus.svg
+    ui/icons/puzzle.svg
     ui/icons/rotate-cw.svg
     ui/icons/search.svg
     ui/icons/square.svg

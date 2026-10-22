@@ -7,6 +7,7 @@
 #include <QRectF>
 
 #include <cmath>
+#include <functional>
 
 #include <include/cef_app.h>
 #include <include/cef_browser.h>
@@ -41,6 +42,13 @@ void cefFocusParentWindow(void *parentView);
 bool cefChildWindowIsKey(void *parentView);
 void cefSetChildWindowCanTakeKey(void *childHandle, bool allowed);
 #endif
+
+// key focus of a page's own window (|childHandle|); no-ops without one
+void cefMakeChildWindowKey(void *childHandle);
+bool cefChildWindowHasKey(void *childHandle);
+// calls |callback| whenever that window stops being key; returns a token
+void *cefObserveKeyLoss(void *childHandle, std::function<void()> callback);
+void cefStopObservingKeyLoss(void *token);
 
 namespace CefBrowserWrapperPrivate {
 inline constexpr qreal kZoomBase = 1.2;

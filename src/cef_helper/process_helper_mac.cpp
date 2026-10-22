@@ -4,6 +4,8 @@
 #include <include/cef_app.h>
 #include <include/wrapper/cef_library_loader.h>
 
+#include "CefRenderProcessHandler.h"
+
 namespace {
 
 class HelperApp : public CefApp
@@ -16,7 +18,10 @@ public:
         registrar->AddCustomScheme("newtab", CEF_SCHEME_OPTION_STANDARD | CEF_SCHEME_OPTION_SECURE);
     }
 
+    CefRefPtr<CefRenderProcessHandler> GetRenderProcessHandler() override { return m_renderHandler; }
+
 private:
+    CefRefPtr<CefRenderProcessHandler> m_renderHandler = new CefRenderProcessHandlerImpl();
     IMPLEMENT_REFCOUNTING(HelperApp);
 };
 

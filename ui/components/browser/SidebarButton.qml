@@ -7,6 +7,7 @@ Item {
     property string icon: ""
     property int iconSize: 16
     property bool active: false          // e.g. its panel is open
+    property alias hovered: hover.hovered
     signal clicked
 
     implicitWidth: Theme.iconButton

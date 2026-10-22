@@ -14,6 +14,7 @@
 template <typename T> class CefRefPtr;
 class CefBrowser;
 class CefClient;
+class CefDictionaryValue;
 #else
 #include <include/cef_browser.h>
 #include <include/cef_client.h>
@@ -51,6 +52,11 @@ class CefBrowserWrapper : public QQuickItem
     // Chrome style pages print, find and run extensions through Chrome
     Q_PROPERTY(bool chromeStyle READ chromeStyle CONSTANT)
     Q_PROPERTY(CefProfile *profile READ profile WRITE setProfile NOTIFY profileChanged)
+    // CefBrowser identifier, which extension APIs use as the tabId; 0 until created
+    Q_PROPERTY(int browserId READ browserId NOTIFY browserIdChanged)
+    // makes this an extension action popup for the page with that browserId
+    // (-1: none). Set before the browser is created; 0 is an ordinary page.
+    Q_PROPERTY(int actionTabId READ actionTabId WRITE setActionTabId NOTIFY actionTabIdChanged)
 
 public:
     enum LifecycleState
@@ -113,6 +119,9 @@ public:
     bool chromeStyle() const;
     CefProfile *profile() const { return m_profile; }
     void setProfile(CefProfile *profile);
+    int browserId() const { return m_browserId; }
+    int actionTabId() const { return m_actionTabId; }
+    void setActionTabId(int tabId);
 
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goForward();
@@ -128,6 +137,10 @@ public:
     Q_INVOKABLE void refreshNativeView(bool raiseAboveSiblings = true);
     Q_INVOKABLE void showDevTools(const QPoint &inspectAt = QPoint());
     Q_INVOKABLE void closeDevTools();
+    // hands keyboard focus to the page itself
+    Q_INVOKABLE void takeFocus();
+    // true while the page's own native window holds keyboard focus
+    Q_INVOKABLE bool hasNativeFocus() const;
 
     // Internal integration with CefTabClient
     void setBrowser(CefRefPtr<CefBrowser> browser);
@@ -143,6 +156,7 @@ public:
     void onLoadProgressChanged(int progress);
     void onPdfPrintFinished(const QString &path, bool ok);
     void onFullscreenModeChanged(bool fullscreen);
+    void onActionPopupMessage(const QString &kind, int width, int height);
 
 protected:
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
@@ -151,7 +165,7 @@ protected:
 
 private:
     void initializeBrowserHost();
-    void createHostWindow(const CefBrowserSettings &settings);
+    void createHostWindow(const CefBrowserSettings &settings, CefRefPtr<CefDictionaryValue> extraInfo);
     void onHostWindowReady();
     void updateHostWindow();
     QRect screenRect() const;
@@ -182,6 +196,8 @@ signals:
     void externalBrowserChanged();
     void profileChanged();
     void fullScreenChanged();
+    void browserIdChanged();
+    void actionTabIdChanged();
 
     void loadRequested(const QUrl &url);
     void newWindowRequested(const QUrl &url);
@@ -190,6 +206,12 @@ signals:
     void contextMenuRequested(QObject *request);
     void permissionRequested(QObject *permission);
     void javaScriptConsoleMessage(int level, const QString &message, int lineNumber, const QString &sourceId);
+
+    // action popups only: what the page reported about itself
+    void contentSizeReported(int width, int height);
+    void closeRequested();
+    // action popups only: the page's native window gave up keyboard focus
+    void nativeFocusLost();
 
 private:
     QUrl m_url;
@@ -212,6 +234,10 @@ private:
     bool m_restoreFocus = false;
     QPointer<CefBrowserWrapper> m_devToolsView;
     bool m_externalBrowser = false;
+    int m_browserId = 0;
+    int m_actionTabId = 0;
+    bool m_focusWhenShown = false;
+    void *m_focusObserver = nullptr;
 
     CefRefPtr<CefBrowser> m_browser;
     CefRefPtr<CefTabClient> m_client;

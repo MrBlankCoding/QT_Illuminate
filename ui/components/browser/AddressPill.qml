@@ -8,6 +8,8 @@ Item {
     property string currentUrl: ""
     property bool isLoading: false
     property int loadProgress: 0
+    // the window whose active page extensions act on
+    property Window targetWindow: null
 
     readonly property bool isBookmarked: Bookmarks.count >= 0 && root.currentUrl !== "" && Bookmarks.isBookmarked(root.currentUrl)
     signal clicked
@@ -71,6 +73,17 @@ Item {
                     onTapped: root.toggleBookmark()
                 }
             }
+
+            ExtensionsButton {
+                id: extensions
+                Layout.preferredWidth: 24
+                Layout.preferredHeight: 24
+                Layout.rightMargin: -Theme.space1
+                Layout.alignment: Qt.AlignVCenter
+                iconSize: 14
+                targetWindow: root.targetWindow
+                pageUrl: root.currentUrl
+            }
         }
 
         Rectangle {
@@ -91,7 +104,11 @@ Item {
     }
     TapHandler {
         id: tap
-        // the star's own tap reaches this handler too
-        onTapped: if (!starHover.hovered) root.clicked()
+        // taps on the star and the extensions button reach this handler too;
+        // go by where it landed, as opening a popup can end the hover first
+        onTapped: eventPoint => {
+            if (!starHover.hovered && !extensions.contains(extensions.mapFromItem(root, eventPoint.position)))
+                root.clicked();
+        }
     }
 }

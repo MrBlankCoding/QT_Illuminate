@@ -8,6 +8,7 @@
 #include "CefPermissionHandler.h"
 #include "CefRequestHandler.h"
 #include "CefChromeCommands.h"
+#include "ExtensionPopupProtocol.h"
 #include "../menus/AppMenu.h"
 
 #include <include/cef_command_ids.h>
@@ -35,6 +36,28 @@ CefRefPtr<CefContextMenuHandler> CefTabClient::GetContextMenuHandler() { return 
 CefRefPtr<CefDownloadHandler> CefTabClient::GetDownloadHandler() { return m_downloadHandler; }
 CefRefPtr<CefPermissionHandler> CefTabClient::GetPermissionHandler() { return m_permissionHandler; }
 CefRefPtr<CefRequestHandler> CefTabClient::GetRequestHandler() { return m_requestHandler; }
+
+// an action popup's page reporting its size or asking to close
+bool CefTabClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
+                                            CefRefPtr<CefFrame> frame,
+                                            CefProcessId source_process,
+                                            CefRefPtr<CefProcessMessage> message)
+{
+    Q_UNUSED(source_process);
+    if (!isMainBrowser(browser) || !frame || !frame->IsMain() || !m_wrapper
+        || message->GetName().ToString() != ExtensionPopupProtocol::kMessage)
+        return false;
+
+    CefRefPtr<CefListValue> args = message->GetArgumentList();
+    const QString kind = cefStringToQString(args->GetString(0));
+    const int width = args->GetSize() > 1 ? args->GetInt(1) : 0;
+    const int height = args->GetSize() > 2 ? args->GetInt(2) : 0;
+    QMetaObject::invokeMethod(m_wrapper, [wrapper = m_wrapper, kind, width, height]() {
+        if (wrapper)
+            wrapper->onActionPopupMessage(kind, width, height);
+    }, Qt::QueuedConnection);
+    return true;
+}
 
 bool CefTabClient::OnBeforePopup(CefRefPtr<CefBrowser> browser,
                                  CefRefPtr<CefFrame> frame,

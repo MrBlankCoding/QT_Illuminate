@@ -251,3 +251,41 @@ void cefFocusParentWindow(void *parentView)
 {
     [((__bridge NSView *)parentView).window makeKeyWindow];
 }
+
+void cefMakeChildWindowKey(void *childHandle)
+{
+    NSWindow *child = cefWindowFromHandle(childHandle);
+    if (!child || !child.visible)
+        return;
+    objc_setAssociatedObject(child, &kRefuseKeyTag, nil, OBJC_ASSOCIATION_RETAIN);
+    [child makeKeyWindow];
+}
+
+bool cefChildWindowHasKey(void *childHandle)
+{
+    NSWindow *child = cefWindowFromHandle(childHandle);
+    return child && NSApp.keyWindow == child;
+}
+
+void *cefObserveKeyLoss(void *childHandle, std::function<void()> callback)
+{
+    NSWindow *child = cefWindowFromHandle(childHandle);
+    if (!child || !callback)
+        return nullptr;
+    // this file is not ARC: the token is retained here, released when stopped
+    id token = [[NSNotificationCenter.defaultCenter
+        addObserverForName:NSWindowDidResignKeyNotification
+                    object:child
+                     queue:NSOperationQueue.mainQueue
+                usingBlock:^(NSNotification *) { callback(); }] retain];
+    return (__bridge void *)token;
+}
+
+void cefStopObservingKeyLoss(void *token)
+{
+    if (!token)
+        return;
+    id observer = (__bridge id)token;
+    [NSNotificationCenter.defaultCenter removeObserver:observer];
+    [observer release];
+}

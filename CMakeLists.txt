@@ -169,8 +169,11 @@ if(OS_MAC AND CEF_FOUND)
         string(REPLACE "\${VERSION}" "${PROJECT_VERSION}" _plist_contents "${_plist_contents}")
         file(WRITE "${_helper_info_plist}" "${_plist_contents}")
 
-        add_executable(${_helper_target} MACOSX_BUNDLE src/cef_helper/process_helper_mac.cpp)
-        target_include_directories(${_helper_target} PRIVATE "${CEF_INCLUDE_PATH}")
+        add_executable(${_helper_target} MACOSX_BUNDLE
+            src/cef_helper/process_helper_mac.cpp
+            src/core/cef/CefRenderProcessHandler.cpp)
+        target_include_directories(${_helper_target} PRIVATE
+            "${CEF_INCLUDE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/src/core/cef")
         target_link_libraries(${_helper_target} PRIVATE cef::cef libcef_dll_wrapper "-framework Cocoa")
         set_target_properties(${_helper_target} PROPERTIES
             AUTOMOC OFF

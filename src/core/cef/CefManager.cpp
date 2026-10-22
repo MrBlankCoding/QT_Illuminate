@@ -4,6 +4,7 @@
 #include <include/base/cef_compiler_specific.h>
 #include "CefProfile.h"
 #include "CefStrayBrowserClient.h"
+#include "CefRenderProcessHandler.h"
 #include <include/cef_browser.h>
 #include "SystemInfo.h"
 
@@ -327,6 +328,13 @@ void CefManager::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar
 {
     for (const char *scheme : kCustomSchemes)
         registrar->AddCustomScheme(scheme, CEF_SCHEME_OPTION_STANDARD | CEF_SCHEME_OPTION_SECURE);
+}
+
+CefRefPtr<CefRenderProcessHandler> CefManager::GetRenderProcessHandler()
+{
+    if (!m_renderHandler)
+        m_renderHandler = new CefRenderProcessHandlerImpl();
+    return m_renderHandler;
 }
 
 CefRefPtr<CefClient> CefManager::GetDefaultClient()

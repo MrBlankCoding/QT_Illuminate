@@ -28,6 +28,8 @@ public:
     void closeAllBrowsers();
 
     CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override { return this; }
+    // only consulted when this executable runs as a renderer (not on macOS)
+    CefRefPtr<CefRenderProcessHandler> GetRenderProcessHandler() override;
     void OnBeforeCommandLineProcessing(const CefString &process_type,
                                        CefRefPtr<CefCommandLine> command_line) override;
     void OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar) override;
@@ -55,6 +57,7 @@ private:
     std::vector<CefRefPtr<CefBrowser>> m_browsers;
     QTimer *m_pumpTimer = nullptr;
     CefRefPtr<CefClient> m_strayClient;
+    CefRefPtr<CefRenderProcessHandler> m_renderHandler;
 
     IMPLEMENT_REFCOUNTING(CefManager);
 };

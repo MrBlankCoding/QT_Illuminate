@@ -38,6 +38,10 @@ public:
     CefRefPtr<CefDownloadHandler> GetDownloadHandler() override;
     CefRefPtr<CefPermissionHandler> GetPermissionHandler() override;
     CefRefPtr<CefRequestHandler> GetRequestHandler() override;
+    bool OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
+                                  CefRefPtr<CefFrame> frame,
+                                  CefProcessId source_process,
+                                  CefRefPtr<CefProcessMessage> message) override;
 
     // CefLifeSpanHandler overrides
     bool OnBeforePopup(CefRefPtr<CefBrowser> browser,
