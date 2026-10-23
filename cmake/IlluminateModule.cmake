@@ -56,7 +56,6 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/cef/browser/CefBrowserWrapperPrivate.h
     src/core/cef/browser/CefBrowserWrapperView.cpp
     src/core/cef/browser/CefBrowserWrapperActions.cpp
-    src/core/cef/browser/CefBrowserWrapperDevTools.cpp
     src/core/cef/browser/CefBrowserWrapperLifecycle.cpp
     src/core/cef/browser/CefBrowserWrapperState.cpp
     src/core/cef/browser/CefBrowserWrapperEvents.cpp

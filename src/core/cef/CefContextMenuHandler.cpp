@@ -109,7 +109,7 @@ bool CefContextMenuHandlerImpl::RunContextMenu(CefRefPtr<CefBrowser> browser,
                                                CefRefPtr<CefRunContextMenuCallback> callback)
 {
     Q_UNUSED(frame);
-    // the DevTools browser reuses this client but keeps its own menus
+    // only handle menus for the main browser
     if (!m_wrapper || !m_mainBrowser || !m_mainBrowser->matches(browser))
         return false;
 

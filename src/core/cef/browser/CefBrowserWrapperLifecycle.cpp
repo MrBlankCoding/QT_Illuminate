@@ -47,7 +47,7 @@ void CefBrowserWrapper::setBrowser(CefRefPtr<CefBrowser> browser)
     m_renderProcessPid = 0;
     emit renderProcessPidChanged(m_renderProcessPid);
 
-    if (!m_externalBrowser && !m_url.isEmpty() && m_url != m_createdUrl)
+    if (!m_url.isEmpty() && m_url != m_createdUrl)
     {
         if (auto frame = m_browser->GetMainFrame())
             frame->LoadURL(qUrlToCefString(m_url));
@@ -56,7 +56,7 @@ void CefBrowserWrapper::setBrowser(CefRefPtr<CefBrowser> browser)
 
 void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geometry)
 {
-    if (m_browser || m_creatingBrowser || m_externalBrowser || m_hostWindow)
+    if (m_browser || m_creatingBrowser || m_hostWindow)
         return;
 
     m_creatingBrowser = true;
@@ -252,7 +252,7 @@ QRect CefBrowserWrapper::screenRect() const
 
 void CefBrowserWrapper::initializeBrowserHost()
 {
-    if (m_creatingBrowser || m_browser || m_externalBrowser || !window())
+    if (m_creatingBrowser || m_browser || !window())
         return;
 
     QTimer::singleShot(0, this, [this]()

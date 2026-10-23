@@ -75,11 +75,6 @@ QList<ShortcutRegistry::Command> ShortcutRegistry::buildTable()
     add("Spaces", "previousSpace", "Previous space", {QStringLiteral("Ctrl+Alt+Left")});
     add("Spaces", "newSpace", "New space", {QStringLiteral("Ctrl+Alt+N")});
 
-    add("Developer",
-        "toggleDevTools",
-        "Toggle developer tools",
-        {QStringLiteral("Ctrl+Shift+I"), QStringLiteral("Ctrl+Alt+I"), QStringLiteral("F12")});
-
     add("Application", "settings", "Open settings", {QStringLiteral("Ctrl+,")});
     add("Application", "closeWindow", "Close window", {QStringLiteral("Ctrl+Shift+W")});
     add("Application", "quit", "Quit", {QStringLiteral("Ctrl+Q")});

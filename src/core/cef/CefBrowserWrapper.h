@@ -47,8 +47,6 @@ class CefBrowserWrapper : public QQuickItem
     Q_PROPERTY(bool inputSuppressed READ inputSuppressed WRITE setInputSuppressed NOTIFY inputSuppressedChanged)
 
     Q_PROPERTY(bool fullScreen READ fullScreen NOTIFY fullScreenChanged)
-    Q_PROPERTY(CefBrowserWrapper *devToolsView READ devToolsView WRITE setDevToolsView NOTIFY devToolsViewChanged)
-    Q_PROPERTY(bool externalBrowser READ externalBrowser WRITE setExternalBrowser NOTIFY externalBrowserChanged)
     // Chrome style pages print, find and run extensions through Chrome
     Q_PROPERTY(bool chromeStyle READ chromeStyle CONSTANT)
     Q_PROPERTY(CefProfile *profile READ profile WRITE setProfile NOTIFY profileChanged)
@@ -75,7 +73,6 @@ public:
         DownloadImageToDisk = 3,
         DownloadMediaToDisk = 4,
         DownloadLinkToDisk = 5,
-        InspectElement = 6,
         Cut = 7,
         SelectAll = 8,
         PasteAndMatchStyle = 9,
@@ -112,10 +109,6 @@ public:
     void setInputSuppressed(bool suppressed);
 
     bool fullScreen() const { return m_fullScreen; }
-    CefBrowserWrapper *devToolsView() const { return m_devToolsView; }
-    void setDevToolsView(CefBrowserWrapper *devTools);
-    bool externalBrowser() const { return m_externalBrowser; }
-    void setExternalBrowser(bool external);
     bool chromeStyle() const;
     CefProfile *profile() const { return m_profile; }
     void setProfile(CefProfile *profile);
@@ -135,8 +128,6 @@ public:
     Q_INVOKABLE void load(const QUrl &url) { setUrl(url); }
     Q_INVOKABLE void exitFullScreen();
     Q_INVOKABLE void refreshNativeView(bool raiseAboveSiblings = true);
-    Q_INVOKABLE void showDevTools(const QPoint &inspectAt = QPoint());
-    Q_INVOKABLE void closeDevTools();
     // hands keyboard focus to the page itself
     Q_INVOKABLE void takeFocus();
     // true while the page's own native window holds keyboard focus
@@ -192,8 +183,6 @@ signals:
     void inputSuppressedChanged();
     void nativeFocusRequested();
 
-    void devToolsViewChanged();
-    void externalBrowserChanged();
     void profileChanged();
     void fullScreenChanged();
     void browserIdChanged();
@@ -232,8 +221,6 @@ private:
     qreal m_nativeCornerRadius = -1;
     std::atomic<bool> m_inputSuppressed = false;
     bool m_restoreFocus = false;
-    QPointer<CefBrowserWrapper> m_devToolsView;
-    bool m_externalBrowser = false;
     int m_browserId = 0;
     int m_actionTabId = 0;
     bool m_focusWhenShown = false;

@@ -12,7 +12,7 @@ Popup {
 
     property string mode: "new"
     property var quickActions: []
-    property var internalSchemes: ["newtab", "about", "qrc", "chrome", "devtools", "view-source"]
+    property var internalSchemes: ["newtab", "about", "qrc", "chrome", "view-source"]
 
     readonly property int shadowPad: 28
     readonly property int inputRowHeight: 56

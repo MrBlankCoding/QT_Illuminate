@@ -104,9 +104,6 @@ Item {
             root.commandBarRequested("edit")
             return
 
-        case "dev.devTools":
-            root.browser.toggleDevTools()
-            return
         case "dev.memory":
             root.browser.newTab("illuminate://memory")
             return
@@ -355,13 +352,6 @@ Item {
         context: Qt.WindowShortcut
         sequences: root.shortcuts.bindings.redo
         onActivated: root.performEdit("edit.redo")
-    }
-
-    // inspect element
-    Shortcut {
-        context: Qt.WindowShortcut
-        sequences: root.shortcuts.bindings.toggleDevTools
-        onActivated: root.perform("dev.devTools")
     }
 
     // zoom in/out/reset

@@ -76,7 +76,6 @@ public:
     bool OnChromeCommand(CefRefPtr<CefBrowser> browser,
                          int command_id,
                          cef_window_open_disposition_t disposition) override;
-    void setDevToolsView(CefBrowserWrapper *view) { m_devToolsView = view; }
     bool isMainBrowser(const CefRefPtr<CefBrowser> &browser) const
     {
         return m_mainBrowser.matches(browser);
@@ -84,7 +83,6 @@ public:
 
 private:
     QPointer<CefBrowserWrapper> m_wrapper;
-    QPointer<CefBrowserWrapper> m_devToolsView;
     CefMainBrowserId m_mainBrowser;
 
     CefRefPtr<CefLoadHandlerImpl> m_loadHandler;

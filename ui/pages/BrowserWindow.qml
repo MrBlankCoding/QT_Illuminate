@@ -294,7 +294,6 @@ Window {
             { label: "Downloads", icon: "qrc:/QT_Illuminate/ui/icons/download.svg", run: () => Browser.newTab("chrome://downloads/") },
             { label: "Find in Page", icon: "qrc:/QT_Illuminate/ui/icons/search.svg", run: () => Browser.executeChromeCommand("find") },
             { label: "Copy URL", icon: "qrc:/QT_Illuminate/ui/icons/copy.svg", run: () => Browser.copyActiveUrl() },
-            { label: "Developer Tools", icon: "qrc:/QT_Illuminate/ui/icons/activity.svg", run: () => Browser.toggleDevTools() },
             { label: "Extensions", icon: "qrc:/QT_Illuminate/ui/icons/square.svg", run: () => Browser.newTab("chrome://extensions/") },
             { label: "Memory Usage", icon: "qrc:/QT_Illuminate/ui/icons/activity.svg", run: () => Browser.newTab("illuminate://memory") },
             { label: "History", icon: "qrc:/QT_Illuminate/ui/icons/search.svg", run: () => Browser.newTab("chrome://history/") }

@@ -73,9 +73,6 @@ void CefBrowserWrapper::triggerWebAction(int action, const QUrl &url)
                 host->StartDownload(qUrlToCefString(url));
         }
         break;
-    case InspectElement:
-        showDevTools();
-        break;
     default:
         break;
     }

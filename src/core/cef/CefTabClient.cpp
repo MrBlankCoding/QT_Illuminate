@@ -109,21 +109,6 @@ void CefTabClient::OnAfterCreated(CefRefPtr<CefBrowser> browser)
 
     if (!m_mainBrowser.claim(browser->GetIdentifier()))
     {
-        const QUrl url = cefStringToQUrl(browser->GetMainFrame()->GetURL());
-        if (url.scheme().compare(QStringLiteral("chrome-extension"), Qt::CaseInsensitive) == 0)
-            return; // CEF owns the extension popup browser's native lifetime.
-
-        qInfo() << "[DevTools] OnAfterCreated id=" << browser->GetIdentifier()
-                << "url=" << qUtf8Printable(QString::fromStdString(browser->GetMainFrame()->GetURL().ToString()));
-                
-        if (auto *view = m_devToolsView.data())
-        {
-            QPointer<CefBrowserWrapper> guard = view;
-            QMetaObject::invokeMethod(view, [guard, browser]() {
-                if (guard)
-                    guard->setBrowser(browser);
-            }, Qt::QueuedConnection);
-        }
         return;
     }
 
@@ -154,19 +139,6 @@ void CefTabClient::OnBeforeClose(CefRefPtr<CefBrowser> browser)
 
     if (!m_mainBrowser.release(browser))
     {
-        const QUrl url = cefStringToQUrl(browser->GetMainFrame()->GetURL());
-        if (url.scheme().compare(QStringLiteral("chrome-extension"), Qt::CaseInsensitive) == 0)
-            return; // Do not clear an unrelated DevTools browser for a popup.
-
-        // DevTools: drop it from the dock so it does not keep a closed browser
-        if (auto *view = m_devToolsView.data())
-        {
-            QPointer<CefBrowserWrapper> guard = view;
-            QMetaObject::invokeMethod(view, [guard]() {
-                if (guard)
-                    guard->setBrowser(nullptr);
-            }, Qt::QueuedConnection);
-        }
         return;
     }
 
@@ -236,7 +208,6 @@ bool CefTabClient::OnChromeCommand(CefRefPtr<CefBrowser> browser,
 {
     Q_UNUSED(disposition);
 
-    // DevTools keeps Chrome's own handling
     if (!isMainBrowser(browser))
         return false;
 

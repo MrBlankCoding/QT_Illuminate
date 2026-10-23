@@ -86,7 +86,6 @@ public:
     Q_INVOKABLE void reload();
     Q_INVOKABLE void goBack();
     Q_INVOKABLE void goForward();
-    Q_INVOKABLE void toggleDevTools();
     Q_INVOKABLE void copyActiveUrl() const;
     Q_INVOKABLE void cut();
     Q_INVOKABLE void copy();
@@ -138,7 +137,7 @@ signals:
     void activeCustomThemeChanged();
     void newTabOpened(); // UI opens the command bar for a requested new tab
     void loadRequested(const QString &tabId, const QUrl &url);
-    void navigationRequested(const QString &tabId, const QString &action); // "back"|"forward"|"reload"|"devtools"
+    void navigationRequested(const QString &tabId, const QString &action); // "back"|"forward"|"reload"
     void closeWindowRequested();
 
 private:

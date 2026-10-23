@@ -362,11 +362,7 @@ CefBrowserWrapper::~CefBrowserWrapper()
     cefSetNativeViewCornerRadius(host->GetWindowHandle(), 0);
     cefSetNativeViewGeometry(host->GetWindowHandle(), m_nativeRect, false);
 
-    // DevTools browsers are owned by the page's host, not by us
-    if (m_externalBrowser)
-        host->CloseDevTools();
-    else
-        host->CloseBrowser(true);
+    host->CloseBrowser(true);
 }
 
 void CefBrowserWrapper::setUrl(const QUrl &url)

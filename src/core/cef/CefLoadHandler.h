@@ -30,7 +30,7 @@ public:
 
 private:
     QPointer<CefBrowserWrapper> m_wrapper;
-    // shared with the client; tells the page's events from the DevTools ones
+    // shared with the client to distinguish the main browser
     CefMainBrowserId *m_mainBrowser = nullptr;
 
     IMPLEMENT_REFCOUNTING(CefLoadHandlerImpl);

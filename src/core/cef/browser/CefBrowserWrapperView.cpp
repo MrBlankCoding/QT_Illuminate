@@ -2,24 +2,6 @@
 
 using namespace CefBrowserWrapperPrivate;
 
-void CefBrowserWrapper::setDevToolsView(CefBrowserWrapper *devTools)
-{
-    if (m_devToolsView != devTools)
-    {
-        m_devToolsView = devTools;
-        emit devToolsViewChanged();
-    }
-}
-
-void CefBrowserWrapper::setExternalBrowser(bool external)
-{
-    if (m_externalBrowser != external)
-    {
-        m_externalBrowser = external;
-        emit externalBrowserChanged();
-    }
-}
-
 bool CefBrowserWrapper::chromeStyle() const
 {
     return CefManager::chromeStyle();

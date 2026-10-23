@@ -12,9 +12,6 @@ Menu {
     property CefBrowser webView: null
     property var request: null
 
-    signal toggleDevTools
-    signal inspectElement(int x, int y)
-
     // media nodes carry their own URL; fall back to the link for plain links
     readonly property url mediaUrl: request ? request.sourceUrl : ""
     readonly property url linkUrl: request ? request.linkUrl : ""
@@ -92,14 +89,5 @@ Menu {
     MenuSeparator {
         id: extensionsEnd
         visible: root.extensionItems.length > 0
-    }
-
-    MenuItem {
-        text: "Inspect"
-        onTriggered: root.inspectElement(root.request ? root.request.x : 0, root.request ? root.request.y : 0)
-    }
-    MenuItem {
-        text: "Toggle Dev Tools"
-        onTriggered: root.toggleDevTools()
     }
 }

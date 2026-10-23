@@ -5,7 +5,7 @@ import QT_Illuminate.ui
 
 pragma ComponentBehavior: Bound
 
-// one per tab: the internal page or the web view (+ devtools)
+// one per tab: the internal page or the web view
 Item {
     id: tabSlot
     property var browserContext: Browser
@@ -109,47 +109,12 @@ Item {
                                                      tabSlot.webView ? tabSlot.webView.renderProcessPid : 0)
     }
 
-    property bool devToolsOpen: false
-    // point for the next "Inspect", in page coordinates; (0,0) = none
-    property point devToolsInspectAt: Qt.point(0, 0)
     readonly property CefBrowser webView: webLoader.item as CefBrowser
     onWebViewChanged: {
         Qt.callLater(tabSlot.syncWebViewUrl)
         Qt.callLater(tabSlot.refreshNativeView)
         viewStack.refreshActiveWebView()
-        if (tabSlot.devToolsOpen)
-            tabSlot.openDevTools(devToolsLoader.item)
     }
-
-    function openDevTools(view) {
-        const wv = tabSlot.webView
-        if (!wv || !view)
-            return
-        wv.devToolsView = view
-        wv.showDevTools(tabSlot.devToolsInspectAt)
-        tabSlot.devToolsInspectAt = Qt.point(0, 0)
-    }
-
-    function closeDevTools() {
-        const wv = tabSlot.webView
-        if (!wv)
-            return
-        wv.closeDevTools()
-        wv.devToolsView = null
-    }
-
-    // user could change this
-    property string devToolsDock: "right"
-    readonly property bool devToolsVertical: devToolsDock === "bottom"
-    property real devToolsSize: devToolsVertical ? height * 0.35 : Math.min(480, width * 0.4)
-    readonly property real devToolsMinSize: 200
-    readonly property real pageMinSize: 200
-    readonly property real splitterGap: 6
-    readonly property real splitterSpace: devToolsOpen ? splitterGap : 0
-    readonly property real clampedDevToolsSize: Math.max(devToolsMinSize,
-        Math.min(devToolsSize, (devToolsVertical ? height : width) - pageMinSize - splitterGap))
-    readonly property string devToolsDockMarker: "__illuminate_devtools_dock__ "
-    onDevToolsDockChanged: devToolsSize = devToolsVertical ? height * 0.35 : Math.min(480, width * 0.4)
 
     Loader {
         anchors.fill: parent
@@ -165,10 +130,7 @@ Item {
 
     Loader {
         id: webLoader
-        x: tabSlot.devToolsOpen && tabSlot.devToolsDock === "left" ? tabSlot.clampedDevToolsSize + tabSlot.splitterSpace : 0
-        y: 0
-        width: tabSlot.devToolsOpen && !tabSlot.devToolsVertical ? parent.width - tabSlot.clampedDevToolsSize - tabSlot.splitterSpace : parent.width
-        height: tabSlot.devToolsOpen && tabSlot.devToolsVertical ? parent.height - tabSlot.clampedDevToolsSize - tabSlot.splitterSpace : parent.height
+        anchors.fill: parent
         active: !tabSlot.isInternalPage && (!tabSlot.model.suspended || tabSlot.splitMemberIndex >= 0)
         visible: !tabSlot.isInternalPage
 
@@ -268,13 +230,6 @@ Item {
                 WebContextMenu {
                     id: contextMenu
                     webView: webView
-                    onToggleDevTools: tabSlot.devToolsOpen = !tabSlot.devToolsOpen
-                    onInspectElement: (x, y) => {
-                        // stash the point first: the dock opens DevTools itself
-                        // once it exists, and picks this up
-                        tabSlot.devToolsInspectAt = Qt.point(x, y)
-                        tabSlot.devToolsOpen = true
-                    }
                 }
 
                 Connections {
@@ -294,8 +249,6 @@ Item {
                             webView.goForward();
                         else if (action === "reload")
                             webView.reload();
-                        else if (action === "devtools")
-                            tabSlot.devToolsOpen = !tabSlot.devToolsOpen;
                     }
                 }
 
@@ -314,64 +267,6 @@ Item {
                     }
                 }
             }
-        }
-    }
-
-    Loader {
-        id: devToolsLoader
-        x: tabSlot.devToolsDock === "right" ? parent.width - width : 0
-        y: tabSlot.devToolsVertical ? parent.height - height : 0
-        width: tabSlot.devToolsVertical ? parent.width : tabSlot.clampedDevToolsSize
-        height: tabSlot.devToolsVertical ? tabSlot.clampedDevToolsSize : parent.height
-        active: tabSlot.devToolsOpen
-        visible: tabSlot.devToolsOpen
-
-        sourceComponent: Component {
-            CefBrowser {
-                id: devToolsView
-                anchors.fill: parent
-                externalBrowser: true
-                backgroundColor: Theme.bg
-                cornerRadius: tabSlot.viewStack.cornerRadius
-
-                Component.onCompleted: Qt.callLater(() => tabSlot.openDevTools(devToolsView))
-                Component.onDestruction: tabSlot.closeDevTools()
-            }
-        }
-    }
-
-    // the gap between page and DevTools, with a 1px line in the middle
-    MouseArea {
-        id: splitterArea
-        visible: tabSlot.devToolsOpen
-        z: 10
-        x: tabSlot.devToolsDock === "right" ? devToolsLoader.x - width
-         : tabSlot.devToolsDock === "left" ? devToolsLoader.width : 0
-        y: tabSlot.devToolsVertical ? devToolsLoader.y - height : 0
-        width: tabSlot.devToolsVertical ? parent.width : tabSlot.splitterGap
-        height: tabSlot.devToolsVertical ? tabSlot.splitterGap : parent.height
-        hoverEnabled: true
-        cursorShape: tabSlot.devToolsVertical ? Qt.SizeVerCursor : Qt.SizeHorCursor
-        preventStealing: true
-
-        onPositionChanged: function (mouse) {
-            if (!pressed)
-                return
-            const p = mapToItem(tabSlot, mouse.x, mouse.y)
-            const half = tabSlot.splitterGap / 2
-            if (tabSlot.devToolsDock === "right")
-                tabSlot.devToolsSize = tabSlot.width - p.x - half
-            else if (tabSlot.devToolsDock === "left")
-                tabSlot.devToolsSize = p.x - half
-            else
-                tabSlot.devToolsSize = tabSlot.height - p.y - half
-        }
-
-        Rectangle {
-            anchors.centerIn: parent
-            width: tabSlot.devToolsVertical ? parent.width : 1
-            height: tabSlot.devToolsVertical ? 1 : parent.height
-            color: splitterArea.pressed || splitterArea.containsMouse ? Theme.accent : Theme.border
         }
     }
 

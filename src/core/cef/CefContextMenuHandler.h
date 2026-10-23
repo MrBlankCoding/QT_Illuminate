@@ -80,7 +80,7 @@ public:
 
 private:
     QPointer<CefBrowserWrapper> m_wrapper;
-    // shared with the client; the DevTools browser keeps CEF's own context menu
+    // shared with the client to distinguish the main browser
     CefMainBrowserId *m_mainBrowser = nullptr;
 
     IMPLEMENT_REFCOUNTING(CefContextMenuHandlerImpl);
