@@ -218,18 +218,8 @@ Item {
                 onPrintRequested: tabSlot.browserWindow.openSystemPrintFor(webView)
                 onPdfPrintingFinished: (filePath, success) => tabSlot.browserWindow.onPdfPrintingFinished(filePath, success)
 
-                onContextMenuRequested: function (request) {
-                    contextMenu.request = request;
-                    contextMenu.popup();
-                }
-
                 onPermissionRequested: function (permission) {
                     permissionPrompt.handlePermission(permission)
-                }
-
-                WebContextMenu {
-                    id: contextMenu
-                    webView: webView
                 }
 
                 Connections {
@@ -249,6 +239,8 @@ Item {
                             webView.goForward();
                         else if (action === "reload")
                             webView.reload();
+                        else if (action === "devtools")
+                            webView.toggleDevTools();
                     }
                 }
 

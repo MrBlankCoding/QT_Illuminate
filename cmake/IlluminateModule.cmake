@@ -56,6 +56,7 @@ qt_add_library(QT_Illuminatemodule STATIC
     src/core/cef/browser/CefBrowserWrapperPrivate.h
     src/core/cef/browser/CefBrowserWrapperView.cpp
     src/core/cef/browser/CefBrowserWrapperActions.cpp
+    src/core/cef/browser/CefBrowserWrapperDevTools.cpp
     src/core/cef/browser/CefBrowserWrapperLifecycle.cpp
     src/core/cef/browser/CefBrowserWrapperState.cpp
     src/core/cef/browser/CefBrowserWrapperEvents.cpp
@@ -222,7 +223,6 @@ set(ILLUMINATE_QML_FILES
     ui/components/overlays/CommandBarLogic.js
     ui/components/overlays/CommandBarResults.qml
     ui/components/overlays/ThemePicker.qml
-    ui/components/overlays/WebContextMenu.qml
     ui/components/overlays/ZoomIndicator.qml
     ui/components/spaces/SpaceEditor.qml
     ui/components/spaces/SpaceSwitcher.qml

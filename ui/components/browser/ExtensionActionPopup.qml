@@ -143,7 +143,6 @@ Window {
                 root.dismiss();
                 Browser.newTab(url.toString());
             }
-            onContextMenuRequested: request => request.dismiss()
             onJavaScriptConsoleMessage: (level, message, lineNumber, sourceId) => {
                 Logger.debug("Extension", level + "/" + sourceId + ":" + lineNumber + " " + message);
             }

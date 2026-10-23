@@ -54,12 +54,13 @@ ChromeCommandRoute routeChromeCommand(int commandId)
         return action(QStringLiteral("view.zoomOut"));
     case IDC_ZOOM_NORMAL:
         return action(QStringLiteral("view.zoomReset"));
+    // one DevTools window per page, toggled the same way as our shortcut
     case IDC_DEV_TOOLS:
     case IDC_DEV_TOOLS_CONSOLE:
     case IDC_DEV_TOOLS_INSPECT:
     case IDC_DEV_TOOLS_DEVICES:
     case IDC_DEV_TOOLS_TOGGLE:
-        return blocked();
+        return action(QStringLiteral("dev.devTools"));
     case IDC_TASK_MANAGER:
         return action(QStringLiteral("dev.memory"));
     case IDC_SHOW_HISTORY:

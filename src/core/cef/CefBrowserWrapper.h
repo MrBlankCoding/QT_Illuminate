@@ -128,6 +128,9 @@ public:
     Q_INVOKABLE void load(const QUrl &url) { setUrl(url); }
     Q_INVOKABLE void exitFullScreen();
     Q_INVOKABLE void refreshNativeView(bool raiseAboveSiblings = true);
+    // DevTools open in their own window; inspectAt is in page coordinates
+    Q_INVOKABLE void showDevTools(const QPoint &inspectAt = QPoint());
+    Q_INVOKABLE void toggleDevTools();
     // hands keyboard focus to the page itself
     Q_INVOKABLE void takeFocus();
     // true while the page's own native window holds keyboard focus
@@ -192,7 +195,6 @@ signals:
     void newWindowRequested(const QUrl &url);
     void printRequested();
     void pdfPrintingFinished(const QString &filePath, bool success);
-    void contextMenuRequested(QObject *request);
     void permissionRequested(QObject *permission);
     void javaScriptConsoleMessage(int level, const QString &message, int lineNumber, const QString &sourceId);
 

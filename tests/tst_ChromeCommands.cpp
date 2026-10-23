@@ -34,6 +34,7 @@ private slots:
     {
         expectAction(IDC_FIND, QStringLiteral("page.find"));
         expectAction(IDC_FOCUS_LOCATION, QStringLiteral("view.focusAddressBar"));
+        expectAction(IDC_DEV_TOOLS_INSPECT, QStringLiteral("dev.devTools"));
         expectAction(IDC_ZOOM_PLUS, QStringLiteral("view.zoomIn"));
         expectAction(IDC_SHOW_DOWNLOADS, QStringLiteral("page.downloads"));
         expectAction(IDC_MANAGE_EXTENSIONS, QStringLiteral("tab.open"), QStringLiteral("chrome://extensions"));
@@ -51,7 +52,7 @@ private slots:
     void windowOnlyFeaturesAreBlocked()
     {
         for (const int id : {IDC_NEW_INCOGNITO_WINDOW, IDC_RESTORE_TAB, IDC_SHOW_APP_MENU,
-                             IDC_SHOW_BOOKMARK_BAR, IDC_QRCODE_GENERATOR, IDC_HOME, IDC_DEV_TOOLS_INSPECT})
+                             IDC_SHOW_BOOKMARK_BAR, IDC_QRCODE_GENERATOR, IDC_HOME})
             QCOMPARE(routeChromeCommand(id).kind, ChromeCommandRoute::Blocked);
     }
 };

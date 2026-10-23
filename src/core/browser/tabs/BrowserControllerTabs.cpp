@@ -243,6 +243,12 @@ void BrowserController::goForward()
         emit navigationRequested(tab->id(), QStringLiteral("forward"));
 }
 
+void BrowserController::toggleDevTools()
+{
+    if (BrowserTab *tab = m_model->tabAt(m_model->activeIndex()))
+        emit navigationRequested(tab->id(), QStringLiteral("devtools"));
+}
+
 // qml to cpp
 // rust later?
 
