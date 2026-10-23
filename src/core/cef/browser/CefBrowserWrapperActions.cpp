@@ -1,36 +1,4 @@
-#include "CefBrowserWrapper.h"
 #include "browser/CefBrowserWrapperPrivate.h"
-#include "CefTabClient.h"
-#include "CefLoadHandler.h"
-#include "CefDisplayHandler.h"
-#include "CefContextMenuHandler.h"
-#include "CefDownloadHandler.h"
-#include "CefPermissionHandler.h"
-#include "CefRequestHandler.h"
-#include "CefProfile.h"
-#include "CefManager.h"
-#include "CefHostWindow.h"
-#include "CefNativeViewVisibility.h"
-#include "../utils/cef_helpers.h"
-#include "../utils/BrowserLogger.h"
-
-#include <QClipboard>
-#include <QCoreApplication>
-#include <QDebug>
-#include <QGuiApplication>
-#include <QMetaObject>
-#include <QPointer>
-#include <QRect>
-#include <QQuickWindow>
-#include <QTimer>
-
-#include <algorithm>
-#include <cmath>
-#include <functional>
-
-#include <include/cef_app.h>
-#include <include/cef_parser.h>
-#include <include/cef_task.h>
 
 using namespace CefBrowserWrapperPrivate;
 
@@ -115,7 +83,15 @@ void CefBrowserWrapper::triggerWebAction(int action, const QUrl &url)
 
 void CefBrowserWrapper::runJavaScript(const QString &script, int worldId)
 {
-    Q_UNUSED(worldId);
-    if (auto frame = mainFrameOf(m_browser))
-        frame->ExecuteJavaScript(qStringToCef(script), frame->GetURL(), 0);
+    auto frame = mainFrameOf(m_browser);
+    if (!frame)
+        return;
+
+    if (worldId != 0)
+    {
+        qWarning() << "[CEF] runJavaScript: worldId" << worldId
+                   << "is not yet supported; falling back to main world (0).";
+    }
+
+    frame->ExecuteJavaScript(qStringToCef(script), frame->GetURL(), 0);
 }

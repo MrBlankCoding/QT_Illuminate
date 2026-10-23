@@ -1,17 +1,42 @@
 #pragma once
 
 #include "CefBrowserWrapper.h"
+#include "CefTabClient.h"
+#include "CefLoadHandler.h"
+#include "CefDisplayHandler.h"
+#include "CefContextMenuHandler.h"
+#include "CefDownloadHandler.h"
+#include "CefPermissionHandler.h"
+#include "CefRequestHandler.h"
+#include "CefProfile.h"
+#include "CefManager.h"
+#include "CefHostWindow.h"
+#include "CefNativeViewVisibility.h"
+#include "ExtensionPopupProtocol.h"
+#include "../utils/cef_helpers.h"
+#include "../utils/BrowserLogger.h"
 
-#include <QQuickWindow>
+#include <QClipboard>
+#include <QCoreApplication>
+#include <QDebug>
+#include <QGuiApplication>
+#include <QMetaObject>
+#include <QPointer>
 #include <QRect>
 #include <QRectF>
+#include <QQuickWindow>
+#include <QTimer>
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
+#include <utility>
 
 #include <include/cef_app.h>
 #include <include/cef_browser.h>
 #include <include/cef_frame.h>
+#include <include/cef_parser.h>
+#include <include/cef_task.h>
 
 #if defined(_WIN32)
 #include <windows.h>

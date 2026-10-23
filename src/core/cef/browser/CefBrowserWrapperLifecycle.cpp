@@ -1,38 +1,4 @@
-#include "CefBrowserWrapper.h"
 #include "browser/CefBrowserWrapperPrivate.h"
-#include "CefTabClient.h"
-#include "CefLoadHandler.h"
-#include "CefDisplayHandler.h"
-#include "CefContextMenuHandler.h"
-#include "CefDownloadHandler.h"
-#include "CefPermissionHandler.h"
-#include "CefRequestHandler.h"
-#include "CefProfile.h"
-#include "CefManager.h"
-#include "CefHostWindow.h"
-#include "CefNativeViewVisibility.h"
-#include "ExtensionPopupProtocol.h"
-#include "../utils/cef_helpers.h"
-#include "../utils/BrowserLogger.h"
-
-#include <QClipboard>
-#include <QCoreApplication>
-#include <QDebug>
-#include <QGuiApplication>
-#include <QMetaObject>
-#include <QPointer>
-#include <QRect>
-#include <QQuickWindow>
-#include <QTimer>
-
-#include <algorithm>
-#include <cmath>
-#include <functional>
-#include <utility>
-
-#include <include/cef_app.h>
-#include <include/cef_parser.h>
-#include <include/cef_task.h>
 
 using namespace CefBrowserWrapperPrivate;
 
@@ -130,8 +96,12 @@ void CefBrowserWrapper::createBrowser(void *nativeWindowHandle, const QRect &geo
                 return;
             const auto requestContext = (profile ? profile : CefManager::defaultProfile())->requestContext();
             if (!requestContext) {
-                guard->m_creatingBrowser = false;
-                BrowserLogger::instance().error("CEF", "Could not create request context for browser tab");
+                QMetaObject::invokeMethod(guard.data(), [guard]() {
+                    if (!guard)
+                        return;
+                    guard->m_creatingBrowser = false;
+                    BrowserLogger::instance().error("CEF", "Could not create request context for browser tab");
+                }, Qt::QueuedConnection);
                 return;
             }
             if (!CefBrowserHost::CreateBrowser(windowInfo, client, initialUrl, settings, extraInfo, requestContext))
@@ -168,10 +138,15 @@ void CefBrowserWrapper::createHostWindow(const CefBrowserSettings &settings,
     CefProfile *profile = m_profile;
     const CefString initialUrl = m_url.isEmpty() ? CefString() : qUrlToCefString(m_url);
     CefPostTask(TID_UI, new ClosureTask(
-        [hostWindow, client, profile, initialUrl, settings, extraInfo]() {
+        [guard, hostWindow, client, profile, initialUrl, settings, extraInfo]() {
             const auto requestContext = (profile ? profile : CefManager::defaultProfile())->requestContext();
             if (!requestContext) {
-                BrowserLogger::instance().error("CEF", "Could not create request context for host window");
+                QMetaObject::invokeMethod(guard.data(), [guard]() {
+                    if (!guard)
+                        return;
+                    guard->m_creatingBrowser = false;
+                    BrowserLogger::instance().error("CEF", "Could not create request context for host window");
+                }, Qt::QueuedConnection);
                 return;
             }
             hostWindow->create(client, initialUrl, settings, extraInfo, requestContext);
@@ -189,9 +164,9 @@ void CefBrowserWrapper::onHostWindowReady()
     m_nativeCornerRadius = m_cornerRadius;
     cefSetChildWindowCornerRadius(m_hostWindow->nativeHandle(), m_cornerRadius);
     m_nativeRect = QRect();
-    // a popup goes away once focus leaves it; let it hear when that happens
-    if (m_actionTabId != 0 && !m_focusObserver)
+    if (m_actionTabId != 0)
     {
+        cefStopObservingKeyLoss(std::exchange(m_focusObserver, nullptr));
         QPointer<CefBrowserWrapper> guard(this);
         m_focusObserver = cefObserveKeyLoss(m_hostWindow->nativeHandle(), [guard]() {
             if (guard)
