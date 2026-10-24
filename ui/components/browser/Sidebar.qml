@@ -225,11 +225,15 @@ Item {
         onOpened: {
             if (root.targetWindow && root.targetWindow.claimUiFocus)
                 root.targetWindow.claimUiFocus("spaceEditor");
+            if (root.targetWindow && root.targetWindow.workspace && root.targetWindow.workspace.viewStack && root.targetWindow.workspace.viewStack.activeWebView)
+                Qt.callLater(() => root.targetWindow.workspace.viewStack.activeWebView.refreshNativeView(false));
             Qt.callLater(function() { spaceEditor.focusName() });
         }
         onClosed: {
             if (root.targetWindow && root.targetWindow.releaseUiFocus)
                 root.targetWindow.releaseUiFocus("spaceEditor");
+            if (root.targetWindow && root.targetWindow.raiseActiveWebView)
+                Qt.callLater(() => root.targetWindow.raiseActiveWebView());
         }
         Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.35) }
         background: Rectangle {

@@ -70,8 +70,7 @@ void BrowserController::setActiveSpace(Space *space)
     m_webProfile = CefProfile::forSpace(space->id(), space->storageDir());
     m_sessionRestoredForSpace = false;
     emit spaceChanged();
-    emit themePaletteChanged();
-    emit activeCustomThemeChanged();
+    emit themeColorChanged();
 
     m_sidebar->load(sidebarFilePath(), true);
     restoreSession();

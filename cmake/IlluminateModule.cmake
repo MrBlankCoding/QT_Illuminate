@@ -180,6 +180,7 @@ endif()
 
 set(ILLUMINATE_QML_FILES
     ui/Theme.qml
+    ui/ThemePalette.js
     ui/pages/BrowserWindow.qml
     ui/pages/MemoryPage.qml
     ui/pages/SettingsWindow.qml

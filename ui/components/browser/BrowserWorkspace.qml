@@ -11,7 +11,6 @@ Item {
     required property var themePicker
 
     property alias viewStack: viewStack
-    property alias zoomIndicator: zoomIndicator
     property alias dockLoader: dockLoader
     readonly property real dockWidth: dock.fullWidth
 
@@ -123,10 +122,6 @@ Item {
                             Browser.sidebar.prepareSplit(activeSplitIds[0]);
                     }
 
-                    ZoomIndicator {
-                        id: zoomIndicator
-                        webView: viewStack.activeWebView
-                    }
 
                     Connections {
                         target: Browser
@@ -197,7 +192,6 @@ Item {
             loadProgress: Browser.activeProgress
             canGoBack: viewStack.activeWebView ? viewStack.activeWebView.canGoBack : false
             canGoForward: viewStack.activeWebView ? viewStack.activeWebView.canGoForward : false
-            zoomIndicator: zoomIndicator
 
             onOpenSettings: browserWindow.openSettings()
             onCommandBarRequested: mode => browserWindow.openCommandBar(mode)

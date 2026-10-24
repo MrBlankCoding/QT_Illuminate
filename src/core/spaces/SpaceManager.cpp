@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -24,6 +25,42 @@ QColor colorOrDefault(const QJsonValue &value)
 {
     const QColor color(value.toString());
     return color.isValid() ? color : QColor(QStringLiteral("#4A90E2"));
+}
+
+// Files written before themes became a single seed carry a palette name and a
+// full colour set per mode. Only the accent's hue and vividness carry over;
+// "blue" was the default, so it stays on the default theme.
+QColor themeColorFrom(const QJsonObject &obj)
+{
+    if (obj.contains(QStringLiteral("themeColor")))
+    {
+        const QColor seed(obj.value(QStringLiteral("themeColor")).toString());
+        return seed.isValid() ? seed : QColor();
+    }
+
+    const QColor accent(obj.value(QStringLiteral("themeColors")).toObject()
+                            .value(QStringLiteral("light")).toObject()
+                            .value(QStringLiteral("accent")).toString());
+    if (accent.isValid())
+        return QColor::fromHslF(accent.hslHueF(), accent.hslSaturationF(), 0.5f);
+
+    static const QHash<QString, QString> legacyPalettes = {
+        {QStringLiteral("violet"), QStringLiteral("#7c3aed")},
+        {QStringLiteral("green"), QStringLiteral("#15803d")},
+        {QStringLiteral("rose"), QStringLiteral("#be123c")},
+        {QStringLiteral("orange"), QStringLiteral("#c2410c")},
+        {QStringLiteral("teal"), QStringLiteral("#168c91")},
+        {QStringLiteral("amber"), QStringLiteral("#a97805")},
+        {QStringLiteral("indigo"), QStringLiteral("#4d5cce")},
+        {QStringLiteral("coral"), QStringLiteral("#d85646")},
+        {QStringLiteral("mint"), QStringLiteral("#348e73")},
+        {QStringLiteral("plum"), QStringLiteral("#a3439a")},
+        {QStringLiteral("slate"), QStringLiteral("#62758c")}
+    };
+    const QColor legacy(legacyPalettes.value(obj.value(QStringLiteral("themePalette")).toString()));
+    if (legacy.isValid())
+        return QColor::fromHslF(legacy.hslHueF(), legacy.hslSaturationF(), 0.5f);
+    return {};
 }
 }
 
@@ -212,10 +249,7 @@ void SpaceManager::load()
         Space *space = adopt(id,
                              obj.value(QStringLiteral("name")).toString(),
                              colorOrDefault(obj.value(QStringLiteral("color"))));
-        const QString palette = obj.value(QStringLiteral("themePalette")).toString();
-        if (!palette.isEmpty())
-            space->setThemePalette(palette);
-        space->setThemeColors(obj.value(QStringLiteral("themeColors")).toObject().toVariantMap());
+        space->setThemeColor(themeColorFrom(obj));
         m_spaces.append(space);
         if (space->id() == activeId)
             m_activeSpace = space;
@@ -233,8 +267,8 @@ void SpaceManager::save() const
         obj[QStringLiteral("id")] = space->id();
         obj[QStringLiteral("name")] = space->name();
         obj[QStringLiteral("color")] = space->color().name();
-        obj[QStringLiteral("themePalette")] = space->themePalette();
-        obj[QStringLiteral("themeColors")] = QJsonObject::fromVariantMap(space->themeColors());
+        if (space->themeColor().isValid())
+            obj[QStringLiteral("themeColor")] = space->themeColor().name();
         array.append(obj);
     }
 

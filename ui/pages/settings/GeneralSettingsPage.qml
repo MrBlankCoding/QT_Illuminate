@@ -5,11 +5,29 @@ import QT_Illuminate.ui
 
 SettingsPage {
     heading: "General"
-    subtitle: "Browser language and other global preferences."
+    subtitle: "Appearance, language and other global preferences."
 
     SettingsCard {
         SettingItem {
             topDivider: false
+            title: "Appearance"
+            description: "Light or dark, for every space. Each space picks its own colour from the theme picker."
+
+            SettingCombo {
+                id: appearanceCombo
+                model: [
+                    { name: "Match system", value: "system" },
+                    { name: "Light", value: "light" },
+                    { name: "Dark", value: "dark" }
+                ]
+                textRole: "name"
+                valueRole: "value"
+                value: Browser.themeMode
+                onActivated: Browser.themeMode = appearanceCombo.currentValue
+            }
+        }
+
+        SettingItem {
             title: "Browser language"
             description: "Interface language for browser chrome and page UI."
 

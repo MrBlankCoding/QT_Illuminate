@@ -13,70 +13,39 @@ Popup {
     property bool showArrow: true
     property var focusRouter: null
     property real arrowOffset: 0
-    property real customHue: 0.60
-    property real customSaturation: 0.75
-    property real customLightness: 0.68
-    property bool orbitDirty: false
     readonly property int shadowPad: 18
+    property bool previewing: false
 
-    function recolor(h, s, selectedLightness) {
-        const d = Math.min(s * 0.32, 0.28)
-        const l = Math.min(s * 0.22, 0.20)
-        const darkAccent = Theme.isDark ? Qt.hsla(h, s, selectedLightness, 1) : Qt.hsla(h, s, 0.68, 1)
-        const lightAccent = Theme.isDark ? Qt.hsla(h, s, 0.38, 1) : Qt.hsla(h, s, selectedLightness, 1)
-        return {
-            dark: {
-                accent: darkAccent, bg: Qt.hsla(h, d, 0.13, 1),
-                surface: Qt.hsla(h, d, 0.18, 1), surfaceHigh: Qt.hsla(h, d, 0.22, 1),
-                sidebarBg: Qt.hsla(h, d * 1.1, 0.09, 1), text: Qt.hsla(h, 0.55, 0.88, 1),
-                textMuted: Qt.hsla(h, 0.14, 0.52, 1), border: Qt.hsla(h, d * 1.4, 0.27, 1),
-                danger: "#f38ba8", progressBg: Qt.hsla(h, d, 0.20, 1), shadow: "#000000"
-            },
-            light: {
-                accent: lightAccent, bg: Qt.hsla(h, l, 0.97, 1),
-                surface: Qt.hsla(h, l, 0.92, 1), surfaceHigh: Qt.hsla(h, l, 0.87, 1),
-                sidebarBg: Qt.hsla(h, l * 1.15, 0.89, 1), text: Qt.hsla(h, 0.28, 0.11, 1),
-                textMuted: Qt.hsla(h, 0.09, 0.46, 1), border: Qt.hsla(h, l * 1.5, 0.80, 1),
-                danger: "#f38ba8", progressBg: Qt.hsla(h, l, 0.85, 1), shadow: "#000000"
-            }
-        }
+    readonly property real seedHue: Theme.seed.hslHue < 0 ? 0 : Theme.seed.hslHue
+    readonly property real seedVividness: Theme.seed.hslHue < 0 ? 0 : Theme.seed.hslSaturation
+
+    function seedAt(hue, vividness) {
+        return Qt.hsla(hue, Math.max(0, Math.min(1, vividness)), 0.5, 1)
     }
 
-    function setOrbitPoint(x, y) {
-        const centerX = chromaCanvas.width / 2
-        const centerY = chromaCanvas.height / 2
-        const dx = x - centerX
-        const dy = centerY - y
-        const maxRadius = chromaCanvas.width * 0.47
-        const distance = Math.sqrt(dx * dx + dy * dy)
+    function pickAt(x, y) {
+        const dx = x - disc.radius
+        const dy = disc.radius - y
         let hue = Math.atan2(dy, dx) / (Math.PI * 2)
         if (hue < 0)
             hue += 1
-
-        customHue = hue
-        customSaturation = Math.min(1, distance / maxRadius)
-        customLightness = Theme.isDark ? 0.68 : 0.38
-        orbitDirty = true
-        Browser.previewSpaceThemeColors(recolor(customHue, customSaturation, customLightness))
+        root.previewing = true
+        Browser.previewThemeColor(root.seedAt(hue, Math.sqrt(dx * dx + dy * dy) / disc.radius))
     }
 
-    function commitCustom() {
-        Browser.setSpaceThemeColors(recolor(customHue, customSaturation, customLightness))
+    function commitPreview() {
+        if (!root.previewing)
+            return
+        root.previewing = false
+        Browser.setThemeColor(Theme.seed)
     }
 
     onOpened: {
         if (root.focusRouter)
             root.focusRouter.claimUiFocus("themePicker")
-        const accent = Theme.accent
-        customHue = accent.hslHue < 0 ? 0 : accent.hslHue
-        customSaturation = accent.hslSaturation
-        customLightness = accent.hslLightness
     }
     onClosed: {
-        if (orbitDirty) {
-            root.commitCustom()
-            orbitDirty = false
-        }
+        root.commitPreview()
         if (root.focusRouter)
             root.focusRouter.releaseUiFocus("themePicker")
     }
@@ -87,7 +56,7 @@ Popup {
     Component.onCompleted: PopupCloser.watch(root)
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside | Popup.CloseOnPressOutsideParent
     padding: shadowPad
-    implicitWidth: 354 + shadowPad * 2
+    implicitWidth: 292 + shadowPad * 2
 
     enter: Transition {
         NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 150; easing.type: Easing.OutCubic }
@@ -104,7 +73,7 @@ Popup {
             id: card
             anchors.fill: parent
             anchors.margins: root.shadowPad
-            radius: 18
+            radius: Theme.radiusCommand
             color: Theme.cardBg
             border.width: 1
             border.color: Theme.cardBorder
@@ -131,190 +100,46 @@ Popup {
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 16; Layout.rightMargin: 16; Layout.topMargin: 14
-            spacing: 10
+            Layout.leftMargin: Theme.space4; Layout.rightMargin: Theme.space3; Layout.topMargin: 14
+            spacing: Theme.space2
+
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 2
                 Text {
-                    text: qsTr("Color your space")
+                    text: qsTr("Theme")
                     color: Theme.text
                     font.family: Theme.fontFamily
-                    font.pixelSize: 15
+                    font.pixelSize: Theme.fontSizeL
                     font.weight: Font.DemiBold
                 }
                 Text {
+                    Layout.fillWidth: true
                     text: Browser.space ? Browser.space.name : qsTr("Current space")
                     color: Theme.textMuted
                     font.family: Theme.fontFamily
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.fontSizeS
                     elide: Text.ElideRight
                 }
             }
 
-        }
-
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.leftMargin: 16; Layout.rightMargin: 16; Layout.topMargin: 12
-            Layout.preferredHeight: 1
-            color: Theme.cardBorder
-        }
-
-        Item {
-            id: colorOrbit
-            Layout.fillWidth: true
-            Layout.preferredHeight: 294
-            Layout.topMargin: 8
-            Accessible.ignored: true
-
-            Canvas {
-                id: chromaCanvas
-                width: Math.min(280, parent.width, parent.height)
-                height: width
-                anchors.centerIn: parent
-                renderTarget: Canvas.FramebufferObject
-                onPaint: {
-                    const context = getContext("2d")
-                    context.clearRect(0, 0, width, height)
-                    const centerX = width / 2
-                    const centerY = height / 2
-                    const radius = Math.min(width, height) * 0.47
-                    const step = 2
-                    for (let y = 0; y < height; y += step) {
-                        for (let x = 0; x < width; x += step) {
-                            const dx = x - centerX
-                            const dy = centerY - y
-                            const distance = Math.sqrt(dx * dx + dy * dy)
-                            if (distance > radius)
-                                continue
-                            let hue = Math.atan2(dy, dx) / (Math.PI * 2)
-                            if (hue < 0)
-                                hue += 1
-                            const saturation = Math.min(1, distance / radius)
-                            context.fillStyle = Qt.hsla(hue, saturation, 0.5, 1)
-                            context.fillRect(x, y, step, step)
-                        }
-                    }
-                }
-            }
-
-            Repeater {
-                model: 24
-                delegate: Rectangle {
-                    required property int index
-                    readonly property real angle: index * Math.PI * 2 / 24
-                    width: index % 3 === 0 ? 3 : 2
-                    height: index % 3 === 0 ? 6 : 3
-                    radius: 1.5
-                    x: chromaCanvas.x + chromaCanvas.width / 2 + Math.cos(angle) * (chromaCanvas.width * 0.49) - width / 2
-                    y: chromaCanvas.y + chromaCanvas.height / 2 - Math.sin(angle) * (chromaCanvas.height * 0.49) - height / 2
-                    rotation: index * 15
-                    color: Qt.alpha(Theme.textMuted, 0.45)
-                }
-            }
-
-            Repeater {
-                model: [0.34, 0.68]
-                delegate: Rectangle {
-                    required property real modelData
-                    width: chromaCanvas.width * modelData
-                    height: width
-                    x: chromaCanvas.x + (chromaCanvas.width - width) / 2
-                    y: chromaCanvas.y + (chromaCanvas.height - height) / 2
-                    radius: width / 2
-                    color: "transparent"
-                    border.width: 1
-                    border.color: Qt.alpha("white", 0.34)
-                }
-            }
-
-            Rectangle {
-                id: orbitMarker
-                width: 20; height: 20; radius: 10
-                x: chromaCanvas.x + chromaCanvas.width / 2
-                   + Math.cos(root.customHue * Math.PI * 2) * root.customSaturation * (chromaCanvas.width * 0.47) - width / 2
-                y: chromaCanvas.y + chromaCanvas.height / 2
-                   - Math.sin(root.customHue * Math.PI * 2) * root.customSaturation * (chromaCanvas.height * 0.47) - height / 2
-                color: Qt.hsla(root.customHue, root.customSaturation, root.customLightness, 1)
-                border.width: 2
-                border.color: "white"
-                Rectangle {
-                    anchors.fill: parent
-                    anchors.margins: 3
-                    radius: width / 2
-                    color: "transparent"
-                    border.width: 1
-                    border.color: Qt.alpha("#000000", 0.45)
-                }
-            }
-
-            MouseArea {
-                anchors.centerIn: chromaCanvas
-                width: chromaCanvas.width
-                height: chromaCanvas.height
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onPressed: mouse => {
-                    forceActiveFocus()
-                    root.setOrbitPoint(mouse.x, mouse.y)
-                }
-                onPositionChanged: mouse => {
-                    if (pressed)
-                        root.setOrbitPoint(mouse.x, mouse.y)
-                }
-                onReleased: {
-                    root.commitCustom()
-                    root.orbitDirty = false
-                }
-                activeFocusOnTab: true
-                Accessible.role: Accessible.Slider
-                Accessible.name: qsTr("Color orbit")
-                Accessible.description: qsTr("Drag around the ring to change hue and move toward the center to reduce saturation")
-                Keys.onPressed: event => {
-                    const hueStep = 0.01
-                    const saturationStep = 0.04
-                    if (event.key === Qt.Key_Left)
-                        root.customHue = (root.customHue - hueStep + 1) % 1
-                    else if (event.key === Qt.Key_Right)
-                        root.customHue = (root.customHue + hueStep) % 1
-                    else if (event.key === Qt.Key_Up)
-                        root.customSaturation = Math.min(1, root.customSaturation + saturationStep)
-                    else if (event.key === Qt.Key_Down)
-                        root.customSaturation = Math.max(0, root.customSaturation - saturationStep)
-                    else
-                        return
-                    root.customLightness = Theme.isDark ? 0.68 : 0.38
-                    root.commitCustom()
-                    root.orbitDirty = false
-                    event.accepted = true
-                }
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.leftMargin: 14; Layout.rightMargin: 14
-            Layout.topMargin: 10; Layout.bottomMargin: 12
-            spacing: 4
-            Item { Layout.fillWidth: true }
             Button {
                 id: resetButton
-                implicitWidth: 55; implicitHeight: 26
+                Layout.alignment: Qt.AlignTop
+                implicitHeight: 24
+                leftPadding: Theme.space2; rightPadding: Theme.space2
+                enabled: Theme.hasCustomSeed
+                opacity: enabled ? 1 : 0.4
                 text: qsTr("Reset")
                 font.family: Theme.fontFamily
-                font.pixelSize: 10
+                font.pixelSize: Theme.fontSizeS
                 onClicked: {
-                    Browser.resetSpaceTheme()
-                    orbitDirty = false
-                    const accent = Theme.accent
-                    customHue = accent.hslHue < 0 ? 0 : accent.hslHue
-                    customSaturation = accent.hslSaturation
-                    customLightness = accent.hslLightness
+                    root.previewing = false
+                    Browser.resetThemeColor()
                 }
                 background: Rectangle {
-                    radius: 7
-                    color: resetButton.hovered ? Theme.itemHover : "transparent"
+                    radius: Theme.radiusS
+                    color: resetButton.pressed ? Theme.itemPressed : (resetButton.hovered ? Theme.itemHover : "transparent")
                 }
                 contentItem: Text {
                     text: resetButton.text
@@ -323,7 +148,269 @@ Popup {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
-                Accessible.name: qsTr("Reset this space theme")
+                Accessible.name: qsTr("Reset to the default theme")
+            }
+        }
+
+        // hue around the edge, vividness outward from a grey centre: exactly the
+        // HSL disc at half lightness, since a gradient between neighbouring
+        // primaries and a fade from grey both interpolate along HSL lines
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 228
+            Layout.topMargin: Theme.space3
+
+            Shape {
+                id: disc
+                readonly property real radius: width / 2
+                width: 212; height: 212
+                anchors.centerIn: parent
+                preferredRendererType: Shape.CurveRenderer
+
+                ShapePath {
+                    strokeColor: "transparent"
+                    fillGradient: ConicalGradient {
+                        centerX: disc.radius; centerY: disc.radius; angle: 0
+                        GradientStop { position: 0 / 6; color: "#ff0000" }
+                        GradientStop { position: 1 / 6; color: "#ffff00" }
+                        GradientStop { position: 2 / 6; color: "#00ff00" }
+                        GradientStop { position: 3 / 6; color: "#00ffff" }
+                        GradientStop { position: 4 / 6; color: "#0000ff" }
+                        GradientStop { position: 5 / 6; color: "#ff00ff" }
+                        GradientStop { position: 6 / 6; color: "#ff0000" }
+                    }
+                    PathAngleArc { centerX: disc.radius; centerY: disc.radius; radiusX: disc.radius; radiusY: disc.radius; sweepAngle: 360 }
+                }
+                ShapePath {
+                    strokeColor: Theme.cardBorder; strokeWidth: 1
+                    fillGradient: RadialGradient {
+                        centerX: disc.radius; centerY: disc.radius; centerRadius: disc.radius
+                        focalX: disc.radius; focalY: disc.radius
+                        GradientStop { position: 0; color: "#808080" }
+                        GradientStop { position: 1; color: "#00808080" }
+                    }
+                    PathAngleArc { centerX: disc.radius; centerY: disc.radius; radiusX: disc.radius; radiusY: disc.radius; sweepAngle: 360 }
+                }
+            }
+
+            // rings at a third and two thirds of the way out, as a sense of scale
+            Repeater {
+                model: [1 / 3, 2 / 3]
+                delegate: Rectangle {
+                    required property real modelData
+                    width: disc.width * modelData; height: width
+                    anchors.centerIn: disc
+                    radius: width / 2
+                    color: "transparent"
+                    border.width: 1
+                    border.color: Qt.alpha("#ffffff", 0.28)
+                }
+            }
+
+            Rectangle {
+                id: marker
+                width: dragArea.pressed ? 26 : 22; height: width; radius: width / 2
+                x: disc.x + disc.radius + Math.cos(root.seedHue * Math.PI * 2) * root.seedVividness * disc.radius - width / 2
+                y: disc.y + disc.radius - Math.sin(root.seedHue * Math.PI * 2) * root.seedVividness * disc.radius - height / 2
+                color: root.seedAt(root.seedHue, root.seedVividness)
+                border.width: 3
+                border.color: "#ffffff"
+                Behavior on width { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
+
+                RectangularShadow {
+                    anchors.fill: parent
+                    z: -1
+                    radius: parent.radius
+                    blur: 8; offset.y: 1
+                    color: Qt.alpha("#000000", 0.35)
+                }
+            }
+
+            MouseArea {
+                id: dragArea
+                anchors.fill: disc
+                cursorShape: Qt.PointingHandCursor
+                preventStealing: true
+                activeFocusOnTab: true
+                onPressed: mouse => {
+                    forceActiveFocus()
+                    root.pickAt(mouse.x, mouse.y)
+                }
+                onPositionChanged: mouse => {
+                    if (pressed)
+                        root.pickAt(mouse.x, mouse.y)
+                }
+                onReleased: root.commitPreview()
+                onCanceled: root.commitPreview()
+
+                Accessible.role: Accessible.Slider
+                Accessible.name: qsTr("Theme colour")
+                Accessible.description: qsTr("Left and right change the hue; up and down change how vivid it is")
+                Keys.onPressed: event => {
+                    let hue = root.seedHue
+                    let vividness = root.seedVividness
+                    if (event.key === Qt.Key_Left)
+                        hue = (hue + 0.99) % 1
+                    else if (event.key === Qt.Key_Right)
+                        hue = (hue + 0.01) % 1
+                    else if (event.key === Qt.Key_Up)
+                        vividness += 0.04
+                    else if (event.key === Qt.Key_Down)
+                        vividness -= 0.04
+                    else
+                        return
+                    root.previewing = false
+                    Browser.setThemeColor(root.seedAt(hue, vividness))
+                    event.accepted = true
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: -3
+                    radius: width / 2
+                    visible: dragArea.activeFocus
+                    color: "transparent"
+                    border.width: 2
+                    border.color: Theme.accent
+                }
+            }
+        }
+
+        // each preset previewed as its own sidebar colour with its accent inside
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.leftMargin: Theme.space3; Layout.rightMargin: Theme.space3; Layout.topMargin: Theme.space3
+            spacing: 0
+
+            Repeater {
+                model: Theme.presets
+                delegate: AbstractButton {
+                    id: swatch
+                    required property var modelData
+                    readonly property var preview: Theme.paletteFor(modelData.seed, Theme.isDark)
+                    readonly property bool selected: Theme.sameSeed(Theme.seed, modelData.seed)
+                    Layout.fillWidth: true
+                    implicitHeight: 30
+                    hoverEnabled: true
+                    onClicked: {
+                        root.previewing = false
+                        Browser.setThemeColor(modelData.seed)
+                    }
+
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 500
+                    ToolTip.text: modelData.name
+                    Accessible.name: modelData.name
+                    Accessible.checkable: true
+                    Accessible.checked: selected
+
+                    contentItem: Item {
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 24; height: 24; radius: 12
+                            color: "transparent"
+                            border.width: 2
+                            border.color: swatch.selected ? Theme.text
+                                        : (swatch.hovered || swatch.visualFocus ? Qt.alpha(Theme.text, 0.25) : "transparent")
+                            Behavior on border.color { ColorAnimation { duration: Theme.durationFast } }
+                        }
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 16; height: 16; radius: 8
+                            color: swatch.preview.sidebarBg
+                            border.width: 1
+                            border.color: Qt.alpha(Theme.text, 0.12)
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: 8; height: 8; radius: 4
+                                color: swatch.preview.accent
+                            }
+                        }
+                    }
+                    background: null
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.leftMargin: Theme.space4; Layout.rightMargin: Theme.space4; Layout.topMargin: Theme.space3
+            Layout.preferredHeight: 1
+            color: Theme.cardBorder
+        }
+
+        // light or dark, for every space
+        Rectangle {
+            id: modeSwitch
+            Layout.fillWidth: true
+            Layout.leftMargin: Theme.space4; Layout.rightMargin: Theme.space4
+            Layout.topMargin: Theme.space3; Layout.bottomMargin: Theme.space4
+            Layout.preferredHeight: 32
+            radius: Theme.radiusItem + 1
+            color: Theme.fieldBg
+
+            readonly property var modes: [
+                { value: "system", label: qsTr("Auto"),  icon: "qrc:/QT_Illuminate/ui/icons/monitor.svg" },
+                { value: "light",  label: qsTr("Light"), icon: "qrc:/QT_Illuminate/ui/icons/sun.svg" },
+                { value: "dark",   label: qsTr("Dark"),  icon: "qrc:/QT_Illuminate/ui/icons/moon.svg" }
+            ]
+            readonly property int selectedIndex: Math.max(0, modes.findIndex(m => m.value === Theme.mode))
+            readonly property real segmentWidth: (width - 4) / modes.length
+
+            Rectangle {
+                x: 2 + modeSwitch.selectedIndex * modeSwitch.segmentWidth
+                y: 2
+                width: modeSwitch.segmentWidth
+                height: modeSwitch.height - 4
+                radius: Theme.radiusItem - 1
+                color: Theme.isDark ? Theme.surfaceHigh : Theme.bg
+                border.width: 1
+                border.color: Theme.itemActiveBorder
+                Behavior on x { NumberAnimation { duration: Theme.durationMid; easing.type: Easing.OutCubic } }
+            }
+
+            Row {
+                anchors.fill: parent
+                anchors.margins: 2
+
+                Repeater {
+                    model: modeSwitch.modes
+                    delegate: AbstractButton {
+                        id: segment
+                        required property var modelData
+                        required property int index
+                        readonly property bool selected: index === modeSwitch.selectedIndex
+                        width: modeSwitch.segmentWidth
+                        height: parent.height
+                        hoverEnabled: true
+                        onClicked: Browser.themeMode = modelData.value
+                        Accessible.name: qsTr("%1 appearance").arg(modelData.label)
+                        Accessible.checkable: true
+                        Accessible.checked: selected
+
+                        contentItem: Item {
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 6
+                                LucideIcon {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    source: segment.modelData.icon
+                                    size: 14
+                                    color: segment.selected || segment.hovered ? Theme.text : Theme.textMuted
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: segment.modelData.label
+                                    color: segment.selected || segment.hovered ? Theme.text : Theme.textMuted
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fontSizeS
+                                    font.weight: segment.selected ? Font.Medium : Font.Normal
+                                }
+                            }
+                        }
+                        background: null
+                    }
+                }
             }
         }
     }

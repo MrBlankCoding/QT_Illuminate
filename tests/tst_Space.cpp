@@ -24,7 +24,7 @@ private slots:
         QCOMPARE(space.name(), QStringLiteral("New Space"));
         QCOMPARE(space.initial(), QStringLiteral("N"));
         QCOMPARE(space.color(), QColor(QStringLiteral("#4A90E2")));
-        QCOMPARE(space.themePalette(), QStringLiteral("blue"));
+        QVERIFY(!space.themeColor().isValid());
     }
 
     void emptyExplicitIdIsReplacedWithGeneratedId()
@@ -75,33 +75,26 @@ private slots:
         QCOMPARE(spy.size(), 1);
     }
 
-    void paletteRejectsEmptyAndAvoidsDuplicateSignals()
+    void themeColorSeparatesPreviewFromPersistence()
     {
         Space space;
-        QSignalSpy spy(&space, &Space::themeChanged);
-        space.setThemePalette(QString());
-        space.setThemePalette(QStringLiteral("blue"));
-        QCOMPARE(spy.size(), 0);
-        space.setThemePalette(QStringLiteral("sunset"));
-        QCOMPARE(space.themePalette(), QStringLiteral("sunset"));
-        QCOMPARE(spy.size(), 1);
-    }
-
-    void themeColorsSeparatePersistenceAndDataSignals()
-    {
-        Space space;
-        const QVariantMap colors{{QStringLiteral("accent"), QStringLiteral("#ff0000")}};
-        QSignalSpy colorsSpy(&space, &Space::themeColorsChanged);
+        const QColor seed(QStringLiteral("#ff0000"));
+        QSignalSpy colorSpy(&space, &Space::themeColorChanged);
         QSignalSpy themeSpy(&space, &Space::themeChanged);
 
-        space.setThemeColors(colors, false);
-        QCOMPARE(space.themeColors(), colors);
-        QCOMPARE(colorsSpy.size(), 1);
+        space.setThemeColor(seed, false);
+        QCOMPARE(space.themeColor(), seed);
+        QCOMPARE(colorSpy.size(), 1);
         QCOMPARE(themeSpy.size(), 0);
 
-        space.setThemeColors(colors, true);
-        QCOMPARE(colorsSpy.size(), 1);
+        // saving what a preview already applied changes nothing visible
+        space.setThemeColor(seed, true);
+        QCOMPARE(colorSpy.size(), 1);
         QCOMPARE(themeSpy.size(), 1);
+
+        space.setThemeColor(QColor());
+        QVERIFY(!space.themeColor().isValid());
+        QCOMPARE(colorSpy.size(), 2);
     }
 
     void storagePathsUseConfiguredRoot()

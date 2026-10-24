@@ -8,7 +8,6 @@ Item {
     required property var logger
     required property var appMenu
     required property var shortcuts
-    required property var zoomIndicator
 
     signal settingsRequested
     signal commandBarRequested(string mode)   // "new" | "edit"
@@ -84,15 +83,6 @@ Item {
             root.browser.newTab("chrome://extensions/")
             return
 
-        case "view.zoomIn":
-            root.zoomIndicator.zoomBy(0.1)
-            return
-        case "view.zoomOut":
-            root.zoomIndicator.zoomBy(-0.1)
-            return
-        case "view.zoomReset":
-            root.zoomIndicator.zoomReset()
-            return
         case "view.toggleSidebar":
             root.sidebarToggleRequested()
             return

@@ -324,7 +324,6 @@ Window {
         logger: Logger
         appMenu: AppMenu
         shortcuts: Shortcuts
-            zoomIndicator: workspace.zoomIndicator
 
         onSettingsRequested: root.openSettings()
         onSpaceSwitchRequested: spaceId => {

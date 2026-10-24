@@ -35,21 +35,15 @@ void Space::setColor(const QColor &color)
     emit colorChanged();
 }
 
-void Space::setThemePalette(const QString &palette)
+void Space::setThemeColor(const QColor &color, bool persist)
 {
-    if (palette.isEmpty() || m_themePalette == palette)
-        return;
-    m_themePalette = palette;
-    emit themeChanged();
-}
-
-void Space::setThemeColors(const QVariantMap &colors, bool persist)
-{
-    if (m_themeColors != colors)
+    const QColor seed = color.isValid() ? color : QColor();
+    if (m_themeColor != seed)
     {
-        m_themeColors = colors;
-        emit themeColorsChanged();
+        m_themeColor = seed;
+        emit themeColorChanged();
     }
+    // a preview may already have applied the colour without saving it
     if (persist)
         emit themeChanged();
 }

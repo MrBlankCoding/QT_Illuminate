@@ -23,28 +23,6 @@ class TestBrowserController : public QObject
         return space;
     }
 
-private:
-    static QVariantMap colors(const QString &bg)
-    {
-        const QVariantMap roles{
-            {QStringLiteral("accent"), QStringLiteral("#345678")},
-            {QStringLiteral("bg"), bg},
-            {QStringLiteral("surface"), QStringLiteral("#222222")},
-            {QStringLiteral("surfaceHigh"), QStringLiteral("#333333")},
-            {QStringLiteral("sidebarBg"), QStringLiteral("#111111")},
-            {QStringLiteral("text"), QStringLiteral("#eeeeee")},
-            {QStringLiteral("textMuted"), QStringLiteral("#aaaaaa")},
-            {QStringLiteral("border"), QStringLiteral("#555555")},
-            {QStringLiteral("danger"), QStringLiteral("#ff0000")},
-            {QStringLiteral("progressBg"), QStringLiteral("#666666")},
-            {QStringLiteral("shadow"), QStringLiteral("#000000")}
-        };
-        return {
-            {QStringLiteral("dark"), roles},
-            {QStringLiteral("light"), roles}
-        };
-    }
-
 private slots:
     void initTestCase()
     {
@@ -61,44 +39,49 @@ private slots:
         QSettings().clear();
     }
 
-    void customThemesPersistAndCanBeEditedAndRemoved()
+    void themeColorPreviewsSavesAndResets()
     {
-        QString themeId;
-        {
-            std::unique_ptr<Space> space(makeSpace(QStringLiteral("theme-test"), QStringLiteral("Theme Test")));
-            BrowserController browser(space.get(), nullptr, m_dir.filePath(QStringLiteral("browser-settings.ini")));
-            themeId = browser.createCustomTheme(QStringLiteral("  Evening  "), colors(QStringLiteral("#101820")));
-            QVERIFY(!themeId.isEmpty());
-            QCOMPARE(browser.activeCustomThemeId(), themeId);
-            QCOMPARE(browser.customThemes().size(), 1);
-            QCOMPARE(browser.customThemes().first().toMap()
-                         .value(QStringLiteral("colors")).toMap()
-                         .value(QStringLiteral("dark")).toMap()
-                         .value(QStringLiteral("bg")).toString(),
-                     QStringLiteral("#101820"));
-        }
+        std::unique_ptr<Space> space(makeSpace(QStringLiteral("theme-test"), QStringLiteral("Theme Test")));
+        BrowserController browser(space.get(), nullptr, m_dir.filePath(QStringLiteral("browser-settings.ini")));
+        QSignalSpy colorSpy(&browser, &BrowserController::themeColorChanged);
+        QSignalSpy saveSpy(space.get(), &Space::themeChanged);
+        QVERIFY(!browser.themeColor().isValid());
 
-        {
-            std::unique_ptr<Space> space(makeSpace(QStringLiteral("theme-test"), QStringLiteral("Theme Test")));
-            BrowserController browser(space.get(), nullptr, m_dir.filePath(QStringLiteral("browser-settings.ini")));
-            QCOMPARE(browser.activeCustomThemeId(), themeId);
-            QCOMPARE(browser.customThemes().size(), 1);
-            QVERIFY(browser.updateCustomTheme(themeId, QStringLiteral("Night"), colors(QStringLiteral("#202830"))));
-            QCOMPARE(browser.customThemes().first().toMap().value(QStringLiteral("name")).toString(),
-                     QStringLiteral("Night"));
-            QCOMPARE(browser.customThemes().first().toMap()
-                         .value(QStringLiteral("colors")).toMap()
-                         .value(QStringLiteral("dark")).toMap()
-                         .value(QStringLiteral("bg")).toString(),
-                     QStringLiteral("#202830"));
-            browser.activateCustomTheme(QString());
-            QVERIFY(browser.activeCustomThemeId().isEmpty());
-            browser.activateCustomTheme(themeId);
-            browser.deleteCustomTheme(themeId);
-            QVERIFY(browser.customThemes().isEmpty());
-            QVERIFY(browser.activeCustomThemeId().isEmpty());
-        }
+        const QColor seed = QColor::fromHslF(0.3f, 0.8f, 0.5f);
+        browser.previewThemeColor(seed);
+        QCOMPARE(browser.themeColor(), seed);
+        QCOMPARE(colorSpy.size(), 1);
+        QCOMPARE(saveSpy.size(), 0);
+
+        // the release after a drag saves the colour the preview already shows
+        browser.setThemeColor(seed);
+        QCOMPARE(colorSpy.size(), 1);
+        QCOMPARE(saveSpy.size(), 1);
+
+        browser.setThemeColor(QColor());
+        QCOMPARE(browser.themeColor(), seed);
+
+        browser.resetThemeColor();
+        QVERIFY(!browser.themeColor().isValid());
+        QCOMPARE(colorSpy.size(), 2);
+        QCOMPARE(saveSpy.size(), 2);
+        browser.resetThemeColor();
+        QCOMPARE(colorSpy.size(), 2);
     }
+
+    void themeColorFollowsTheActiveSpace()
+    {
+        std::unique_ptr<Space> work(makeSpace(QStringLiteral("theme-work"), QStringLiteral("Work")));
+        std::unique_ptr<Space> play(makeSpace(QStringLiteral("theme-play"), QStringLiteral("Play")));
+        play->setThemeColor(QColor(QStringLiteral("#cc3366")));
+        BrowserController browser(work.get(), nullptr, m_dir.filePath(QStringLiteral("browser-settings.ini")));
+        QSignalSpy colorSpy(&browser, &BrowserController::themeColorChanged);
+
+        browser.setActiveSpace(play.get());
+        QCOMPARE(browser.themeColor(), QColor(QStringLiteral("#cc3366")));
+        QVERIFY(colorSpy.size() >= 1);
+    }
+
     void closingTheActiveTabDoesNotRequestAWindowClose()
     {
         std::unique_ptr<Space> space(makeSpace(QStringLiteral("close-test"), QStringLiteral("Close Test")));
@@ -115,15 +98,6 @@ private slots:
 
         QCOMPARE(browser.tabModel()->rowCount(), 2);
         QCOMPARE(closeSpy.size(), 0);
-    }
-
-    void invalidCustomThemeIsRejected()
-    {
-        std::unique_ptr<Space> space(makeSpace(QStringLiteral("invalid-theme-test"), QStringLiteral("Invalid Theme")));
-        BrowserController browser(space.get(), nullptr, m_dir.filePath(QStringLiteral("browser-settings.ini")));
-        QCOMPARE(browser.createCustomTheme(QStringLiteral("Invalid"), {}), QString());
-        QCOMPARE(browser.createCustomTheme(QStringLiteral(""), colors(QStringLiteral("#101820"))), QString());
-        QVERIFY(browser.customThemes().isEmpty());
     }
 
     void initialControllerHasAnInitialTab()

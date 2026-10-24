@@ -1,81 +1,55 @@
 pragma Singleton
 import QtQuick
 import QT_Illuminate.ui as UI
+import "ThemePalette.js" as ThemePalette
 
 QtObject {
     id: root
 
-    // theme mode: "system" | "dark" | "light"
+    // Appearance: "system" | "dark" | "light", global rather than per space
     readonly property string mode: (UI.Browser && UI.Browser.themeMode) ? UI.Browser.themeMode : "system"
     readonly property bool isDark: mode === "dark" || (mode === "system" && Application.styleHints.colorScheme === Qt.Dark)
     readonly property bool isMac: Qt.platform.os === "osx"
-    readonly property var paletteOptions: [
-        { id: "blue", name: qsTr("Blue"), dark: "#89b4fa", light: "#2563eb" },
-        { id: "violet", name: qsTr("Violet"), dark: "#cba6f7", light: "#7c3aed" },
-        { id: "green", name: qsTr("Green"), dark: "#a6e3a1", light: "#15803d" },
-        { id: "rose", name: qsTr("Rose"), dark: "#f38ba8", light: "#be123c" },
-        { id: "orange", name: qsTr("Orange"), dark: "#fab387", light: "#c2410c" },
-        { id: "teal", name: qsTr("Teal"), dark: "#80d4d2", light: "#168c91" },
-        { id: "amber", name: qsTr("Amber"), dark: "#efd074", light: "#a97805" },
-        { id: "indigo", name: qsTr("Indigo"), dark: "#aab4ff", light: "#4d5cce" },
-        { id: "coral", name: qsTr("Coral"), dark: "#ffab98", light: "#d85646" },
-        { id: "mint", name: qsTr("Mint"), dark: "#a1dec6", light: "#348e73" },
-        { id: "plum", name: qsTr("Plum"), dark: "#e2a6dc", light: "#a3439a" },
-        { id: "slate", name: qsTr("Slate"), dark: "#b5c3d5", light: "#62758c" }
+
+    // A theme is one seed colour per space: its hue, and how vivid it is.
+    // Everything below is derived from it by ThemePalette, so there is no
+    // per-role colour to store, validate or keep in step between modes.
+    // A space without a seed of its own uses the default.
+    readonly property color defaultSeed: Qt.hsla(0.62, 0.35, 0.5, 1)
+    readonly property bool hasCustomSeed: UI.Browser ? UI.Browser.themeColor.valid : false
+    readonly property color seed: hasCustomSeed ? UI.Browser.themeColor : defaultSeed
+
+    // the palette follows this rather than the seed, so a space switch or a
+    // new pick crossfades instead of snapping
+    property color animatedSeed: seed
+    Behavior on animatedSeed { ColorAnimation { duration: root.durationMid; easing.type: Easing.OutCubic } }
+
+    readonly property var presets: [
+        { id: "graphite", name: qsTr("Graphite"), seed: Qt.hsla(0.62, 0.00, 0.5, 1) },
+        { id: "slate",    name: qsTr("Slate"),    seed: Qt.hsla(0.60, 0.18, 0.5, 1) },
+        { id: "blue",     name: qsTr("Blue"),     seed: Qt.hsla(0.62, 0.35, 0.5, 1) },
+        { id: "indigo",   name: qsTr("Indigo"),   seed: Qt.hsla(0.67, 0.70, 0.5, 1) },
+        { id: "violet",   name: qsTr("Violet"),   seed: Qt.hsla(0.75, 0.75, 0.5, 1) },
+        { id: "plum",     name: qsTr("Plum"),     seed: Qt.hsla(0.85, 0.55, 0.5, 1) },
+        { id: "rose",     name: qsTr("Rose"),     seed: Qt.hsla(0.96, 0.80, 0.5, 1) },
+        { id: "coral",    name: qsTr("Coral"),    seed: Qt.hsla(0.02, 0.75, 0.5, 1) },
+        { id: "amber",    name: qsTr("Amber"),    seed: Qt.hsla(0.11, 0.85, 0.5, 1) },
+        { id: "green",    name: qsTr("Green"),    seed: Qt.hsla(0.38, 0.60, 0.5, 1) },
+        { id: "mint",     name: qsTr("Mint"),     seed: Qt.hsla(0.43, 0.45, 0.5, 1) },
+        { id: "teal",     name: qsTr("Teal"),     seed: Qt.hsla(0.50, 0.65, 0.5, 1) }
     ]
-    readonly property var selectedPalette: {
-        const selectedId = UI.Browser ? UI.Browser.themePalette : "blue";
-        for (let i = 0; i < paletteOptions.length; ++i) {
-            if (paletteOptions[i].id === selectedId)
-                return paletteOptions[i];
-        }
-        return paletteOptions[0];
-    }
-    readonly property var activeCustomColors: UI.Browser ? UI.Browser.activeThemeColors : ({})
-    readonly property var currentColorSet: root.colorSetFor(root.isDark)
 
-    function defaultColorSet(dark) {
-        return {
-            accent: dark ? selectedPalette.dark : selectedPalette.light,
-            bg: dark ? "#1e1e2e" : "#f5f5fa",
-            surface: dark ? "#2a2a3d" : "#e8e9f0",
-            surfaceHigh: dark ? "#33334d" : "#dbdce6",
-            sidebarBg: dark ? "#16161f" : "#e4e5ee",
-            text: dark ? "#cdd6f4" : "#1e1e2e",
-            textMuted: dark ? "#6e7291" : "#7c7f99",
-            border: dark ? "#3a3a55" : "#cfd1de",
-            danger: "#f38ba8",
-            progressBg: dark ? "#313244" : "#dadae8",
-            shadow: "#000000"
-        };
+    // for previews of a seed that is not the active one
+    function paletteFor(seedColor, dark) { return ThemePalette.paletteForSeed(seedColor, dark) }
+    function sameSeed(a, b) {
+        const va = ThemePalette.seedVividness(a), vb = ThemePalette.seedVividness(b)
+        if (va < 0.02 && vb < 0.02)
+            return true
+        const dh = Math.abs(ThemePalette.seedHue(a) - ThemePalette.seedHue(b))
+        return Math.min(dh, 1 - dh) < 0.01 && Math.abs(va - vb) < 0.02
     }
 
-    function colorSetFor(dark) {
-        const scheme = dark ? "dark" : "light";
-        const customSet = activeCustomColors ? activeCustomColors[scheme] : null;
-        return customSet || root.defaultColorSet(dark);
-    }
-
-    function snapshotColors() {
-        return {
-            dark: Object.assign({}, root.colorSetFor(true)),
-            light: Object.assign({}, root.colorSetFor(false))
-        };
-    }
-
-    readonly property var colorRoles: [
-        { key: "accent", label: qsTr("Accent") },
-        { key: "bg", label: qsTr("Page background") },
-        { key: "surface", label: qsTr("Surface") },
-        { key: "surfaceHigh", label: qsTr("Raised surface") },
-        { key: "sidebarBg", label: qsTr("Sidebar") },
-        { key: "text", label: qsTr("Text") },
-        { key: "textMuted", label: qsTr("Muted text") },
-        { key: "border", label: qsTr("Borders") },
-        { key: "danger", label: qsTr("Danger") },
-        { key: "progressBg", label: qsTr("Progress track") },
-        { key: "shadow", label: qsTr("Shadow") }
-    ]
+    readonly property var palette: ThemePalette.paletteForSeed(animatedSeed, isDark)
 
     // space avatar choices
     readonly property var avatarColors: [
@@ -83,36 +57,39 @@ QtObject {
         "#8A6CFF", "#69B578", "#D96ACF"
     ]
 
-    readonly property color accent:       currentColorSet.accent
-    readonly property color accentDim:    Qt.tint(accent, isDark ? "#40000000" : "#40ffffff")
-    readonly property color onAccent:     luma(accent) > 0.55 ? "#1e1e2e" : "#ffffff"
-
     function luma(c) { return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b }
 
-    // surfaces
-    readonly property color bg:          currentColorSet.bg
-    readonly property color surface:     currentColorSet.surface
-    readonly property color surfaceHigh: currentColorSet.surfaceHigh
+    readonly property color accent:      palette.accent
+    readonly property color onAccent:    palette.onAccent
+    // a wash of the accent: selection, highlighted rows; normal text sits on it
+    readonly property color accentDim:   Qt.alpha(accent, isDark ? 0.28 : 0.20)
 
-    // sidebar: the window background, which also shows around the content card
-    readonly property color sidebarBg:   currentColorSet.sidebarBg
-    readonly property color itemHover:   Qt.alpha(accent, isDark ? 0.08 : 0.06)
-    readonly property color itemPressed: Qt.alpha(accent, isDark ? 0.14 : 0.11)
-    readonly property color itemActive:  Qt.tint(surface, Qt.alpha(accent, isDark ? 0.20 : 0.12))
-    readonly property color itemActiveBorder: Qt.alpha(accent, 0.25)
-    readonly property color fieldBg:     Qt.alpha(text, isDark ? 0.07 : 0.05)
+    // surfaces, from the page outward
+    readonly property color bg:          palette.bg
+    readonly property color surface:     palette.surface
+    readonly property color surfaceHigh: palette.surfaceHigh
+
+    // sidebar: the window background, which also shows around the content card.
+    // Item states are neutral overlays so they read on any seed; the active
+    // item is a lifted pill of the sidebar colour.
+    readonly property color sidebarBg:   palette.sidebarBg
+    readonly property color itemHover:   Qt.alpha(text, isDark ? 0.07 : 0.055)
+    readonly property color itemPressed: Qt.alpha(text, isDark ? 0.12 : 0.10)
+    readonly property color itemActive:  Qt.tint(sidebarBg, Qt.alpha("#ffffff", isDark ? 0.10 : 0.62))
+    readonly property color itemActiveBorder: Qt.alpha(isDark ? "#ffffff" : "#000000", 0.06)
+    readonly property color fieldBg:     Qt.alpha(text, isDark ? 0.07 : 0.06)
 
     // the rounded card the page sits in
     readonly property color cardBg:      bg
-    readonly property color cardBorder:  Qt.alpha(border, isDark ? 0.24 : 0.42)
-    readonly property color shadow:      Qt.alpha(currentColorSet.shadow, isDark ? 0.55 : 0.16)
+    readonly property color cardBorder:  Qt.alpha(border, isDark ? 0.60 : 0.55)
+    readonly property color shadow:      Qt.alpha("#000000", isDark ? 0.50 : 0.16)
 
-    readonly property color text:        currentColorSet.text
-    readonly property color textMuted:   currentColorSet.textMuted
-    readonly property color border:      currentColorSet.border
+    readonly property color text:        palette.text
+    readonly property color textMuted:   palette.textMuted
+    readonly property color border:      palette.border
 
-    readonly property color danger:       currentColorSet.danger
-    readonly property color progressBg:   currentColorSet.progressBg
+    readonly property color danger:      palette.danger
+    readonly property color progressBg:  palette.progressBg
 
     // spacing: 4px grid
     readonly property int space1: 4

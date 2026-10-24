@@ -66,7 +66,7 @@ ApplicationWindow {
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         width: Theme.isMac ? 190 : 168
-        color: Theme.surface
+        color: Theme.sidebarBg
 
         Rectangle {
             anchors.top: parent.top

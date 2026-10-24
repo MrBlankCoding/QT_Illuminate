@@ -2,24 +2,14 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QT_Illuminate.ui
 
-// One rebindable shortcut. Click or Tab to it, then press the new combination.
-// Backspace restores the default, Escape backs out, and a combination that
-// already belongs to another command is refused rather than silently shadowing
-// it. Every key is consumed while listening so the settings window itself never
-// reacts to what is being recorded.
 FocusScope {
     id: root
 
     required property string commandId
-
-    // listening for the next combination
     property bool capturing: false
-    // a refused binding, shown in place of the sequence until the next attempt
     property string message: ""
     property bool conflicted: false
-
-    // displaySequence() is an invokable; reading the notifying bindings map
-    // first is what makes this re-evaluate when any shortcut is rebound
+    
     readonly property string sequence: Shortcuts.bindings[root.commandId] !== undefined
         ? Shortcuts.displaySequence(root.commandId) : ""
 

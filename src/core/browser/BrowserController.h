@@ -35,10 +35,8 @@ class BrowserController : public QObject, public ExternalQmlSingleton<BrowserCon
     Q_PROPERTY(bool activeLoading READ activeLoading NOTIFY activeLoadingChanged)
     Q_PROPERTY(int activeProgress READ activeProgress NOTIFY activeProgressChanged)
     Q_PROPERTY(QString themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
-    Q_PROPERTY(QString themePalette READ themePalette WRITE setThemePalette NOTIFY themePaletteChanged)
-    Q_PROPERTY(QVariantList customThemes READ customThemes NOTIFY customThemesChanged)
-    Q_PROPERTY(QString activeCustomThemeId READ activeCustomThemeId NOTIFY activeCustomThemeChanged)
-    Q_PROPERTY(QVariantMap activeThemeColors READ activeThemeColors NOTIFY activeCustomThemeChanged)
+    // the active space's theme seed; invalid when it uses the default theme
+    Q_PROPERTY(QColor themeColor READ themeColor NOTIFY themeColorChanged)
     Q_PROPERTY(bool firstRun READ isFirstRun NOTIFY firstRunChanged)
     Q_PROPERTY(CefProfile *webProfile READ webProfile NOTIFY spaceChanged)
     Q_PROPERTY(Space *space READ space NOTIFY spaceChanged)
@@ -62,11 +60,7 @@ public:
     int activeProgress() const;
     QString themeMode() const;
     void setThemeMode(const QString &mode);
-    QString themePalette() const;
-    void setThemePalette(const QString &palette);
-    QVariantList customThemes() const;
-    QString activeCustomThemeId() const;
-    QVariantMap activeThemeColors() const;
+    QColor themeColor() const;
     bool isFirstRun() const;
     CefProfile *webProfile() const;
     bool chromeStyle() const;
@@ -96,13 +90,10 @@ public:
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
     Q_INVOKABLE void saveSession() const;
-    Q_INVOKABLE QString createCustomTheme(const QString &name, const QVariantMap &colors);
-    Q_INVOKABLE bool updateCustomTheme(const QString &id, const QString &name, const QVariantMap &colors);
-    Q_INVOKABLE void deleteCustomTheme(const QString &id);
-    Q_INVOKABLE void activateCustomTheme(const QString &id);
-    Q_INVOKABLE void setSpaceThemeColors(const QVariantMap &colors);
-    Q_INVOKABLE void previewSpaceThemeColors(const QVariantMap &colors);
-    Q_INVOKABLE void resetSpaceTheme();
+    Q_INVOKABLE void setThemeColor(const QColor &color);
+    // applies without saving; a later setThemeColor (or reset) saves
+    Q_INVOKABLE void previewThemeColor(const QColor &color);
+    Q_INVOKABLE void resetThemeColor();
     // true when closing the window should ask first (preference + tab count)
     Q_INVOKABLE bool confirmCloseRequired() const;
     Q_INVOKABLE void onTitleChanged(int tabIndex, const QString &title);
@@ -133,9 +124,7 @@ signals:
     void activeProgressChanged();
     void firstRunChanged();
     void themeModeChanged();
-    void themePaletteChanged();
-    void customThemesChanged();
-    void activeCustomThemeChanged();
+    void themeColorChanged();
     void newTabOpened(); // UI opens the command bar for a requested new tab
     void loadRequested(const QString &tabId, const QUrl &url);
     void navigationRequested(const QString &tabId, const QString &action); // "back"|"forward"|"reload"|"devtools"

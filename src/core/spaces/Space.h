@@ -4,7 +4,6 @@
 #include <QColor>
 #include <QObject>
 #include <QString>
-#include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
 class Space : public QObject
@@ -17,8 +16,8 @@ class Space : public QObject
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
     Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY colorChanged)
     Q_PROPERTY(QString initial READ initial NOTIFY nameChanged)
-    Q_PROPERTY(QString themePalette READ themePalette WRITE setThemePalette NOTIFY themeChanged)
-    Q_PROPERTY(QVariantMap themeColors READ themeColors WRITE setThemeColors NOTIFY themeColorsChanged)
+    // the seed the UI derives its theme from; invalid means the default theme
+    Q_PROPERTY(QColor themeColor READ themeColor NOTIFY themeColorChanged)
 
 public:
     explicit Space(QObject *parent = nullptr);
@@ -30,10 +29,9 @@ public:
 
     QColor color() const { return m_color; }
     void setColor(const QColor &color);
-    QString themePalette() const { return m_themePalette; }
-    void setThemePalette(const QString &palette);
-    QVariantMap themeColors() const { return m_themeColors; }
-    void setThemeColors(const QVariantMap &colors, bool persist = true);
+    QColor themeColor() const { return m_themeColor; }
+    // persist: false while previewing, so a drag does not save on every move
+    void setThemeColor(const QColor &color, bool persist = true);
 
     QString initial() const
     {
@@ -57,15 +55,15 @@ public:
 signals:
     void nameChanged();
     void colorChanged();
+    void themeColorChanged();
+    // the theme is ready to be saved
     void themeChanged();
-    void themeColorsChanged();
 
 private:
     QString m_id;
     QString m_name;
     QColor m_color;
-    QString m_themePalette = QStringLiteral("blue");
-    QVariantMap m_themeColors;
+    QColor m_themeColor;
     QString m_storageDir;
 };
 
