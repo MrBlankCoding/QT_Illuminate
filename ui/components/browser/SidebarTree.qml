@@ -382,9 +382,13 @@ Item {
                                     Item {
                                         Layout.preferredWidth: 16
                                         Layout.preferredHeight: 16
+                                        readonly property bool showMemberIcon: splitMember.memberIconUrl !== ""
+                                            && !splitMember.memberIconUrl.startsWith("chrome:")
+                                            && !splitMember.memberIconUrl.startsWith("about:")
+                                            && !splitMember.faviconFailed
                                         Image {
                                             anchors.fill: parent
-                                            visible: splitMember.memberIconUrl !== "" && !splitMember.faviconFailed
+                                            visible: parent.showMemberIcon
                                             source: visible ? splitMember.memberIconUrl : ""
                                             sourceSize.width: 32
                                             sourceSize.height: 32
@@ -394,7 +398,7 @@ Item {
                                         }
                                         LucideIcon {
                                             anchors.centerIn: parent
-                                            visible: splitMember.memberIconUrl === "" || splitMember.faviconFailed
+                                            visible: !parent.showMemberIcon
                                             source: "qrc:/QT_Illuminate/ui/icons/globe.svg"
                                             size: 14
                                             color: Theme.textMuted

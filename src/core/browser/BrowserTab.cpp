@@ -1,4 +1,5 @@
 #include "BrowserTab.h"
+#include "InternalPageManager.h"
 
 #include "CefBrowserWrapper.h"
 
@@ -37,10 +38,13 @@ void BrowserTab::setTitle(const QString &title)
 
 void BrowserTab::setIconUrl(const QString &iconUrl)
 {
-    if (m_iconUrl == iconUrl)
+    const QString sanitized = iconUrl.startsWith(QLatin1String("chrome:"), Qt::CaseInsensitive)
+        ? InternalPageManager::iconUrl(m_url.toString())
+        : iconUrl;
+    if (m_iconUrl == sanitized)
         return;
-    m_iconUrl = iconUrl;
-    emit iconUrlChanged(iconUrl);
+    m_iconUrl = sanitized;
+    emit iconUrlChanged(sanitized);
 }
 
 void BrowserTab::setProgress(int progress)

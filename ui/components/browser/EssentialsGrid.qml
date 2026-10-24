@@ -76,14 +76,19 @@ Item {
             Behavior on color { ColorAnimation { duration: Theme.durationFast } }
             Behavior on scale { NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic } }
 
+            readonly property bool showBookmarkIcon: tile.bookmarkIconUrl !== ""
+                && !tile.bookmarkIconUrl.startsWith("chrome:")
+                && !tile.bookmarkIconUrl.startsWith("about:")
+                && !tile.iconFailed
+
             Image {
                 anchors.centerIn: parent
                 width: 18
                 height: 18
                 sourceSize.width: 36
                 sourceSize.height: 36
-                source: tile.iconFailed ? "" : tile.bookmarkIconUrl
-                visible: tile.bookmarkIconUrl !== "" && !tile.iconFailed
+                source: tile.showBookmarkIcon ? tile.bookmarkIconUrl : ""
+                visible: tile.showBookmarkIcon
                 asynchronous: true
                 fillMode: Image.PreserveAspectFit
                 onStatusChanged: if (status === Image.Error) tile.iconFailed = true
@@ -93,7 +98,7 @@ Item {
                 anchors.centerIn: parent
                 width: 18
                 height: 18
-                visible: tile.bookmarkIconUrl === "" || tile.iconFailed
+                visible: !tile.showBookmarkIcon
                 url: tile.bookmarkUrl
                 title: tile.bookmarkTitle
             }

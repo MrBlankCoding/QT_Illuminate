@@ -52,19 +52,24 @@ Item {
             spacing: Theme.space2 + 2
             Item {
                 id: faviconBox
+                objectName: "faviconBox"
                 Layout.preferredWidth: Theme.faviconSize
                 Layout.preferredHeight: Theme.faviconSize
                 Layout.alignment: Qt.AlignVCenter
                 // sleeping tabs read as dimmed
                 opacity: root.tabSuspended ? 0.45 : 1
 
-                readonly property bool showFavicon: root.tabIconUrl !== "" && !root.faviconFailed
+                readonly property bool showFavicon: root.tabIconUrl !== ""
+                    && !root.tabIconUrl.startsWith("chrome:")
+                    && !root.tabIconUrl.startsWith("about:")
+                    && !root.tabIconUrl.startsWith("javascript:")
+                    && !root.faviconFailed
 
                 Image {
                     anchors.fill: parent
                     sourceSize.width: Theme.faviconSize * 2
                     sourceSize.height: Theme.faviconSize * 2
-                    source: root.faviconFailed ? "" : root.tabIconUrl
+                    source: faviconBox.showFavicon ? root.tabIconUrl : ""
                     visible: !root.tabLoading && faviconBox.showFavicon
                     fillMode: Image.PreserveAspectFit
                     smooth: true

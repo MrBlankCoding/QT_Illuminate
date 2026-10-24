@@ -207,7 +207,13 @@ Item {
                 onLoadProgressChanged: function (p) { if (tabSlot.browserContext) tabSlot.browserContext.updateTabProgress(webView.ownerTabId, p) }
                 onRenderProcessPidChanged: tabSlot.syncRenderPid()
                 onTitleChanged: if (tabSlot.browserContext) tabSlot.browserContext.updateTabTitle(webView.ownerTabId, webView.title)
-                onIconChanged: if (tabSlot.browserContext) tabSlot.browserContext.updateTabIcon(webView.ownerTabId, webView.icon.toString())
+                onIconChanged: {
+                    if (!tabSlot.browserContext)
+                        return;
+                    const bundled = InternalPages.iconUrl(tabSlot.tabUrl);
+                    const icon = webView.icon.toString();
+                    tabSlot.browserContext.updateTabIcon(webView.ownerTabId, icon !== "" ? icon : bundled);
+                }
 
                 onNewWindowRequested: function (url) {
                     if (tabSlot.browserContext)

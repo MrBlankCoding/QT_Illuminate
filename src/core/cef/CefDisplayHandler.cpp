@@ -4,6 +4,7 @@
 #include "../utils/BrowserLogger.h"
 
 #include <QMetaObject>
+#include <QUrl>
 
 namespace
 {
@@ -11,10 +12,24 @@ namespace
     // fall back to globe on sites with no favicon
     bool isDecodableUrl(const QString &url)
     {
-        if (!url.startsWith(QLatin1String("data:")))
-            return !url.isEmpty();
-        const qsizetype comma = url.indexOf(QLatin1Char(','));
-        return comma >= 0 && comma < url.size() - 1;
+        if (url.isEmpty())
+            return false;
+
+        if (url.startsWith(QLatin1String("data:"), Qt::CaseInsensitive))
+        {
+            const qsizetype comma = url.indexOf(QLatin1Char(','));
+            return comma >= 0 && comma < url.size() - 1;
+        }
+
+        const QUrl parsed(url);
+        if (!parsed.isValid())
+            return false;
+
+        const QString scheme = parsed.scheme().toLower();
+        return scheme == QLatin1String("http") ||
+               scheme == QLatin1String("https") ||
+               scheme == QLatin1String("qrc") ||
+               scheme == QLatin1String("file");
     }
 }
 

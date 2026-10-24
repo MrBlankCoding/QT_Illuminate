@@ -88,7 +88,7 @@ Item {
                                             anchors.fill: parent
                                             sourceSize.width: 32
                                             sourceSize.height: 32
-                                            source: row.kind === "tab" ? row.iconUrl : ""
+                                            source: (row.kind === "tab" || row.kind === "bookmark") && row.iconUrl !== "" && !row.iconUrl.startsWith("chrome:") && !row.iconUrl.startsWith("about:") ? row.iconUrl : ""
                                             visible: status === Image.Ready
                                             asynchronous: true
                                             onStatusChanged: {

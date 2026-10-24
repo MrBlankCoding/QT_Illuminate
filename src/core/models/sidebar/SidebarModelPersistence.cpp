@@ -110,6 +110,7 @@ void SidebarModel::load(const QString &filePath, bool restoreTabs)
             node->id = tab->id();
             tab->setTitle(node->title);
             tab->setIconUrl(node->iconUrl);
+            node->iconUrl = tab->iconUrl();
         }
         m_nodes.insert(node->id, node.get());
 

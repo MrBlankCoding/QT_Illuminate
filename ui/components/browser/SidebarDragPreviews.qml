@@ -28,10 +28,13 @@ Item {
             Item {
                 Layout.preferredWidth: 18
                 Layout.preferredHeight: 18
+                readonly property bool hasValidIcon: tree.dragSplitMemberIcon !== ""
+                    && !tree.dragSplitMemberIcon.startsWith("chrome:")
+                    && !tree.dragSplitMemberIcon.startsWith("about:")
                 Image {
                     id: splitPreviewIcon
                     anchors.fill: parent
-                    visible: tree.dragSplitMemberIcon !== ""
+                    visible: parent.hasValidIcon && !failed
                     source: visible ? tree.dragSplitMemberIcon : ""
                     sourceSize.width: 36
                     sourceSize.height: 36
@@ -42,7 +45,7 @@ Item {
                 }
                 LucideIcon {
                     anchors.centerIn: parent
-                    visible: tree.dragSplitMemberIcon === "" || splitPreviewIcon.failed
+                    visible: !parent.hasValidIcon || splitPreviewIcon.failed
                     source: "qrc:/QT_Illuminate/ui/icons/globe.svg"
                     size: 15
                     color: Theme.textMuted
@@ -92,11 +95,14 @@ Item {
             Item {
                 Layout.preferredWidth: Theme.faviconSize
                 Layout.preferredHeight: Theme.faviconSize
+                readonly property bool hasValidIcon: tree.dragIconUrl !== ""
+                    && !tree.dragIconUrl.startsWith("chrome:")
+                    && !tree.dragIconUrl.startsWith("about:")
 
                 Image {
                     id: dragPreviewIcon
                     anchors.fill: parent
-                    visible: tree.dragKind === "tab" && tree.dragIconUrl !== ""
+                    visible: tree.dragKind === "tab" && parent.hasValidIcon && !failed
                     source: visible ? tree.dragIconUrl : ""
                     sourceSize.width: Theme.faviconSize * 2
                     sourceSize.height: Theme.faviconSize * 2
@@ -109,7 +115,7 @@ Item {
                 LucideIcon {
                     anchors.centerIn: parent
                     visible: tree.dragKind === "folder"
-                             || (tree.dragKind === "tab" && (tree.dragIconUrl === "" || dragPreviewIcon.failed))
+                             || (tree.dragKind === "tab" && (!parent.hasValidIcon || dragPreviewIcon.failed))
                     size: 16
                     source: tree.dragKind === "folder"
                             ? "qrc:/QT_Illuminate/ui/icons/folder.svg"

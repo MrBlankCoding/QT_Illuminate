@@ -66,6 +66,17 @@ Item {
             compare(tab.tabLoading, true)
         }
 
+        function test_chromeIconUrlDoesNotAttemptImageLoad() {
+            let tab = createTemporaryObject(tabItemComponent, root, {
+                model: { title: "Settings", url: "chrome://settings", iconUrl: "chrome://theme/IDR_SETTINGS_FAVICON", loading: false, suspended: false }
+            })
+            verify(!!tab, "Component exists")
+            compare(tab.tabTitle, qsTr("Settings"))
+            let faviconBox = findChild(tab, "faviconBox")
+            verify(!!faviconBox, "faviconBox exists")
+            compare(faviconBox.showFavicon, false)
+        }
+
         function test_isActiveToggles() {
             let tab = createTemporaryObject(tabItemComponent, root)
             verify(!!tab, "Component exists")

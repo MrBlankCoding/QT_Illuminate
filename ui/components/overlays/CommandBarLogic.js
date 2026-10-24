@@ -114,25 +114,60 @@ function buildResults(context) {
     });
 
     const bookmarkRows = [];
-    const searchRows = [];
-    const seen = {};
-    for (const suggestion of context.suggestions) {
-        if (suggestion.isBookmark) {
-            if (isInternalUrl(suggestion.url, context.internalSchemes) || tabUrls[suggestion.url])
+    const bookmarkUrls = {};
+    if (context.bookmarks && typeof context.bookmarks.count === "number") {
+        const bookmarkHits = [];
+        for (let i = 0; i < context.bookmarks.count; ++i) {
+            const bm = context.bookmarks.itemAt(i);
+            if (!bm)
                 continue;
-            bookmarkRows.push(makeRow("bookmark", "bookmark:" + suggestion.url, {
-                title: suggestion.text, subtitle: suggestion.url, dest: suggestion.url, url: suggestion.url
+            const bUrl = String(bm.url || "");
+            if (bUrl === "" || isInternalUrl(bUrl, context.internalSchemes) || tabUrls[bUrl])
+                continue;
+            const bTitle = String(bm.title || "");
+            const score = Math.max(matchScore(bTitle, query), matchScore(stripScheme(bUrl), query));
+            if (score > 0) {
+                bookmarkHits.push({
+                    score: score,
+                    order: bookmarkHits.length,
+                    title: bTitle,
+                    url: bUrl,
+                    iconUrl: String(bm.iconUrl || "")
+                });
+            }
+        }
+        bookmarkHits.sort((a, b) => b.score - a.score || a.order - b.order);
+        for (let i = 0; i < Math.min(3, bookmarkHits.length); ++i) {
+            const hit = bookmarkHits[i];
+            bookmarkUrls[hit.url] = true;
+            bookmarkRows.push(makeRow("bookmark", "bookmark:" + hit.url, {
+                title: hit.title, subtitle: hit.url, dest: hit.url, url: hit.url, iconUrl: hit.iconUrl
             }));
-        } else {
-            const key = suggestion.text.toLowerCase();
-            if (key === query || seen[key] || isInternalUrl(suggestion.text, context.internalSchemes))
-                continue;
-            seen[key] = true;
-            searchRows.push(makeRow("suggest", "suggest:" + key, { title: suggestion.text, dest: suggestion.text }));
         }
     }
 
-    const local = actionRows.concat(tabRows, bookmarkRows.slice(0, 2)).slice(0, context.maxRows - 3);
+    const searchRows = [];
+    const seen = {};
+    if (context.suggestions) {
+        for (const suggestion of context.suggestions) {
+            if (suggestion.isBookmark) {
+                if (isInternalUrl(suggestion.url, context.internalSchemes) || tabUrls[suggestion.url] || bookmarkUrls[suggestion.url])
+                    continue;
+                bookmarkUrls[suggestion.url] = true;
+                bookmarkRows.push(makeRow("bookmark", "bookmark:" + suggestion.url, {
+                    title: suggestion.text, subtitle: suggestion.url, dest: suggestion.url, url: suggestion.url, iconUrl: String(suggestion.iconUrl || "")
+                }));
+            } else {
+                const key = suggestion.text.toLowerCase();
+                if (key === query || seen[key] || isInternalUrl(suggestion.text, context.internalSchemes))
+                    continue;
+                seen[key] = true;
+                searchRows.push(makeRow("suggest", "suggest:" + key, { title: suggestion.text, dest: suggestion.text }));
+            }
+        }
+    }
+
+    const local = actionRows.concat(tabRows, bookmarkRows.slice(0, 3)).slice(0, context.maxRows - 2);
     const suggestions = searchRows.slice(0, context.maxRows - 1 - local.length);
     return [go].concat(local, suggestions);
 }

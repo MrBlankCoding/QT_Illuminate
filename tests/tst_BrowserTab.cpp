@@ -123,6 +123,19 @@ private slots:
         tab.copy();
         QCOMPARE(tab.progress(), 0);
     }
+
+    void chromeIconUrlIsSanitized()
+    {
+        BrowserTab tab;
+        tab.setUrl(QUrl(QStringLiteral("chrome://settings")));
+        tab.setIconUrl(QStringLiteral("chrome://theme/IDR_SETTINGS_FAVICON"));
+        QCOMPARE(tab.iconUrl(), QStringLiteral("qrc:/QT_Illuminate/ui/icons/globe.svg"));
+
+        BrowserTab extTab;
+        extTab.setUrl(QUrl(QStringLiteral("https://example.com")));
+        extTab.setIconUrl(QStringLiteral("chrome://favicon/https://example.com"));
+        QCOMPARE(extTab.iconUrl(), QString());
+    }
 };
 
 QTEST_GUILESS_MAIN(TestBrowserTab)
